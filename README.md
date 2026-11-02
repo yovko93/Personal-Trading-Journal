@@ -45,7 +45,7 @@ The guiding principle is simple: **process quality and financial outcome are sep
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
-The CI badge tracks `main`; it does not certify every development change. See the [CI #109 menu-readiness diagnosis](docs/ci-menu-readiness.md) for the tested source, exact failing operation, local reruns and remaining evidence gaps. Historical milestone results are retained in the [development history](docs/development-history.md).
+The CI badge tracks `main`; it does not certify every development change. Notebook overflow mouse-readiness failures now retain best-effort boundary snapshots in the CI test artifacts; the intermittent cause remains unresolved. See the [CI #109 menu-readiness diagnosis](docs/ci-menu-readiness.md) for snapshot fields and locations, focused verification and remaining evidence gaps. Historical milestone results are retained in the [development history](docs/development-history.md).
 
 ## Features
 

@@ -2,14 +2,67 @@
 
 ## Current status — 2 November 2026
 
-**Intermittent failure, unresolved cause; not fixed.** The exact failing case passed unchanged locally. All menu parameterizations and related tag-menu/layout regressions also passed. No production, fixture, input policy, assertion, timeout, concurrency or branding change was justified. No complete gate or hosted rerun was triggered because there was no verified correction.
+**Intermittent failure, unresolved cause; not fixed.** The exact failing case originally passed unchanged locally. All menu parameterizations and related tag-menu/layout regressions also passed. Failure-only diagnostic instrumentation has since been added; no corrective change to production, native input, readiness requirements, deadlines, concurrency or branding is justified. No complete gate or hosted rerun was triggered by this diagnostic-only task.
 
 The hosted result remains **5,534 passed / 1 failed / 0 skipped**, exit 1. The failed parent and its matching failed isolated child describe **one failed top-level case**, not two.
+
+## Failure-boundary instrumentation — 2 November 2026
+
+The overflow theory now writes an **unconditional, failure-only** JSON snapshot when its unchanged readiness predicate is false at the existing three-second deadline. It does not require `PTJ_NOTEBOOK_MENU_DIAGNOSTICS`. Passing observations do not collect or write this snapshot. The existing input sequence and optional observations remain available.
+
+Artifact path within the existing `windows-test-results` CI upload:
+
+```text
+release-<timestamp>-<id>/exclusive-wpf/
+  notebook-menus-<timestamp>-<id>/menu-evidence/
+    readiness-failure-<testhost-pid>-<id>.json
+    input-sequence.log
+```
+
+The terminal timer observation supplies the timestamp, intended point, settled flag and elapsed readiness time. Collection runs synchronously immediately after the nested readiness frame returns, before timer/fixture/popup/window cleanup, with no additional dispatcher work. `capturedAtUtc` identifies the subsequent sequential read; native desktop state can still change externally during that read. The original readiness assertion and message then run, before any mouse injection or duplicate-command assertion.
+
+The bounded snapshot includes:
+
+| Evidence | Fields |
+| --- | --- |
+| Identity and provenance | Exact theory display name, child testhost PID, managed thread, theme, logical viewport width/height, fixture window position/size, fixture DPI, assembly informational version (SDK source revision when available), `GITHUB_SHA` and run ID when available |
+| Coordinates and DPI | Intended floating-point screen point and integer injection point, native cursor read success/readback, all four target screen corners, render size, cursor coordinates in the target and popup root, target DPI scale, presentation-source transforms to/from device pixels, per-HWND native DPI |
+| Target and input | Loaded, visibility, visible, enabled, hit-test visible, valid measure/arrange, `IsMouseOver`, `IsMouseDirectlyOver`, `Mouse.DirectlyOver`, `Mouse.Captured`, left-button state, active mouse source and native capture for the current thread |
+| WPF hit testing | Input and visual hit at the **read-back cursor**, using the target's presentation root (the popup root for menu items), with visual ancestry including names, visibility, enabled/hit-test state, opacity and render transforms |
+| Native windows | Expected HWND, HWND at the intended point and at the native cursor, foreground and fixture HWNDs; each includes PID/TID, window class, owner HWND/PID/TID, root/root-owner handles, rectangle/read success and DPI |
+| Popup and lifetime | ContextMenu open/loaded/visible, placement, offsets and placement target; Popup open/loaded, animation, stays-open, placement, child and target; fixture activation and dispatcher shutdown state |
+
+Fixture DPI is the theory parameter, **not** a claim about the actual desktop scale. The assembly version and hosted SHA provide provenance without spawning a Git process; an informational-version revision alone does not certify uncommitted changes. Missing/failed field reads are marked `unavailable: <exception type>` where possible. Ancestry is capped at 24 nodes, field strings at 4,096 characters, and each failure writes one local JSON file with no retries. There is no window activation, cursor movement, capture release, input synthesis, layout update, dispatcher pump or asynchronous fallback in collection. Capture/serialization/directory/write errors are swallowed at the diagnostic boundary; final input-log writes are also guarded so diagnostic I/O cannot mask the assertion or stop normal fixture cleanup. A failed write can leave no/partial artifact; this is best-effort evidence, not a replacement acceptance condition.
+
+### Instrumentation verification
+
+Local evidence is retained under `TestResults/readiness-diagnostics/`. Release build: **0 warnings / 0 errors** (`build.log`).
+
+| Selection | Result |
+| --- | --- |
+| Diagnostic contract probes | **5 passed / 0 failed / 0 skipped**, plus 1 matching isolated popup child passed (`probes-verified/`) |
+| Exact Dark/1280/96 overflow theory | **1 parent and 1 matching isolated child passed** (`exact/`) |
+| All overflow theories, tag-menu cases and layout/crop regressions | **11 passed / 0 failed / 0 skipped**, plus 6 matching native children passed (4 overflow + 2 tags; `focused/`) |
+| Final combined selection after explicit viewport dimensions were added | **16 passed / 0 failed / 0 skipped**, plus 7 matching isolated children passed (`final/`; 6 native menu cases + 1 diagnostic popup probe) |
+
+Final source verification command (the complete Release gate was not invoked):
+
+```powershell
+dotnet build PersonalTradingJournal.sln -c Release --no-restore
+$env:PTJ_TEST_RESULTS_DIRECTORY = Join-Path $PWD 'TestResults/readiness-diagnostics/final'
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~NotebookMouseReadinessEvidenceTests|FullyQualifiedName~OverflowTriggersToggleThroughNativeMouseAndOwnedKeyboard|FullyQualifiedName~TagMenuRoutedToggleDismissalAndCapturedOwnership|FullyQualifiedName~NotebookMenuLayoutTests' --logger trx --results-directory TestResults/readiness-diagnostics/final
+```
+
+The controlled popup probe deliberately supplies a false readiness result to exercise the failure path; it does **not** reproduce the intermittent CI condition. It verifies the original assertion type/message, snapshot content while the menu is still open, unchanged cursor/capture/foreground/mouse-over source, no processed input, and a queued dispatcher sentinel remaining unprocessed throughout collection. Separate probes inject capture and write exceptions and an actual directory-creation failure; each retains the original readiness assertion and executes cleanup. Successful readiness never invokes collection.
+
+During probe development, the new popup test completed its assertions but timed out in dispatcher cleanup (`probes/`, `probes-final/`, `probe-dump/`). A retained targeted dump (`probe-cleanup.dmp`, `probe-cleanup-stacks.log`) shows WPF destroying its popup HWND/releasing capture during shutdown, then waiting in `PenThreadWorker.WorkerGetTabletsInfo`. The probe now cancels its queued sentinel and allows **its own popup close** to finish in bounded teardown before shutting down the dispatcher. Final probe results above pass. This test-only setup/teardown correction changes no existing menu deadline or input behavior and establishes no cause for the original CI readiness failure.
+
+No complete Release gate was repeated, and no hosted failure-boundary snapshot has yet been observed. The new local snapshots belong to controlled diagnostic probes; passing native menu reruns do not explain the original managed mouse-over failure. Branding assets and behavior remain unchanged; native branding/Explorer/taskbar/screen-reader acceptance stays pending.
 
 ## Tested source and retained evidence
 
 - [CI run #109](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/41446986433), attempt 1, PR #27, job `125282451335`.
-- Branch/current clean checkout: `bc083bc31ead006e8fb6fdcf493cff2ee017ff25` (approved Bull and Bear artwork).
+- Checkout at the original investigation: `bc083bc31ead006e8fb6fdcf493cff2ee017ff25` (approved Bull and Bear artwork). Instrumentation was added on base `d595acef90cacb4b0c2755c3e714aedc17f69b48`.
 - Job checkout tested merge `5280345666314ebb899de38daa4b342718801c1b`. The GitHub comparison against the current checkout reports **zero changed files**. Source mapping below therefore applies to the exact tested file, not an assumed line match.
 - Artifact `13144086450`, `windows-test-results`, downloaded read-only. ZIP SHA-256 `07847D092A36B4146F873A153F661ADC706C65CFFC90C09F5E3BED9C66731C2B` matches the published digest.
 - Evidence root: `TestResults/ci109-menu/` (ignored local artifacts). It retains the supplied attachment, complete job log, provenance, verified ZIP/extraction, child result/stack JSON, exact and focused reruns, and native input traces.
@@ -79,6 +132,6 @@ Reproduction used the existing Release binaries; no new build result is claimed 
 
 ## Next evidence needed
 
-If this case fails again, retain its native readiness boundary with the existing optional menu diagnostics enabled, including WPF hit target, item/layout bounds, cursor readback, expected/actual HWND process/class, foreground, numeric DPI and capture/popup state. Collect within the current deadlines and preserve the actual native-click/toggle coverage. A failure under those observations, preferably on the matching hosted runtime/desktop, can distinguish managed hover/capture, geometry, popup behavior and external ownership before choosing a correction.
+If this case fails again, retain the automatic boundary JSON alongside `input-sequence.log`, the matching child TRX and phase/supervisor logs. Optional menu diagnostics can supplement this evidence, but are no longer needed to enable the terminal snapshot. A failure under these observations, preferably on the matching hosted runtime/desktop, can distinguish managed hover/capture, geometry, popup behavior and external ownership before choosing a correction. The original CI trace still lacks those observations; adding instrumentation does not fill its historical gaps.
 
-Changed files in this task: `README.md` and this note only. No product/fixture fix, complete gate, workflow rerun, asset modification, push, PR or merge was performed.
+The original investigation changed only `README.md` and this note. The subsequent instrumentation adds `NotebookMouseReadinessEvidence.cs` and its contract tests, and updates `NotebookHeaderViewTests.Menus.cs` plus these two documentation files. No product correction, complete gate, workflow rerun, asset modification, push, PR or merge was performed.
