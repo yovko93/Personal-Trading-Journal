@@ -41,11 +41,13 @@ The guiding principle is simple: **process quality and financial outcome are sep
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Local complete Release gate: **5,540 passed / 0 failed / 0 skipped** after correcting the exclusive scheduling contract. Branding build and embedded-icon checks pass. The historical intermittent menu-readiness cause remains unresolved; native manual and updated hosted acceptance remain pending. |
+| Verification | Last complete local gate: **5,540 passed / 0 failed / 0 skipped**. Subsequent hosted CI #112: **5,538 passed / 2 failed**, from one aborted Daily Review child during database migration; both cases pass locally, cause unresolved. Branding checks and the corrected scheduling guard pass; native manual and hosted acceptance remain pending. |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
 The CI badge tracks `main`; it does not certify every development change. Notebook overflow mouse-readiness failures now retain best-effort boundary snapshots in the CI test artifacts; the intermittent cause remains unresolved. See the [CI #109 menu-readiness diagnosis](docs/ci-menu-readiness.md) for snapshot fields and locations, focused verification and remaining evidence gaps. Historical milestone results are retained in the [development history](docs/development-history.md).
+
+The [Daily Review CI diagnosis](docs/ci-daily-review-acceptance.md) records the separate migration-commit watchdog boundary, shared child failure, local reproduction results and bounded phase diagnostics. Its underlying cause remains unproven.
 
 ## Features
 
