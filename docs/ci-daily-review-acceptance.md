@@ -2,6 +2,8 @@
 
 ## Status — 3 November 2026
 
+Subsequent [CI #113](ci113-readiness-and-budget.md) ran this child once in 18.70 seconds: both parameters passed and both phase files reached UI cleanup completion. Its later workflow timeout occurred during process-supervision probes, not this acceptance child. This narrows the newer run's diagnosis without establishing the cause of the historical CI #112 migration-commit observation.
+
 **Unresolved duration/root cause; not fixed.** The hosted failure occurred during database initialization, with the sampled execution inside a SQLite migration transaction commit. Both parameters passed unchanged locally. Only bounded fixture phase diagnostics have been added; no production, scheduling, assertion, deadline or branding correction is justified by this evidence. No complete gate was rerun for this diagnostic-only task.
 
 The hosted gate reports **5,538 passed / 2 failed / 0 skipped**, with **145/145 exclusive cases passed**. The two failed top-level cases share **one aborted isolated suite**, not two independently observed hangs.
