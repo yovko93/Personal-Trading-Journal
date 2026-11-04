@@ -1,6 +1,8 @@
 # CI #109 — Duplicate menu-item readiness
 
-## Current status — 2 November 2026
+## Current status — 5 November 2026
+
+Update, 5 November, subsequent CI #117: [retained onset analysis](ci117-notebook-retained-onset.md) verifies the first-16/last-48 correction in the tested source and both actual failing traces. Initial native movement reaches the popup and is processed by WPF, but hover remains on ContextMenu; the two passing menu parameters acquire item hover with the same SubTree capture. The completed gate is **5,540 passed / 2 failed / 0 skipped**. The first WPF hit-selection decision remains unresolved. A disposable controlled probe stopped at its foreground guard without native input; no readiness change or unchanged full gate was attempted.
 
 Update, subsequent CI #116: [actual movement-trace analysis](ci116-notebook-input-onset.md) confirms repeated native popup movement and matching managed/OS positions, but the rolling buffer lost the initial input interval. Retention now keeps the onset and deadline with explicit omission counts. The interaction cause remains unresolved; no readiness guard change or unchanged full-gate rerun was made.
 
