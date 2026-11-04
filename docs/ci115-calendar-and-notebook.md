@@ -1,5 +1,7 @@
 # CI #115 — Calendar cancellation ownership and Notebook input evidence
 
+Subsequent [CI #116](ci116-notebook-input-onset.md) includes these corrections and completes with 5,540 passed / 1 Notebook failure. All 2,136 parallel Desktop cases pass. Its retained movement trace exposes a rolling-buffer retention gap, now corrected separately; the Calendar fix is preserved and the Notebook interaction cause remains unresolved.
+
 ## Provenance and hosted result
 
 [Hosted run #115](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/41816254257), attempt 1, job `126527631951`, tested merge **`159f99166af40ec86363f266e4e3d2aa28342b95`**. Head/local base is `ba183d3f421185d3744887e6b5b4f8fb52558236`; the checkout log identifies that merge and GitHub comparison against head reports zero changed files.

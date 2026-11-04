@@ -12,7 +12,7 @@ internal sealed class NotebookMouseMovementTrace : IDisposable
 {
     private readonly FrameworkElement _target;
     private readonly string _directory;
-    private readonly Queue<string> _rows = new();
+    private readonly TransitionBuffer _rows = new();
     private HwndSource? _source;
     private bool _subscribed;
 
@@ -25,7 +25,7 @@ internal sealed class NotebookMouseMovementTrace : IDisposable
             _source?.AddHook(NativeMessage);
             InputManager.Current.PostProcessInput += Processed;
             _subscribed = true;
-            Add("attached");
+            Add($"attached hwnd=0x{(_source?.Handle ?? IntPtr.Zero):X}; nativeHook={_source is not null}; processedHook={_subscribed}");
         });
     }
 
@@ -53,9 +53,34 @@ internal sealed class NotebookMouseMovementTrace : IDisposable
         bool cursorRead = GetCursorPos(out var cursor);
         string row = string.Create(CultureInfo.InvariantCulture,
             $"{DateTimeOffset.UtcNow:O} target={_target.Name}; {observation}; nativeCursor={cursorRead}/{cursor}; managedPosition={Mouse.GetPosition(_target)}; over={Describe(Mouse.DirectlyOver)}; capture={Describe(Mouse.Captured)}; captureMode={CaptureMode()}; hover={_target.IsMouseOver}");
-        if (_rows.Count == 64) _rows.Dequeue();
-        _rows.Enqueue(row);
+        _rows.Add(row);
     });
+
+    // Observe the caller's existing SetCursorPos result; never issue input here.
+    internal void CursorRequested(Point point, bool succeeded) =>
+        Add($"cursor-request point={point}; succeeded={succeeded}");
+
+    // A rolling tail alone lost the onset of CI #116's failure. Retain the
+    // beginning and deadline, within the original 64-observation memory bound.
+    internal sealed class TransitionBuffer
+    {
+        private readonly List<string> _first = new();
+        private readonly Queue<string> _last = new();
+        internal int Total { get; private set; }
+        internal void Add(string row)
+        {
+            Total++;
+            if (_first.Count < 16) _first.Add(row);
+            else
+            {
+                if (_last.Count == 48) _last.Dequeue();
+                _last.Enqueue(row);
+            }
+        }
+        internal IEnumerable<string> Snapshot() => _first
+            .Concat(new[] { $"trace-retention total={Total}; omittedMiddle={Total - _first.Count - _last.Count}; first={_first.Count}; last={_last.Count}" })
+            .Concat(_last);
+    }
 
     internal static object? CaptureMode() => typeof(MouseDevice).GetProperty("CapturedMode",
         System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.GetValue(Mouse.PrimaryDevice) ?? "unavailable";
@@ -65,7 +90,7 @@ internal sealed class NotebookMouseMovementTrace : IDisposable
         Add("detaching");
         NotebookMouseReadinessEvidence.BestEffort(() => { if (_subscribed) InputManager.Current.PostProcessInput -= Processed; });
         NotebookMouseReadinessEvidence.BestEffort(() => _source?.RemoveHook(NativeMessage));
-        NotebookMouseReadinessEvidence.BestEffort(() => File.AppendAllLines(Path.Combine(_directory, "mouse-movement.log"), _rows));
+        NotebookMouseReadinessEvidence.BestEffort(() => File.AppendAllLines(Path.Combine(_directory, "mouse-movement.log"), _rows.Snapshot()));
     }
 
     [StructLayout(LayoutKind.Sequential)] private readonly record struct NativePoint(int X, int Y);

@@ -2,6 +2,8 @@
 
 ## Current status — 2 November 2026
 
+Update, subsequent CI #116: [actual movement-trace analysis](ci116-notebook-input-onset.md) confirms repeated native popup movement and matching managed/OS positions, but the rolling buffer lost the initial input interval. Retention now keeps the onset and deadline with explicit omission counts. The interaction cause remains unresolved; no readiness guard change or unchanged full-gate rerun was made.
+
 Update, 4 November, subsequent run: [CI #115](ci115-calendar-and-notebook.md) completed with two Notebook readiness failures plus a separate Calendar lifecycle exception. Its tested source lacked processed movement/capture-mode tracing; that bounded instrumentation is now implemented without changing readiness or native click assertions. The Notebook cause remains unresolved.
 
 Update, 4 November: [completed CI #114](ci114-notebook-readiness.md) reports 5,537 passed / 3 failed / 0 skipped. Three actual DuplicateNoteButton snapshots show the hover discrepancy, while the fourth parameter passes with ContextMenu capture and native item delivery. All four pass unchanged in a bounded local reproduction. Cause remains unproven; no capture-aware predicate change or unchanged complete gate was attempted.

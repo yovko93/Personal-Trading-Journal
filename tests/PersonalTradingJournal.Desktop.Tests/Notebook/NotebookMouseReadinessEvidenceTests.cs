@@ -13,6 +13,28 @@ namespace PersonalTradingJournal.Desktop.Tests.Notebook;
 [Trait(ExclusiveWpfCollection.Trait, ExclusiveWpfCollection.Value)]
 public sealed class NotebookMouseReadinessEvidenceTests
 {
+    [Fact]
+    public void MovementFloodRetainsOnsetAndDeadlineWithExplicitOmissionCount()
+    {
+        var buffer = new NotebookMouseMovementTrace.TransitionBuffer();
+        buffer.Add("attached hwnd=0x123 nativeHook=True");
+        buffer.Add("cursor-request succeeded=True");
+        buffer.Add("native movement at initial target");
+        buffer.Add("processed movement source=ContextMenu");
+        for (int i = 0; i < 200; i++) buffer.Add($"repeated movement {i}");
+        buffer.Add("detaching at readiness deadline");
+        string[] saved = buffer.Snapshot().ToArray();
+        Assert.Equal(205, buffer.Total);
+        Assert.Equal(65, saved.Length); // 64 observations plus one bounded summary.
+        Assert.Equal("attached hwnd=0x123 nativeHook=True", saved[0]);
+        Assert.Equal("cursor-request succeeded=True", saved[1]);
+        Assert.Equal("native movement at initial target", saved[2]);
+        Assert.Equal("processed movement source=ContextMenu", saved[3]);
+        Assert.Contains("omittedMiddle=141", saved[16]);
+        Assert.Equal("repeated movement 153", saved[17]);
+        Assert.Equal("detaching at readiness deadline", saved[^1]);
+    }
+
     [Theory]
     [InlineData("capture")]
     [InlineData("write")]

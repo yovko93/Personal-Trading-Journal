@@ -172,7 +172,9 @@ public sealed partial class NotebookHeaderViewTests
                 Assert.True(target.IsVisible && target.IsEnabled);
                 Observe("before mouse readiness", target);
                 var point = target.PointToScreen(new Point(target.ActualWidth / 2, target.ActualHeight / 2));
-                Assert.True(SetCursorPos((int)point.X, (int)point.Y)); Layout();
+                bool positioned = SetCursorPos((int)point.X, (int)point.Y);
+                movement.CursorRequested(point, positioned);
+                Assert.True(positioned); Layout();
                 // Popup animation may still expose the owner HWND even after IsOpen becomes true.
                 // Wait for the actual target HWND at the target point before injecting input.
                 var readyFrame = new DispatcherFrame(); var readyWatch = System.Diagnostics.Stopwatch.StartNew();
@@ -182,7 +184,9 @@ public sealed partial class NotebookHeaderViewTests
                 void HitTest(object? s, EventArgs e)
                 {
                     point = target.PointToScreen(new Point(target.ActualWidth / 2, target.ActualHeight / 2));
-                    Assert.True(SetCursorPos((int)point.X, (int)point.Y));
+                    bool cursorPlaced = SetCursorPos((int)point.X, (int)point.Y);
+                    movement.CursorRequested(point, cursorPlaced);
+                    Assert.True(cursorPlaced);
                     bool settled = true;
                     for (DependencyObject? ancestor = target; ancestor is not null; ancestor = VisualTreeHelper.GetParent(ancestor))
                         if (ancestor is UIElement element && (element.Opacity < 1 ||
@@ -213,7 +217,9 @@ public sealed partial class NotebookHeaderViewTests
                             theme, width, 900, dpi, point, settledAtBoundary, observedAt, elapsedAtBoundary)));
                 }
                 finally { readyTimer.Stop(); readyTimer.Tick -= HitTest; }
-                Assert.True(SetCursorPos((int)point.X, (int)point.Y));
+                positioned = SetCursorPos((int)point.X, (int)point.Y);
+                movement.CursorRequested(point, positioned);
+                Assert.True(positioned);
                 log.Add($"Inject at {point}: target={target.Name}/{target.GetType().Name}; mouseOver={target.IsMouseOver}; captured={Mouse.Captured}");
                 int before = mouseUps;
                 SendMouse(0x0002); SendMouse(0x0004);

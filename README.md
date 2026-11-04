@@ -41,11 +41,11 @@ The guiding principle is simple: **process quality and financial outcome are sep
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Complete local gate after the Calendar ownership correction: **5,541 passed / 0 failed / 0 skipped**. Hosted CI #115 completed **5,537 passed / 3 failed / 0 skipped**, exit 1: one Calendar lifecycle exception and two Notebook readiness failures. Notebook remains unresolved with bounded movement tracing added. Native manual and updated hosted acceptance remain pending. |
+| Verification | Last complete local gate (Calendar correction): **5,541 passed / 0 failed / 0 skipped**. Hosted CI #116 completed **5,540 passed / 1 failed / 0 skipped**, exit 1: one Notebook readiness failure; all parallel Desktop cases passed. Notebook remains unresolved; trace retention now preserves the input onset. Native manual and updated hosted acceptance remain pending. |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
-The CI badge tracks `main`; it does not certify every development change. See the [current CI diagnosis](docs/ci115-calendar-and-notebook.md) for the Calendar lifecycle correction, unresolved Notebook input investigation and exact verification results. Detailed historical evidence is retained in the [development history](docs/development-history.md), [menu-readiness guide](docs/ci-menu-readiness.md) and [Daily Review diagnosis](docs/ci-daily-review-acceptance.md).
+The CI badge tracks `main`; it does not certify every development change. See the [current Notebook input diagnosis](docs/ci116-notebook-input-onset.md) for the observed movement, remaining evidence gap and focused diagnostic verification, and the [Calendar lifecycle correction](docs/ci115-calendar-and-notebook.md). Detailed historical evidence is retained in the [development history](docs/development-history.md), [menu-readiness guide](docs/ci-menu-readiness.md) and [Daily Review diagnosis](docs/ci-daily-review-acceptance.md).
 
 ## Features
 
