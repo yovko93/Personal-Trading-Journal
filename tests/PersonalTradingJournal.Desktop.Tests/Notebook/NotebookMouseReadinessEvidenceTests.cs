@@ -11,7 +11,7 @@ namespace PersonalTradingJournal.Desktop.Tests.Notebook;
 
 [Collection(ExclusiveWpfCollection.Name)]
 [Trait(ExclusiveWpfCollection.Trait, ExclusiveWpfCollection.Value)]
-public sealed class NotebookMouseReadinessEvidenceTests
+public sealed partial class NotebookMouseReadinessEvidenceTests
 {
     [Fact]
     public void MovementFloodRetainsOnsetAndDeadlineWithExplicitOmissionCount()

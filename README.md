@@ -41,11 +41,11 @@ The guiding principle is simple: **process quality and financial outcome are sep
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Last complete local gate (Calendar correction): **5,541 passed / 0 failed / 0 skipped**. Hosted CI #117 completed **5,540 passed / 2 failed / 0 skipped**, exit 1: two Notebook readiness failures; all parallel projects passed. Retained traces confirm native movement reached WPF, but the first hover selection remains unexplained. Native manual and updated hosted acceptance remain pending. |
+| Verification | Latest local Release gate: **5,543 passed / 0 failed / 0 skipped**. A controlled native regression verifies the bounded Notebook mouse-input correction. Hosted CI #117's two failures remain historical evidence; updated hosted acceptance and native manual checks are pending. |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
-The CI badge tracks `main`; it does not certify every development change. See the [current Notebook input diagnosis](docs/ci117-notebook-retained-onset.md) for verified retained evidence, the blocked controlled experiment and the remaining first-hit question, and the [Calendar lifecycle correction](docs/ci115-calendar-and-notebook.md). Detailed historical evidence is retained in the [development history](docs/development-history.md), [menu-readiness guide](docs/ci-menu-readiness.md) and [Daily Review diagnosis](docs/ci-daily-review-acceptance.md).
+The CI badge tracks `main`; it does not certify every development change. The [Notebook input diagnosis](docs/ci117-notebook-retained-onset.md#interactive-follow-up-and-bounded-input-correction) records the controlled reproduction, bounded native-movement correction and passing verification. The original hosted first-hit trigger remains unknown. See also the [Calendar lifecycle correction](docs/ci115-calendar-and-notebook.md). Detailed historical evidence is retained in the [development history](docs/development-history.md), [menu-readiness guide](docs/ci-menu-readiness.md) and [Daily Review diagnosis](docs/ci-daily-review-acceptance.md).
 
 ## Features
 

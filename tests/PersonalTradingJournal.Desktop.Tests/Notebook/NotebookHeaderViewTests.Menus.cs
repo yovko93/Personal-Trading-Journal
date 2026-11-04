@@ -169,6 +169,7 @@ public sealed partial class NotebookHeaderViewTests
             void MouseClick(FrameworkElement target)
             {
                 using var movement = new NotebookMouseMovementTrace(target, directory);
+                var menuApproach = target is MenuItem ? new NotebookMenuMouseApproach(target, movement.CursorRequested) : null;
                 Assert.True(target.IsVisible && target.IsEnabled);
                 Observe("before mouse readiness", target);
                 var point = target.PointToScreen(new Point(target.ActualWidth / 2, target.ActualHeight / 2));
@@ -183,15 +184,25 @@ public sealed partial class NotebookHeaderViewTests
                 DateTimeOffset observedAt = default; TimeSpan elapsedAtBoundary = default;
                 void HitTest(object? s, EventArgs e)
                 {
-                    point = target.PointToScreen(new Point(target.ActualWidth / 2, target.ActualHeight / 2));
-                    bool cursorPlaced = SetCursorPos((int)point.X, (int)point.Y);
-                    movement.CursorRequested(point, cursorPlaced);
-                    Assert.True(cursorPlaced);
                     bool settled = true;
                     for (DependencyObject? ancestor = target; ancestor is not null; ancestor = VisualTreeHelper.GetParent(ancestor))
                         if (ancestor is UIElement element && (element.Opacity < 1 ||
                             element.RenderTransform is TranslateTransform { HasAnimatedProperties: true } translation && (translation.X != 0 || translation.Y != 0))) settled = false;
-                    hit = settled && (target is not MenuItem || target.IsMouseOver) && WindowFromPoint(new NativePoint((int)point.X, (int)point.Y)) == ((HwndSource)PresentationSource.FromVisual(target)).Handle;
+                    if (menuApproach is not null)
+                    {
+                        // Initial movement may have been processed before the popup was hit-ready.
+                        // Once ready, make exactly one distinct native move and await real hover.
+                        if (menuApproach.TryPrepare(settled)) point = menuApproach.Position;
+                    }
+                    else
+                    {
+                        point = target.PointToScreen(new Point(target.ActualWidth / 2, target.ActualHeight / 2));
+                        bool cursorPlaced = SetCursorPos((int)point.X, (int)point.Y);
+                        movement.CursorRequested(point, cursorPlaced);
+                        Assert.True(cursorPlaced);
+                    }
+                    hit = settled && (menuApproach is null || menuApproach.IsPrepared && target.IsMouseOver && menuApproach.HitsTarget(point)) &&
+                        WindowFromPoint(new NativePoint((int)point.X, (int)point.Y)) == ((HwndSource)PresentationSource.FromVisual(target)).Handle;
                     if (hit || readyWatch.Elapsed >= TimeSpan.FromSeconds(3))
                     {
                         observedAt = DateTimeOffset.UtcNow; elapsedAtBoundary = readyWatch.Elapsed; settledAtBoundary = settled;
