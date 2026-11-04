@@ -94,7 +94,7 @@ public sealed partial class CalendarViewModel : ObservableObject
     private IReadOnlyList<string> _currencies = [AllCurrencies];
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<CalendarViewModel> _logger;
-    private CancellationTokenSource? _loadCancellation;
+    private ReadCancellation? _loadCancellation;
     private long _generation;
     private bool _isActive, _isLoading;
     private DateOnly _month;
@@ -102,7 +102,7 @@ public sealed partial class CalendarViewModel : ObservableObject
     private TradingCalendarMonth? _monthData;
     private IReadOnlyList<CalendarMonthlyPnlSummary> _monthlySummaries = [];
     private string? _errorMessage;
-    private CancellationTokenSource? _dayCancellation;
+    private ReadCancellation? _dayCancellation;
     private long _dayGeneration;
     private DateOnly? _selectedDate;
     private bool _isDayLoading;
@@ -371,7 +371,7 @@ public sealed partial class CalendarViewModel : ObservableObject
     {
         long generation = ++_generation;
         _loadCancellation?.Cancel();
-        using var cancellation = new CancellationTokenSource();
+        using var cancellation = new ReadCancellation();
         _loadCancellation = cancellation;
         DateOnly requestedMonth = _month;
         CalendarAccountOption requestedAccount = SelectedAccount;
@@ -474,7 +474,7 @@ public sealed partial class CalendarViewModel : ObservableObject
     {
         long generation = ++_dayGeneration;
         _dayCancellation?.Cancel();
-        using var cancellation = new CancellationTokenSource();
+        using var cancellation = new ReadCancellation();
         _dayCancellation = cancellation;
         Guid? requestedAccount = SelectedAccount.Id;
         string requestedCurrency = SelectedCurrency;

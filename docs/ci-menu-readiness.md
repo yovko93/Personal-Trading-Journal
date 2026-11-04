@@ -2,6 +2,8 @@
 
 ## Current status — 2 November 2026
 
+Update, 4 November, subsequent run: [CI #115](ci115-calendar-and-notebook.md) completed with two Notebook readiness failures plus a separate Calendar lifecycle exception. Its tested source lacked processed movement/capture-mode tracing; that bounded instrumentation is now implemented without changing readiness or native click assertions. The Notebook cause remains unresolved.
+
 Update, 4 November: [completed CI #114](ci114-notebook-readiness.md) reports 5,537 passed / 3 failed / 0 skipped. Three actual DuplicateNoteButton snapshots show the hover discrepancy, while the fourth parameter passes with ContextMenu capture and native item delivery. All four pass unchanged in a bounded local reproduction. Cause remains unproven; no capture-aware predicate change or unchanged complete gate was attempted.
 
 Update, 3 November: [CI #113](ci113-readiness-and-budget.md) retained the actual failure-boundary JSON. Cursor geometry, DPI, HWND ownership and explicit WPF hit ancestry reach DuplicateNoteButton, while managed hover remains on the captured ContextMenu. The cause remains unresolved. That run's separate workflow deadline and repeated child-suite correction are documented independently; it has no complete-gate total.

@@ -34,7 +34,7 @@ public sealed partial class CalendarDayCell
 public sealed partial class CalendarViewModel
 {
     private readonly IDailyJournalStatusReader? _journalStatusReader;
-    private CancellationTokenSource? _journalCancellation;
+    private ReadCancellation? _journalCancellation;
     private long _journalGeneration;
     private DateOnly? _journalGridStart, _journalGridEnd;
     private Guid? _journalAccountId;
@@ -103,7 +103,7 @@ public sealed partial class CalendarViewModel
         if (_journalStatusReader is null || !_isActive) return;
         long generation = ++_journalGeneration;
         _journalCancellation?.Cancel();
-        using var cancellation = new CancellationTokenSource();
+        using var cancellation = new ReadCancellation();
         _journalCancellation = cancellation;
         var query = new TradingCalendarQuery(_month.Year, _month.Month, SelectedAccount.Id);
         Guid? accountId = SelectedAccount.Id;

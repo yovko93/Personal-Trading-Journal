@@ -168,6 +168,7 @@ public sealed partial class NotebookHeaderViewTests
             }
             void MouseClick(FrameworkElement target)
             {
+                using var movement = new NotebookMouseMovementTrace(target, directory);
                 Assert.True(target.IsVisible && target.IsEnabled);
                 Observe("before mouse readiness", target);
                 var point = target.PointToScreen(new Point(target.ActualWidth / 2, target.ActualHeight / 2));

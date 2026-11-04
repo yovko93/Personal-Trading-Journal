@@ -41,17 +41,11 @@ The guiding principle is simple: **process quality and financial outcome are sep
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Last complete local gate: **5,540 passed / 0 failed / 0 skipped**. Hosted CI #114 **completed** with **5,537 passed / 3 failed / 0 skipped**, exit 1: three Notebook menu-readiness assertions; all parallel projects passed. The hover cause remains unresolved despite unchanged local focused passes. Native manual and hosted acceptance remain pending. |
+| Verification | Complete local gate after the Calendar ownership correction: **5,541 passed / 0 failed / 0 skipped**. Hosted CI #115 completed **5,537 passed / 3 failed / 0 skipped**, exit 1: one Calendar lifecycle exception and two Notebook readiness failures. Notebook remains unresolved with bounded movement tracing added. Native manual and updated hosted acceptance remain pending. |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
-The CI badge tracks `main`; it does not certify every development change. Notebook overflow mouse-readiness failures now retain best-effort boundary snapshots in the CI test artifacts; the intermittent cause remains unresolved. See the [CI #109 menu-readiness diagnosis](docs/ci-menu-readiness.md) for snapshot fields and locations, focused verification and remaining evidence gaps. Historical milestone results are retained in the [development history](docs/development-history.md).
-
-The [Daily Review CI diagnosis](docs/ci-daily-review-acceptance.md) records the separate migration-commit watchdog boundary, shared child failure, local reproduction results and bounded phase diagnostics. Its underlying cause remains unproven.
-
-The [CI #113 investigation](docs/ci113-readiness-and-budget.md) records the Notebook readiness snapshot, separate workflow deadline and correction of repeated child-case execution. The corrected local gate passed **5,540/5,540** in **15m05s**; the outer CI Test budget is now 20 minutes with case watchdogs preserved. The incomplete hosted run has no complete-gate total; hosted acceptance remains pending.
-
-The subsequent [completed CI #114 investigation](docs/ci114-notebook-readiness.md) compares all three failure snapshots with the passing parameter and records the remaining input-state evidence gap. A safe capture-aware readiness correction has not been established.
+The CI badge tracks `main`; it does not certify every development change. See the [current CI diagnosis](docs/ci115-calendar-and-notebook.md) for the Calendar lifecycle correction, unresolved Notebook input investigation and exact verification results. Detailed historical evidence is retained in the [development history](docs/development-history.md), [menu-readiness guide](docs/ci-menu-readiness.md) and [Daily Review diagnosis](docs/ci-daily-review-acceptance.md).
 
 ## Features
 

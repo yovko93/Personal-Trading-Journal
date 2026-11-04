@@ -85,6 +85,9 @@ internal static class NotebookMouseReadinessEvidence
         Read("targetHitTestVisible", () => target.IsHitTestVisible);
         Read("targetMeasureValid", () => target.IsMeasureValid); Read("targetArrangeValid", () => target.IsArrangeValid);
         Read("targetIsMouseOver", () => target.IsMouseOver); Read("targetIsMouseDirectlyOver", () => target.IsMouseDirectlyOver);
+        Read("managedMousePositionInTarget", () => Mouse.GetPosition(target));
+        Read("managedMousePositionInSourceRoot", () => source?.RootVisual is UIElement root ? Mouse.GetPosition(root) : null);
+        Read("managedCaptureMode", NotebookMouseMovementTrace.CaptureMode);
         Read("mouseDirectlyOver", () => Ancestry(Mouse.DirectlyOver as DependencyObject));
         Read("mouseCaptured", () => Ancestry(Mouse.Captured as DependencyObject));
         Read("mouseLeftButton", () => Mouse.LeftButton);

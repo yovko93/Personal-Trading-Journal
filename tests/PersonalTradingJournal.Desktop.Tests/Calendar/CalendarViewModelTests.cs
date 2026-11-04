@@ -117,6 +117,64 @@ public sealed class CalendarViewModelTests
         Assert.Equal(5, recovered.Weeks.Count);
     }
 
+    // Keep cancellation in flight while the obsolete load completes and releases
+    // its owner. A second Deactivate must never cancel a disposed source.
+    [Fact]
+    public async Task CompletedLoadCannotDisposeCancellationStillOwnedByDeactivate()
+    {
+        using var releaseCancel = new ManualResetEventSlim();
+        var cancelEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reader = new CompletingDuringCancelReader(cancelEntered, releaseCancel);
+        var vm = new CalendarViewModel(reader, new FixedClock(new(2026, 9, 9, 12, 0, 0, TimeSpan.Zero)),
+            new FakeTradingCalendarDayReader(), new FakeTradingAccountReader());
+        Task load = vm.ActivateAsync();
+        await reader.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Task deactivate = Task.Run(vm.Deactivate);
+        Exception? secondDeactivate = null;
+        try
+        {
+            await cancelEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.True(reader.Token.IsCancellationRequested);
+            reader.Complete();
+            await load.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Null(vm.MonthData); // Obsolete completed data must not publish.
+            secondDeactivate = Record.Exception(vm.Deactivate);
+        }
+        finally
+        {
+            releaseCancel.Set();
+            await deactivate.WaitAsync(TimeSpan.FromSeconds(10));
+            reader.Registration.Dispose();
+        }
+        Assert.Null(secondDeactivate);
+        await vm.ActivateAsync();
+        Assert.NotNull(vm.MonthData);
+        Assert.False(vm.IsLoading);
+        vm.Deactivate();
+    }
+
+    private sealed class CompletingDuringCancelReader(TaskCompletionSource entered, ManualResetEventSlim release) : ITradingCalendarReader
+    {
+        internal TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<TradingCalendarMonth> _result = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private TradingCalendarQuery? _query;
+        internal CancellationToken Token;
+        internal CancellationTokenRegistration Registration;
+        public Task<TradingCalendarMonth> GetAsync(TradingCalendarQuery query, CancellationToken cancellationToken = default)
+        {
+            if (_query is not null) return Task.FromResult(Empty(query));
+            _query = query; Token = cancellationToken;
+            Registration = cancellationToken.Register(() =>
+            {
+                entered.TrySetResult();
+                Assert.True(release.Wait(TimeSpan.FromSeconds(10)), "Controlled cancellation was not released.");
+            });
+            Started.TrySetResult();
+            return _result.Task; // Explicitly completes after cancellation, as a store may do.
+        }
+        internal void Complete() => _result.SetResult(Empty(_query!));
+    }
+
     private static TradingCalendarMonth Empty(TradingCalendarQuery query)
     {
         DateOnly[] dates = Enumerable.Range(0, query.GridEnd.DayNumber - query.GridStart.DayNumber + 1)

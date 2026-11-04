@@ -83,6 +83,7 @@ public sealed class NotebookMouseReadinessEvidenceTests
                 var observedAt = DateTimeOffset.UtcNow;
                 queuedProbe = window.Dispatcher.BeginInvoke(DispatcherPriority.Send, () => queuedWorkRan = true);
                 InputManager.Current.PostProcessInput += Input;
+                using var movement = new NotebookMouseMovementTrace(item, directory);
                 var error = Assert.Throws<Xunit.Sdk.TrueException>(() => NotebookMouseReadinessEvidence.AssertReady(false,
                     () => NotebookMouseReadinessEvidence.Retain(directory, () => NotebookMouseReadinessEvidence.Capture(
                         item, window, menu, "synthetic-boundary-probe", "probe", 180, 100, 96, point, true,
@@ -107,7 +108,8 @@ public sealed class NotebookMouseReadinessEvidenceTests
                 Assert.Contains($"pid={Environment.ProcessId}", root.GetProperty("expectedWindow").GetString());
                 foreach (string field in new[] { "nativeCursorScreenPoint", "targetScreenCorners", "targetDpiScale",
                     "transformToDevice", "transformFromDevice", "targetIsMouseOver", "targetIsMouseDirectlyOver",
-                    "mouseDirectlyOver", "mouseCaptured", "wpfInputHitAtCursor", "wpfVisualHitAtCursor", "foregroundWindow" })
+                    "mouseDirectlyOver", "mouseCaptured", "wpfInputHitAtCursor", "wpfVisualHitAtCursor", "foregroundWindow",
+                    "managedMousePositionInTarget", "managedMousePositionInSourceRoot", "managedCaptureMode" })
                     Assert.DoesNotContain("unavailable", root.GetProperty(field).GetString());
             }
             finally

@@ -2,6 +2,8 @@
 
 ## Status — 4 November 2026
 
+Subsequent [CI #115 investigation](ci115-calendar-and-notebook.md): the next completed run has two Notebook readiness failures and a separate Calendar cancellation ownership failure. The requested bounded native/processed-movement trace and managed position/capture-mode fields are now implemented; this guide's earlier evidence and no-fix conclusion remain historical.
+
 **Cause unresolved; no supported interaction correction.** Three independent isolated cases failed before native item-click injection. Their snapshots establish a discrepancy between maintained managed hover and explicit physical hit testing. They do not establish that the hover guard is invalid under legitimate menu capture. The fourth parameter passed with the same ContextMenu capture, item hover and native click delivery. No assertion, input, deadline, production, branding, child-dispatch or workflow-budget change is justified from that discrepancy alone.
 
 Unlike the earlier incomplete CI #113 run, this run finished with **5,537 passed / 3 failed / 0 skipped**, exit **1**. Exclusive Desktop: 142 passed / 3 failed; parallel Desktop: 2,135 passed; Domain: 602; Application: 1,050; Infrastructure: 1,608, all with zero skipped. The Test step was not canceled by its workflow deadline.
