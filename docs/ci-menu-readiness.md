@@ -2,6 +2,8 @@
 
 ## Current status — 2 November 2026
 
+Update, 4 November: [completed CI #114](ci114-notebook-readiness.md) reports 5,537 passed / 3 failed / 0 skipped. Three actual DuplicateNoteButton snapshots show the hover discrepancy, while the fourth parameter passes with ContextMenu capture and native item delivery. All four pass unchanged in a bounded local reproduction. Cause remains unproven; no capture-aware predicate change or unchanged complete gate was attempted.
+
 Update, 3 November: [CI #113](ci113-readiness-and-budget.md) retained the actual failure-boundary JSON. Cursor geometry, DPI, HWND ownership and explicit WPF hit ancestry reach DuplicateNoteButton, while managed hover remains on the captured ContextMenu. The cause remains unresolved. That run's separate workflow deadline and repeated child-suite correction are documented independently; it has no complete-gate total.
 
 **Historical intermittent mouse-readiness failure: unresolved cause; not fixed.** The exact failing case originally passed unchanged locally. All menu parameterizations and related tag-menu/layout regressions also passed. Failure-only diagnostic instrumentation has since been added. The subsequent scheduling-contract correction below passed one complete local Release gate: **5,540 passed / 0 failed / 0 skipped**, exit 0. That result does not establish a cause or correction for the earlier readiness failure; updated hosted acceptance and native branding manual checks remain pending.

@@ -1,5 +1,7 @@
 # CI #113 — Notebook hover readiness and workflow budget
 
+Subsequent evidence: [CI #114](ci114-notebook-readiness.md) includes both corrections below and **completed** with 5,537 passed / 3 failed / 0 skipped, exit 1. Its parallel Desktop and all other parallel projects passed. Its three Notebook readiness failures are analyzed separately; this does not retroactively supply a total for the incomplete CI #113 run.
+
 ## Provenance
 
 [Run #113](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/41683107591), attempt 1, job `126081657087`, head `8f73e8d1458aced0bc22c98f2e2bbfe828ac421a`; tested merge `6bea8499f732e9948d40b2e6757ecb70edc06501`. The checkout log and snapshot assembly/GitHub SHA agree. GitHub comparison reports zero changed files between head and merge.
