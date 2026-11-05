@@ -27,8 +27,11 @@ public sealed class NotebookEditorViewTests
     {
         if (Environment.GetEnvironmentVariable(Host) != "1")
         {
+            string expected = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"{typeof(NotebookEditorViewTests).FullName}.{nameof(EditorRoundTripsFormattingUndoPasteAndThemeLayout)}(theme: \"{theme}\", width: {width}, dpi: {dpi})");
             await IsolatedTestProcess.RunSuiteAsync(typeof(NotebookEditorViewTests), "notebook-editor", Host,
-                TimeSpan.FromSeconds(90), caseHangTimeout: TimeSpan.FromSeconds(30));
+                TimeSpan.FromSeconds(90), caseHangTimeout: TimeSpan.FromSeconds(30),
+                testCaseFilter: IsolatedTestProcess.ExactDisplayNameFilter(expected), expectedTestName: expected);
             return;
         }
         await CalendarStaTest.RunAsync(() =>

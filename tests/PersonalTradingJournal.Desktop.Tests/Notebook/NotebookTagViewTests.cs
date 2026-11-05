@@ -25,8 +25,11 @@ public sealed class NotebookTagViewTests
     {
         if (Environment.GetEnvironmentVariable(Host) != "1")
         {
+            string expected = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"{typeof(NotebookTagViewTests).FullName}.{nameof(BoundTagsDistinguishFiltersAssignmentsAndGlobalDeletionWithRetainedEditor)}(theme: \"{theme}\", width: {width}, dpi: {dpi})");
             await IsolatedTestProcess.RunSuiteAsync(typeof(NotebookTagViewTests), "notebook-tags", Host,
-                TimeSpan.FromSeconds(90), caseHangTimeout: TimeSpan.FromSeconds(30)); return;
+                TimeSpan.FromSeconds(90), caseHangTimeout: TimeSpan.FromSeconds(30),
+                testCaseFilter: IsolatedTestProcess.ExactDisplayNameFilter(expected), expectedTestName: expected); return;
         }
         await CalendarStaTest.RunAsync(() =>
         {

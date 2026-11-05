@@ -26,8 +26,11 @@ public sealed class NotebookViewTests
     {
         if (Environment.GetEnvironmentVariable(Host) != "1")
         {
+            string expected = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"{typeof(NotebookViewTests).FullName}.{nameof(CompiledWorkspaceProjectsSafeContentAndKeepsPanelsActionsReachable)}(theme: \"{theme}\", width: {width}, dpi: {dpi})");
             await IsolatedTestProcess.RunSuiteAsync(typeof(NotebookViewTests), "notebook-workspace", Host,
-                TimeSpan.FromSeconds(90), caseHangTimeout: TimeSpan.FromSeconds(30));
+                TimeSpan.FromSeconds(90), caseHangTimeout: TimeSpan.FromSeconds(30),
+                testCaseFilter: IsolatedTestProcess.ExactDisplayNameFilter(expected), expectedTestName: expected);
             return;
         }
         await CalendarStaTest.RunAsync(() =>

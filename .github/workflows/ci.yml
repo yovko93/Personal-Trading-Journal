@@ -30,7 +30,9 @@ jobs:
         run: dotnet build PersonalTradingJournal.sln --configuration Release --no-restore
 
       - name: Test
-        timeout-minutes: 15
+        # The complete local gate finished in 15m05s after duplicate child work
+        # was removed. Per-case and child-process watchdogs remain unchanged.
+        timeout-minutes: 20
         run: ./scripts/Test-Release.ps1 -ResultsDirectory TestResults
 
       - name: Upload test results and native WPF diagnostics

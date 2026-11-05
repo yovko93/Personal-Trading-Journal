@@ -600,7 +600,7 @@ The workflow runs for pushes to `main` and pull requests targeting `main`, with 
 7. Use `Guid` identifiers for future persisted domain entities unless a specific domain reason requires another identity model.
 8. Keep persisted timestamps in UTC where applicable.
 9. Treat application data integrity as more important than UI convenience.
-10. Update the README and milestone documentation at milestone completion, not after every implementation task, except when developer workflow documentation must change immediately.
+10. Update the README after any major or important change as part of the same task or pull request. Keep it concise and current; retain detailed milestone and verification records in the relevant documentation. See [Repository Instructions](../AGENTS.md).
 
 ## Trading Domain Decisions
 

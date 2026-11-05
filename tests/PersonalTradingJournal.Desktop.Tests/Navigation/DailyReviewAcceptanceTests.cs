@@ -1,4 +1,6 @@
 using System.Net;
+using System.Data.Common;
+using System.Diagnostics;
 using System.Net.Http;
 using System.Text.Json;
 using System.Windows;
@@ -8,6 +10,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.DailyReview;
@@ -45,7 +48,11 @@ public sealed partial class MainWindowViewModelTests
     public async Task DailyReviewAcceptanceCompiledShellKeepsCapturedEvidenceOrCancelsOnSourceNotification(bool notifyChange)
     {
         if (Environment.GetEnvironmentVariable("PTJ_REVIEW_ACCEPTANCE_HOST") != "1") { await ReviewAcceptanceHost.Value; return; }
-        await using var database = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
+        var phases = new ReviewAcceptancePhases(notifyChange);
+        phases.Record("database.create.begin");
+        await using var database = await JournalSqliteTests.JournalTestDatabase.CreateAsync(phases);
+        phases.RecordTransactions = false;
+        phases.Record("database.create.complete");
         var day = ReviewFixture.Day;
         var account = new TradingAccount("Synthetic USD", TradingAccountType.Personal, null, null, "USD", 0m, ReviewFixture.Now);
         var other = new TradingAccount("Synthetic EUR", TradingAccountType.Personal, null, null, "EUR", 0m, ReviewFixture.Now);
@@ -75,6 +82,7 @@ public sealed partial class MainWindowViewModelTests
         var reader = database.Provider.GetRequiredService<IDailyReviewEvidenceReader>();
         var history = database.Provider.GetRequiredService<ICoachingAnalysisRepository>();
         var packet = CoachingEvidencePacketBuilder.Build(await reader.GetAsync(new(day, account.Id))).Packet!;
+        phases.Record("seed-and-evidence.complete");
         using var secrets = new CoachingCredentialsTests.SecretFixture();
         var groq = new ProtectedCoachingCredentials(secrets.Paths.GroqCredentialsPath, () => null);
         var configuration = new CoachingConfiguration(secrets.Paths.CoachingProviderPath, secrets.Store, groq, false);
@@ -100,6 +108,7 @@ public sealed partial class MainWindowViewModelTests
         }, shutdownDispatcher: false);
         try
         {
+            phases.Record("shell.create.begin");
             await Ui(() =>
             {
                 var app = System.Windows.Application.Current ?? new() { ShutdownMode = ShutdownMode.OnExplicitShutdown };
@@ -117,6 +126,7 @@ public sealed partial class MainWindowViewModelTests
                 Assert.Same(view, ReviewDescendants(root).OfType<DailyReviewView>().Single());
             });
             await vm.LoadTask;
+            phases.Record("shell.initial-load.complete");
             Assert.Equal(2, vm.Current!.Metrics.Count);
             Assert.Equal(2, vm.Current.Journals.Count);
             Assert.Equal(7m, vm.Current.Metrics.Single(m => m.Currency == "USD").Net.Metrics.Total);
@@ -188,12 +198,15 @@ public sealed partial class MainWindowViewModelTests
             await using var final = await database.ContextFactory.CreateDbContextAsync();
             Assert.Equal(2, await final.Trades.CountAsync());
             Assert.Equal(2, await final.DailyJournals.CountAsync());
+            phases.Record("assertions.complete");
         }
         finally
         {
+            phases.Record("ui-cleanup.begin");
             handler.Release.TrySetResult();
             await Ui(() => { vm.Deactivate(); if (window is not null) { window.Content = null; window.Close(); } fixture?.Main.Dispose(); });
             await generation; await vm.LoadTask;
+            phases.Record("ui-cleanup.complete");
         }
         void Layout(int width, int dpi)
         {
@@ -233,6 +246,44 @@ public sealed partial class MainWindowViewModelTests
                     using var file = File.Create(Path.Combine(path, $"shell-{state}-{position}-{theme}-{width}-{dpi}.png")); png.Save(file);
                 }
             }
+        }
+    }
+
+    // Transition records only: no timer, console heartbeat, database query or input repair.
+    // This interceptor is supplied only by this acceptance fixture, not shared database tests.
+    private sealed class ReviewAcceptancePhases(bool notifyChange) : DbTransactionInterceptor
+    {
+        private readonly Stopwatch _elapsed = Stopwatch.StartNew();
+        private int _records;
+        internal bool RecordTransactions { get; set; } = true;
+
+        internal void Record(string phase, Guid? transactionId = null, string? database = null)
+        {
+            if (Interlocked.Increment(ref _records) > 128) return;
+            try
+            {
+                if (Environment.GetEnvironmentVariable("PTJ_TEST_RESULTS_DIRECTORY") is not { Length: > 0 } directory) return;
+                Directory.CreateDirectory(directory);
+                string line = JsonSerializer.Serialize(new { Utc = DateTimeOffset.UtcNow, Phase = phase,
+                    NotifyChange = notifyChange, ProcessId = Environment.ProcessId, ThreadId = Environment.CurrentManagedThreadId,
+                    ElapsedMilliseconds = _elapsed.ElapsedMilliseconds, TransactionId = transactionId, Database = database });
+                File.AppendAllText(Path.Combine(directory, $"daily-review-phases-{notifyChange}.jsonl"), line + Environment.NewLine);
+            }
+            catch (Exception) { /* Diagnostic I/O must not replace the test outcome or cleanup. */ }
+        }
+
+        public override ValueTask<InterceptionResult> TransactionCommittingAsync(DbTransaction transaction,
+            TransactionEventData eventData, InterceptionResult result, CancellationToken cancellationToken = default)
+        {
+            if (RecordTransactions) Record("database.transaction.committing", eventData.TransactionId, transaction.Connection?.DataSource);
+            return ValueTask.FromResult(result);
+        }
+
+        public override Task TransactionCommittedAsync(DbTransaction transaction, TransactionEndEventData eventData,
+            CancellationToken cancellationToken = default)
+        {
+            if (RecordTransactions) Record("database.transaction.committed", eventData.TransactionId);
+            return Task.CompletedTask;
         }
     }
 

@@ -25,8 +25,11 @@ public sealed class NotebookAutosaveViewTests
     {
         if (Environment.GetEnvironmentVariable(Host) != "1")
         {
+            string expected = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"{typeof(NotebookAutosaveViewTests).FullName}.{nameof(BoundAutosaveAndRecoveryStatusesRetainDocumentSelectionAndAccessibleActions)}(theme: \"{theme}\", width: {width}, dpi: {dpi})");
             await IsolatedTestProcess.RunSuiteAsync(typeof(NotebookAutosaveViewTests), "notebook-autosave", Host,
-                TimeSpan.FromSeconds(90), caseHangTimeout: TimeSpan.FromSeconds(30));
+                TimeSpan.FromSeconds(90), caseHangTimeout: TimeSpan.FromSeconds(30),
+                testCaseFilter: IsolatedTestProcess.ExactDisplayNameFilter(expected), expectedTestName: expected);
             return;
         }
         await CalendarStaTest.RunAsync(() =>

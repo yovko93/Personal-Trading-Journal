@@ -150,7 +150,7 @@ public sealed partial class NotebookHeaderViewTests
             finally
             {
                 if (diagnostics) { window.Activated -= ActivationChanged; window.Deactivated -= ActivationChanged; vm.PropertyChanged -= NotificationChanged; }
-                File.WriteAllLines(Path.Combine(directory, "input-sequence.log"), log);
+                NotebookMouseReadinessEvidence.BestEffort(() => File.WriteAllLines(Path.Combine(directory, "input-sequence.log"), log));
                 InputManager.Current.PostProcessInput -= Input;
                 window.Close(); vm.Deactivate(); Pump(vm.DeactivationTask); app.Shutdown(); SynchronizationContext.SetSynchronizationContext(prior);
             }
@@ -168,37 +168,69 @@ public sealed partial class NotebookHeaderViewTests
             }
             void MouseClick(FrameworkElement target)
             {
+                using var movement = new NotebookMouseMovementTrace(target, directory);
+                var menuApproach = target is MenuItem ? new NotebookMenuMouseApproach(target, movement.CursorRequested) : null;
                 Assert.True(target.IsVisible && target.IsEnabled);
                 Observe("before mouse readiness", target);
                 var point = target.PointToScreen(new Point(target.ActualWidth / 2, target.ActualHeight / 2));
-                Assert.True(SetCursorPos((int)point.X, (int)point.Y)); Layout();
+                bool positioned = SetCursorPos((int)point.X, (int)point.Y);
+                movement.CursorRequested(point, positioned);
+                Assert.True(positioned); Layout();
                 // Popup animation may still expose the owner HWND even after IsOpen becomes true.
                 // Wait for the actual target HWND at the target point before injecting input.
                 var readyFrame = new DispatcherFrame(); var readyWatch = System.Diagnostics.Stopwatch.StartNew();
                 var readyTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(10) };
-                bool hit = false;
+                bool hit = false; bool settledAtBoundary = false;
+                DateTimeOffset observedAt = default; TimeSpan elapsedAtBoundary = default;
                 void HitTest(object? s, EventArgs e)
                 {
-                    point = target.PointToScreen(new Point(target.ActualWidth / 2, target.ActualHeight / 2));
-                    Assert.True(SetCursorPos((int)point.X, (int)point.Y));
                     bool settled = true;
                     for (DependencyObject? ancestor = target; ancestor is not null; ancestor = VisualTreeHelper.GetParent(ancestor))
                         if (ancestor is UIElement element && (element.Opacity < 1 ||
                             element.RenderTransform is TranslateTransform { HasAnimatedProperties: true } translation && (translation.X != 0 || translation.Y != 0))) settled = false;
-                    hit = settled && (target is not MenuItem || target.IsMouseOver) && WindowFromPoint(new NativePoint((int)point.X, (int)point.Y)) == ((HwndSource)PresentationSource.FromVisual(target)).Handle;
+                    if (menuApproach is not null)
+                    {
+                        // Initial movement may have been processed before the popup was hit-ready.
+                        // Once ready, make exactly one distinct native move and await real hover.
+                        if (menuApproach.TryPrepare(settled)) point = menuApproach.Position;
+                    }
+                    else
+                    {
+                        point = target.PointToScreen(new Point(target.ActualWidth / 2, target.ActualHeight / 2));
+                        bool cursorPlaced = SetCursorPos((int)point.X, (int)point.Y);
+                        movement.CursorRequested(point, cursorPlaced);
+                        Assert.True(cursorPlaced);
+                    }
+                    hit = settled && (menuApproach is null || menuApproach.IsPrepared && target.IsMouseOver && menuApproach.HitsTarget(point)) &&
+                        WindowFromPoint(new NativePoint((int)point.X, (int)point.Y)) == ((HwndSource)PresentationSource.FromVisual(target)).Handle;
                     if (hit || readyWatch.Elapsed >= TimeSpan.FromSeconds(3))
                     {
-                        var actualWindow = WindowFromPoint(new NativePoint((int)point.X, (int)point.Y));
-                        var title = new System.Text.StringBuilder(256); GetWindowText(actualWindow, title, title.Capacity);
-                        log.Add($"Hit-test: target={target.Name}; point={point}; expectedHwnd={((HwndSource)PresentationSource.FromVisual(target)).Handle}; actualHwnd={actualWindow}; actualTitle={title}; settled={settled}; mouseOver={target.IsMouseOver}; active={window.IsActive}; window={window.Left},{window.Top},{window.ActualWidth},{window.ActualHeight}; desktop={SystemParameters.VirtualScreenLeft},{SystemParameters.VirtualScreenTop},{SystemParameters.VirtualScreenWidth},{SystemParameters.VirtualScreenHeight}; dpi={VisualTreeHelper.GetDpi(target)}; hit={hit}");
-                        Observe($"mouse readiness completion: hit={hit}, settled={settled}", target);
+                        observedAt = DateTimeOffset.UtcNow; elapsedAtBoundary = readyWatch.Elapsed; settledAtBoundary = settled;
+                        NotebookMouseReadinessEvidence.BestEffort(() =>
+                        {
+                            var actualWindow = WindowFromPoint(new NativePoint((int)point.X, (int)point.Y));
+                            var title = new System.Text.StringBuilder(256); GetWindowText(actualWindow, title, title.Capacity);
+                            log.Add($"Hit-test: target={target.Name}; point={point}; expectedHwnd={((HwndSource)PresentationSource.FromVisual(target)).Handle}; actualHwnd={actualWindow}; actualTitle={title}; settled={settled}; mouseOver={target.IsMouseOver}; active={window.IsActive}; window={window.Left},{window.Top},{window.ActualWidth},{window.ActualHeight}; desktop={SystemParameters.VirtualScreenLeft},{SystemParameters.VirtualScreenTop},{SystemParameters.VirtualScreenWidth},{SystemParameters.VirtualScreenHeight}; dpi={VisualTreeHelper.GetDpi(target)}; hit={hit}");
+                            Observe($"mouse readiness completion: hit={hit}, settled={settled}", target);
+                        });
                         readyFrame.Continue = false;
                     }
                 }
                 readyTimer.Tick += HitTest; readyTimer.Start();
-                try { Dispatcher.PushFrame(readyFrame); Assert.True(hit, "The intended control did not become hit-testable with settled popup animation and mouse-over."); }
+                try
+                {
+                    Dispatcher.PushFrame(readyFrame);
+                    NotebookMouseReadinessEvidence.AssertReady(hit, () =>
+                        NotebookMouseReadinessEvidence.Retain(directory, () => NotebookMouseReadinessEvidence.Capture(
+                            target, window, ((Button)view.FindName("NoteOverflow")).ContextMenu,
+                            string.Create(CultureInfo.InvariantCulture,
+                                $"{typeof(NotebookHeaderViewTests).FullName}.{nameof(OverflowTriggersToggleThroughNativeMouseAndOwnedKeyboard)}(theme: \"{theme}\", width: {width}, dpi: {dpi})"),
+                            theme, width, 900, dpi, point, settledAtBoundary, observedAt, elapsedAtBoundary)));
+                }
                 finally { readyTimer.Stop(); readyTimer.Tick -= HitTest; }
-                Assert.True(SetCursorPos((int)point.X, (int)point.Y));
+                positioned = SetCursorPos((int)point.X, (int)point.Y);
+                movement.CursorRequested(point, positioned);
+                Assert.True(positioned);
                 log.Add($"Inject at {point}: target={target.Name}/{target.GetType().Name}; mouseOver={target.IsMouseOver}; captured={Mouse.Captured}");
                 int before = mouseUps;
                 SendMouse(0x0002); SendMouse(0x0004);

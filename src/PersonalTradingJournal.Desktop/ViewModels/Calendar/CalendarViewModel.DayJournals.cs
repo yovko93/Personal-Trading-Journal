@@ -41,7 +41,7 @@ public sealed class CalendarJournalEntry(DailyJournalDetails details) : Observab
 public sealed partial class CalendarViewModel
 {
     private readonly IDailyJournalDayReader? _dayJournalReader;
-    private CancellationTokenSource? _dayJournalCancellation;
+    private ReadCancellation? _dayJournalCancellation;
     private long _dayJournalGeneration;
     private bool _dayJournalsLoaded;
     public IReadOnlyList<CalendarJournalEntry> DayJournals { get; private set; } = [];
@@ -72,7 +72,7 @@ public sealed partial class CalendarViewModel
         }
         long generation = _dayJournalGeneration;
         Guid? account = SelectedAccount.Id;
-        using var cancellation = new CancellationTokenSource();
+        using var cancellation = new ReadCancellation();
         _dayJournalCancellation = cancellation;
         IsDayJournalLoading = true;
         NotifyDayJournals();
