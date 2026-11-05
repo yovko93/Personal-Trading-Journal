@@ -41,7 +41,7 @@ The guiding principle is simple: **process quality and financial outcome are sep
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Latest local Release gate: **5,543 passed / 0 failed / 0 skipped**. A controlled native regression verifies the bounded Notebook mouse-input correction. Hosted CI #117's two failures remain historical evidence; updated hosted acceptance and native manual checks are pending. |
+| Verification | Latest complete local test execution: **5,542 passed / 0 failed / 1 skipped**. One compiled Rules-view acceptance test is temporarily quarantined after a hosted CLR crash. Corrected gate-result validation passes against the retained results; hosted confirmation is pending. See the [quarantine record](docs/rules-view-quarantine.md) for coverage limits, runner accounting and restoration criteria. |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
@@ -165,6 +165,8 @@ pwsh -File ./scripts/Test-Release.ps1 -ResultsDirectory TestResults
 ```
 
 The test runner executes exclusive WPF tests first, followed by the complementary parallel suite. It writes timestamped results, diagnostics, and a summary under `TestResults/`. Desktop tests use native Windows behavior and need a suitable Windows desktop environment; automated passes do not replace manual application checks.
+
+The gate permits only the [explicitly quarantined Rules-view test](docs/rules-view-quarantine.md) to be skipped in parallel Desktop. Other skips and all test failures still fail the gate. A successful gate with this quarantine does not mean all acceptance coverage passed.
 
 [GitHub Actions](.github/workflows/ci.yml) runs on Windows for pushes to `main` and pull requests targeting `main`. See [WPF test diagnostics](docs/ci-wpf-tests.md) and [SQLite test lifetimes](docs/sqlite-test-lifetimes.md) when investigating failures.
 

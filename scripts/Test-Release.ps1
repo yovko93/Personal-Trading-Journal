@@ -35,8 +35,8 @@ try {
         $result = $LASTEXITCODE
         if ($result -ne 0) { $exitCode = 1 }
         # Read only top-level TRX: supervised child results are evidence, not
-        # extra cases in the complete-set totals. Missing/empty/skipped results
-        # fail the gate, as do duplicate test identities across the partitions.
+        # extra cases in the complete-set totals. Missing/empty results, unexpected
+        # skips and duplicate test identities across the partitions fail the gate.
         $files = @(Get-ChildItem -LiteralPath $directory -Filter '*.trx' -File)
         if ($files.Count -ne $stage.Projects) {
             Write-Warning "Expected $($stage.Projects) project results in $($stage.Name), found $($files.Count)."
@@ -46,8 +46,20 @@ try {
             [xml]$trx = Get-Content -LiteralPath $file.FullName -Raw
             $counts = $trx.TestRun.ResultSummary.Counters
             $tests = @($trx.TestRun.Results.UnitTestResult)
-            if ([int]$counts.total -eq 0 -or [int]$counts.notExecuted -ne 0 -or
-                [int]$counts.failed -ne 0 -or [int]$counts.executed -ne [int]$counts.total) { $exitCode = 1 }
+            $storage = @($trx.TestRun.TestDefinitions.UnitTest)[0].storage
+            # VSTest can leave Counters.notExecuted at zero for xUnit skips.
+            # Count the explicit result rows, while checking aggregate consistency.
+            $skipped = @($tests | Where-Object outcome -eq 'NotExecuted')
+            # Explicit one-test exception, authorized in docs/rules-view-quarantine.md.
+            # Keep the case visible in discovery/TRX; never filter it or forgive failures.
+            $quarantined = @($skipped | Where-Object {
+                $stage.Name -eq 'parallel' -and
+                [IO.Path]::GetFileNameWithoutExtension($storage) -eq 'personaltradingjournal.desktop.tests' -and
+                $_.testName -ceq 'PersonalTradingJournal.Desktop.Tests.Rules.RulesViewTests.CompiledThemesNarrowHighDpiBindingsValidationHistoryAndWindowClose'
+            })
+            if ([int]$counts.total -eq 0 -or [int]$counts.total -ne $tests.Count -or $quarantined.Count -gt 1 -or
+                $skipped.Count -ne $quarantined.Count -or [int]$counts.notExecuted -notin @(0, $skipped.Count) -or
+                [int]$counts.failed -ne 0 -or [int]$counts.executed -ne ([int]$counts.total - $skipped.Count)) { $exitCode = 1 }
             foreach ($test in $tests) {
                 $identity = "$($test.testId)|$($test.testName)"
                 if (!$identities.Add($identity)) {
@@ -55,11 +67,10 @@ try {
                     $exitCode = 1
                 }
             }
-            $storage = @($trx.TestRun.TestDefinitions.UnitTest)[0].storage
             $records.Add([pscustomobject]@{
                 Stage = $stage.Name; Project = [IO.Path]::GetFileNameWithoutExtension($storage)
                 Total = [int]$counts.total; Passed = [int]$counts.passed
-                Failed = [int]$counts.failed; Skipped = [int]$counts.notExecuted
+                Failed = [int]$counts.failed; Skipped = $skipped.Count
                 StageStartedUtc = $started.ToString('O'); StageFinishedUtc = [DateTimeOffset]::UtcNow.ToString('O')
             })
         }
