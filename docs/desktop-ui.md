@@ -177,7 +177,9 @@ Automated bulk-deletion layout checks cover the compiled row menu and shared con
 
 ## Instruments Feature
 
-Instruments performs a lazy initial load on first navigation and provides an explicit Refresh command. Its inline Add Instrument form captures canonical symbol, display name, asset class, exchange, currency, Tick Size, and Tick Value. Asset Class defaults to Futures as a presentation convenience, and creation is coordinated by `CreateInstrumentUseCase`. Each row now exposes shared View, Edit, and overflow actions. View presents authoritative detail and audit timestamps; Edit reuses the shared form language and preserves active state.
+Instruments performs a lazy initial load on first navigation and provides an explicit Refresh command. Its inline Add Instrument form captures canonical symbol, display name, asset class, exchange, currency, Tick Size, and Tick Value. Asset Class defaults to Futures as a presentation convenience, and creation is coordinated by `CreateInstrumentUseCase`. Each row exposes View and a three-dot menu whose first action is Edit. Edit keeps the existing command and row ID; merely opening the menu does not change selection. The detail panel's Edit button remains available. View presents authoritative detail and audit timestamps; Edit reuses the shared form language and preserves active state.
+
+All ten table columns, including numeric values, status and actions, align left beneath matching headers. Header and row grids share widths and inset; the action column is 144 DIP after moving Edit into the menu. A 1120-DIP minimum table width protects readable columns, with one horizontal scroll region around headers and rows at narrow widths. See [Instruments UI verification](instruments-ui.md).
 
 Tick Size and Tick Value accept current-culture decimal formatting with an invariant `.` fallback. Point Value is read-only and derived from those inputs, including a deterministic edit preview; it is not independently editable. Only the applicable Activate or Deactivate action is shown. Unused Instruments may be deleted after destructive confirmation, while referenced deletes show safe guidance to Deactivate instead. Referenced Instruments may update metadata and tick economics without changing historical Trade snapshots, but Asset Class changes are blocked because that field controls quantity semantics. Contract-specific futures symbols, expiration, contract month, and rollover are not supported by this feature.
 
@@ -274,7 +276,7 @@ Trades uses the separate read, validation, save, and success states documented i
 
 ## Feature Page Scrolling
 
-Accounts, Instruments, Trading Setups, and Trading Mistakes each use one page-level vertical `ScrollViewer`, containing the toolbar, inline creation form, feedback, and rows. This keeps the whole workflow reachable at reduced height without a nested list scrollbar. Horizontal scrolling is disabled, and tab order follows the visible form/action sequence.
+Accounts, Instruments, Trading Setups, and Trading Mistakes each use one page-level vertical `ScrollViewer`, containing the toolbar, inline creation form, feedback, and rows. This keeps the whole workflow reachable at reduced height without a nested vertical list scrollbar. Horizontal scrolling is disabled at page level; Instruments has an inner horizontal-only table scroller that moves headers and rows together. Tab order follows the visible form/action sequence.
 
 This is appropriate for the current reference-data lists, but it is not a universal requirement for future large or virtualized datasets.
 
@@ -290,7 +292,9 @@ Dark retains the established hierarchy and palette. Light uses distinct backgrou
 
 ### Shared Entity Action and Dialog Language
 
-Entity list and detail workflows share a presentation vocabulary without sharing business CRUD logic. View is the primary row interaction, Edit is a lightweight normal action, and the compact ellipsis trigger opens a themed action menu when more choices are available. Entity-specific ViewModels remain responsible for deciding which commands exist and whether they are enabled. The reusable ContextMenu behavior opens from mouse or keyboard activation, stock menu navigation handles arrows and Escape, visible labels accompany centralized View, Edit, Activate, Deactivate, and Delete icons, and disabled commands remain visibly disabled.
+Entity list and detail workflows share a presentation vocabulary without sharing business CRUD logic. View is the primary row interaction. Instruments places Edit inside its row menu; other entity pages retain their existing Edit placement. Entity-specific ViewModels remain responsible for deciding which commands exist and whether they are enabled. The reusable ContextMenu behavior toggles from its button and remembers a same-trigger outside-down dismissal so the release does not reopen the menu. Stock menu navigation handles arrows and Escape; accessible names, command parameters and disabled-command behavior are retained. Notebook note/tag menus keep their separate ownership-aware implementations and existing native toggle coverage.
+
+Standard shared button templates use `PtjButtonHoverTintBrush` and `PtjButtonHoverBorderBrush` from the active theme. A 16% tint behind content preserves primary/destructive text colors while making hover visible through surface and outline changes. Disabled, pressed and keyboard-focus states remain distinct. Dedicated Notebook/Journal action templates retain their semantic hover palettes. Both themes have automated contrast checks; [verification details and manual limits](instruments-ui.md) are recorded separately.
 
 Activate and Deactivate are reversible lifecycle actions and use neutral secondary styling. Delete is separate, uses the existing Danger semantic, and is communicated by its trash icon and text label as well as color. The shared read-only detail language provides label/value text styles and a compact Active/Inactive status badge surface; it is a visual foundation, not a property-grid or metadata-driven editor.
 

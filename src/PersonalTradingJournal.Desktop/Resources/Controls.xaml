@@ -51,10 +51,15 @@
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="{StaticResource PtjCornerRadiusSm}">
+                            <Grid>
+                            <Border x:Name="HoverSurface" Opacity="0" IsHitTestVisible="False"
+                                    Background="{DynamicResource PtjButtonHoverTintBrush}"
+                                    CornerRadius="{StaticResource PtjCornerRadiusSm}" />
                             <ContentPresenter Margin="{TemplateBinding Padding}"
                                               HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                               VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                               RecognizesAccessKey="True" />
+                            </Grid>
                         </Border>
                         <Border x:Name="FocusIndicator"
                                 Margin="2"
@@ -64,9 +69,14 @@
                                 IsHitTestVisible="False" />
                     </Grid>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="ButtonChrome" Property="Opacity" Value="0.88" />
-                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsEnabled" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="HoverSurface" Property="Opacity" Value="0.16" />
+                            <Setter TargetName="ButtonChrome" Property="BorderBrush" Value="{DynamicResource PtjButtonHoverBorderBrush}" />
+                        </MultiTrigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="ButtonChrome" Property="Opacity" Value="0.72" />
                         </Trigger>

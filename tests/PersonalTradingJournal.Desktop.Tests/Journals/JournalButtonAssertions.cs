@@ -23,13 +23,26 @@ internal static class JournalButtonAssertions
             Check(button, "PtjAccentBrush");
             Assert.NotEqual(Color(button.FindResource("PtjJournalActionBrush")), Color(button.Background));
             button.SetValue(hover, true);
-            Assert.Equal(.88, chrome.Opacity);
+            var surface = Assert.IsType<Border>(button.Template.FindName("HoverSurface", button));
+            Assert.Equal(1, chrome.Opacity);
+            Assert.Equal(.16, surface.Opacity, 3);
+            Assert.False(surface.IsHitTestVisible);
+            Assert.Equal(Color(button.FindResource("PtjButtonHoverTintBrush")), Color(surface.Background));
+            Assert.Equal(Color(button.FindResource("PtjButtonHoverBorderBrush")), Color(chrome.BorderBrush));
+            var tint = Color(surface.Background); var normal = Color(button.Background);
+            var painted = System.Windows.Media.Color.FromRgb(
+                (byte)Math.Round(tint.R * surface.Opacity + normal.R * (1 - surface.Opacity)),
+                (byte)Math.Round(tint.G * surface.Opacity + normal.G * (1 - surface.Opacity)),
+                (byte)Math.Round(tint.B * surface.Opacity + normal.B * (1 - surface.Opacity)));
+            var a = Luminance(painted); var b = Luminance(Color(button.Foreground));
+            Assert.True((Math.Max(a, b) + .05) / (Math.Min(a, b) + .05) >= 4.5);
             button.SetValue(pressed, true);
             Assert.Equal(.72, chrome.Opacity);
             button.SetValue(focus, true);
             Assert.NotEqual(Colors.Transparent, Color(indicator.BorderBrush));
             button.IsEnabled = false;
             Assert.Equal(.45, chrome.Opacity);
+            Assert.Equal(0, surface.Opacity);
         }
         finally
         {

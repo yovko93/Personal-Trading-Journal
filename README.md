@@ -41,7 +41,7 @@ The guiding principle is simple: **process quality and financial outcome are sep
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Latest complete local test execution: **5,542 passed / 0 failed / 1 skipped**. One compiled Rules-view acceptance test is temporarily quarantined after a hosted CLR crash. Corrected gate-result validation passes against the retained results; hosted confirmation is pending. See the [quarantine record](docs/rules-view-quarantine.md) for coverage limits, runner accounting and restoration criteria. |
+| Verification | Latest complete local Release gate: **5,546 passed / 1 failed / 1 skipped**, exit 1. Instruments checks pass; a Notebook post-close hover assertion remains unresolved. See [UI verification](docs/instruments-ui.md#complete-release-gate) for evidence. One Rules-view acceptance test remains [temporarily quarantined](docs/rules-view-quarantine.md); hosted confirmation is pending. |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
@@ -59,9 +59,12 @@ The CI badge tracks `main`; it does not certify every development change. The [N
 | **Reviews** | Review daily, weekly, and monthly evidence, retain saved analyses, and optionally use AI-assisted coaching or the manual ChatGPT prompt workflow. |
 | **Notebook** | Organize rich-text notes with folders, tags, images, templates, pinned notes, linked trades and setups, autosave, and recovery. |
 | **Data management** | Create complete backups, validate and restore compatible archives, and export data as JSON or CSV. |
+| **Reference data** | Manage Instruments with left-aligned columns, Edit inside each row's action menu, and horizontal table scrolling at narrow widths. Three-dot menus toggle open/closed; shared buttons have theme-aware hover highlights. |
 | **Appearance** | Choose System, Light, or Dark themes, with the Bull and Bear Trading Journal artwork, a distinct emerald sidebar header, and matching Windows application icons. |
 
 Analytics preserve currency boundaries and expose missing costs or incomplete evidence. Each view documents its Gross/Net policy; unavailable values are not silently treated as zero.
+
+See [Instruments and action-menu verification](docs/instruments-ui.md) for menu coverage, Light/Dark layout checks, and the distinction between automated native input, rendered previews and pending live visual inspection.
 
 The selected Bull and Bear artwork uses the supplied PNG unchanged and a generated ten-resolution Windows ICO. The approved emerald sidebar layout is preserved. Its Release build, 40 focused header/theme checks, inspected renders at 100% and 250%, and built/published EXE icon inspections pass. Native visual acceptance remains pending. See [Application Branding](docs/application-branding.md) for current results and [Release lifecycle investigation](docs/release-gate-lifecycle.md) for earlier complete-gate evidence.
 

@@ -157,11 +157,36 @@ public sealed class EntityActionResourceTests
     {
         string view = ReadDesktopFile("Views", "Instruments", "InstrumentsView.xaml");
 
-        Assert.Equal(2, Regex.Matches(view, "<ColumnDefinition Width=\"224\" />").Count);
+        Assert.Equal(2, Regex.Matches(view, "<ColumnDefinition Width=\"144\" />").Count);
         Assert.Equal(2, Regex.Matches(view, "<ColumnDefinition Width=\"1.8\\*\" />").Count);
         Assert.Equal(2, Regex.Matches(view, "<ColumnDefinition Width=\"0.55\\*\" />").Count);
         Assert.Contains("Text=\"Actions\"", view, StringComparison.Ordinal);
-        Assert.Contains("HorizontalAlignment=\"Right\"", view, StringComparison.Ordinal);
+        Assert.Contains("MinWidth=\"1120\"", view, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"InstrumentTableScroll\" HorizontalScrollBarVisibility=\"Auto\"", view, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EveryThreeDotDeclarationUsesAnExplicitlyCoveredToggleImplementation()
+    {
+        XNamespace wpf = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        var counts = new Dictionary<string, int>();
+        string root = Path.Combine(FindRepositoryRoot(), "src", "PersonalTradingJournal.Desktop", "Views");
+        foreach (string file in Directory.EnumerateFiles(root, "*.xaml", SearchOption.AllDirectories))
+        {
+            var document = XDocument.Load(file);
+            foreach (var icon in document.Descendants(wpf + "Path").Where(p => (string?)p.Attribute("Data") == "{StaticResource PtjIconMore}"))
+            {
+                var button = icon.Ancestors(wpf + "Button").First();
+                string name = Path.GetFileName(file);
+                counts[name] = counts.GetValueOrDefault(name) + 1;
+                if (name == "NotebookWorkspaceView.xaml")
+                    Assert.Contains((string?)button.Attribute("Click"), new[] { "ToggleOverflowMenu", "OpenTagMenu" });
+                else
+                    Assert.Equal("True", (string?)button.Attributes().Single(a => a.Name.LocalName == "EntityActionMenu.OpensContextMenu").Value);
+            }
+        }
+        Assert.Equal(new[] { "AccountsView.xaml", "InstrumentsView.xaml", "NotebookWorkspaceView.xaml", "TradesView.xaml", "TradingMistakesView.xaml", "TradingSetupsView.xaml" }, counts.Keys.Order());
+        Assert.All(counts.Values, count => Assert.Equal(2, count));
     }
 
     [Fact]

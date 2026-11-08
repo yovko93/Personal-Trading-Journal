@@ -8,6 +8,8 @@
                TargetType="{x:Type TextBlock}"
                BasedOn="{StaticResource PtjCaptionTextStyle}">
             <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="TextAlignment" Value="Left" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
 
@@ -15,6 +17,8 @@
                TargetType="{x:Type TextBlock}"
                BasedOn="{StaticResource PtjBodyTextStyle}">
             <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="TextAlignment" Value="Left" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
     </UserControl.Resources>
@@ -453,7 +457,8 @@
                            Text="No instruments yet." />
             </Border>
 
-            <Grid>
+            <ScrollViewer x:Name="InstrumentTableScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            <Grid x:Name="InstrumentTable" MinWidth="1120">
                 <Grid.Style>
                     <Style TargetType="{x:Type Grid}">
                         <Setter Property="Visibility" Value="Collapsed" />
@@ -470,7 +475,7 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <Grid Margin="16,0,16,8">
+                <Grid x:Name="InstrumentHeaders" Margin="17,0,17,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="0.7*" />
                         <ColumnDefinition Width="1.8*" />
@@ -481,7 +486,7 @@
                         <ColumnDefinition Width="0.65*" />
                         <ColumnDefinition Width="0.7*" />
                         <ColumnDefinition Width="0.65*" />
-                        <ColumnDefinition Width="224" />
+                        <ColumnDefinition Width="144" />
                     </Grid.ColumnDefinitions>
 
                     <TextBlock Grid.Column="0"
@@ -500,28 +505,29 @@
                                Style="{StaticResource InstrumentColumnHeaderStyle}"
                                Text="Currency" />
                     <TextBlock Grid.Column="5"
-                               HorizontalAlignment="Right"
+                               HorizontalAlignment="Left"
                                Style="{StaticResource InstrumentColumnHeaderStyle}"
                                Text="Tick Size" />
                     <TextBlock Grid.Column="6"
-                               HorizontalAlignment="Right"
+                               HorizontalAlignment="Left"
                                Style="{StaticResource InstrumentColumnHeaderStyle}"
                                Text="Tick Value" />
                     <TextBlock Grid.Column="7"
-                               HorizontalAlignment="Right"
+                               HorizontalAlignment="Left"
                                Style="{StaticResource InstrumentColumnHeaderStyle}"
                                Text="Point Value" />
                     <TextBlock Grid.Column="8"
-                               HorizontalAlignment="Right"
+                               HorizontalAlignment="Left"
                                Style="{StaticResource InstrumentColumnHeaderStyle}"
                                Text="Status" />
                     <TextBlock Grid.Column="9"
-                               HorizontalAlignment="Right"
+                               HorizontalAlignment="Left"
                                Style="{StaticResource InstrumentColumnHeaderStyle}"
                                Text="Actions" />
                 </Grid>
 
                 <ItemsControl Grid.Row="1"
+                              x:Name="InstrumentRows"
                               HorizontalContentAlignment="Stretch"
                               ItemsSource="{Binding Instruments}">
                         <ItemsControl.ItemTemplate>
@@ -530,7 +536,7 @@
                                         Margin="0,0,0,8"
                                         Padding="16,12"
                                         Style="{StaticResource PtjCardStyle}">
-                                    <Grid>
+                                    <Grid x:Name="InstrumentRow">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="0.7*" />
                                             <ColumnDefinition Width="1.8*" />
@@ -541,7 +547,7 @@
                                             <ColumnDefinition Width="0.65*" />
                                             <ColumnDefinition Width="0.7*" />
                                             <ColumnDefinition Width="0.65*" />
-                                            <ColumnDefinition Width="224" />
+                                            <ColumnDefinition Width="144" />
                                         </Grid.ColumnDefinitions>
 
                                         <TextBlock Grid.Column="0"
@@ -561,19 +567,19 @@
                                                    Style="{StaticResource InstrumentCellTextStyle}"
                                                    Text="{Binding Currency}" />
                                         <TextBlock Grid.Column="5"
-                                                   HorizontalAlignment="Right"
+                                                   HorizontalAlignment="Left"
                                                    Style="{StaticResource InstrumentCellTextStyle}"
                                                    Text="{Binding TickSize, StringFormat={}{0:0.########}}" />
                                         <TextBlock Grid.Column="6"
-                                                   HorizontalAlignment="Right"
+                                                   HorizontalAlignment="Left"
                                                    Style="{StaticResource InstrumentCellTextStyle}"
                                                    Text="{Binding TickValue, StringFormat={}{0:0.########}}" />
                                         <TextBlock Grid.Column="7"
-                                                   HorizontalAlignment="Right"
+                                                   HorizontalAlignment="Left"
                                                    Style="{StaticResource InstrumentCellTextStyle}"
                                                    Text="{Binding PointValue, StringFormat={}{0:0.########}}" />
                                         <TextBlock Grid.Column="8"
-                                                   HorizontalAlignment="Right">
+                                                   HorizontalAlignment="Left">
                                             <TextBlock.Style>
                                                 <Style TargetType="{x:Type TextBlock}"
                                                        BasedOn="{StaticResource PtjCaptionTextStyle}">
@@ -589,7 +595,7 @@
                                             </TextBlock.Style>
                                         </TextBlock>
 
-                                        <StackPanel Grid.Column="9" Margin="8,0,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
+                                        <StackPanel Grid.Column="9" HorizontalAlignment="Left" Orientation="Horizontal">
                                             <Button Command="{Binding DataContext.ViewInstrumentCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                                                     CommandParameter="{Binding Id}" Style="{StaticResource PtjEntityActionButtonStyle}" ToolTip="View instrument details">
                                                 <StackPanel Orientation="Horizontal">
@@ -597,18 +603,17 @@
                                                     <TextBlock Margin="6,0,0,0" Text="View" />
                                                 </StackPanel>
                                             </Button>
-                                            <Button Margin="4,0,0,0" Command="{Binding DataContext.EditInstrumentCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                                    CommandParameter="{Binding Id}" Style="{StaticResource PtjEntityActionButtonStyle}" ToolTip="Edit instrument">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <Viewbox Width="14" Height="14"><Path Data="{StaticResource PtjIconEdit}" Fill="{x:Null}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" StrokeLineJoin="Round" StrokeThickness="1.7" /></Viewbox>
-                                                    <TextBlock Margin="6,0,0,0" Text="Edit" />
-                                                </StackPanel>
-                                            </Button>
-                                            <Button Margin="4,0,0,0" AutomationProperties.Name="More instrument actions"
+                                            <Button x:Name="InstrumentRowActions" Margin="4,0,0,0" AutomationProperties.Name="More instrument actions"
                                                     interactions:EntityActionMenu.OpensContextMenu="True" Style="{StaticResource PtjIconButtonStyle}"
                                                     Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" ToolTip="More instrument actions">
                                                 <Button.ContextMenu>
                                                     <ContextMenu DataContext="{Binding PlacementTarget, RelativeSource={RelativeSource Self}}" Style="{StaticResource PtjEntityActionMenuStyle}">
+                                                        <MenuItem x:Name="InstrumentRowEdit" Header="Edit" ToolTip="Edit instrument"
+                                                                  Command="{Binding Tag.EditInstrumentCommand}" CommandParameter="{Binding DataContext.Id}"
+                                                                  Style="{StaticResource PtjEntityActionMenuItemStyle}">
+                                                            <MenuItem.Icon><Viewbox><Path Data="{StaticResource PtjIconEdit}" Fill="{x:Null}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}" StrokeLineJoin="Round" StrokeThickness="1.7" /></Viewbox></MenuItem.Icon>
+                                                        </MenuItem>
+                                                        <Separator Style="{StaticResource PtjEntityActionMenuSeparatorStyle}" />
                                                         <MenuItem Command="{Binding Tag.ActivateInstrumentCommand}" CommandParameter="{Binding DataContext}" Header="Activate">
                                                             <MenuItem.Icon><Viewbox><Path Data="{StaticResource PtjIconActivate}" Fill="{x:Null}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}" StrokeLineJoin="Round" StrokeThickness="1.8" /></Viewbox></MenuItem.Icon>
                                                             <MenuItem.Style><Style TargetType="{x:Type MenuItem}" BasedOn="{StaticResource PtjLifecycleMenuItemStyle}"><Setter Property="Visibility" Value="Visible" /><Style.Triggers><DataTrigger Binding="{Binding DataContext.IsActive}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></MenuItem.Style>
@@ -632,6 +637,7 @@
                         </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </Grid>
+            </ScrollViewer>
         </Grid>
         </StackPanel>
     </ScrollViewer>
