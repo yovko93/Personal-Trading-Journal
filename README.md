@@ -41,7 +41,7 @@ The guiding principle is simple: **process quality and financial outcome are sep
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Latest complete local Release gate: **5,547 passed / 0 failed / 1 skipped**, exit 0, after correcting Notebook hover-test pointer preconditions. See [verification evidence](docs/ci-menu-readiness.md#post-close-hover-precondition--8-november-2026). One Rules-view acceptance test remains [temporarily quarantined](docs/rules-view-quarantine.md); hosted confirmation and live visual acceptance are pending. |
+| Verification | Latest complete local Release gate: **5,553 passed / 0 failed / 1 skipped**, exit 0, including Instruments currency defaults, non-USD editing and compiled layout checks. See [verification evidence](docs/instruments-ui.md#currency-and-tick-value-refinement). One Rules-view acceptance test remains [temporarily quarantined](docs/rules-view-quarantine.md); hosted confirmation and live visual acceptance are pending. |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
@@ -59,7 +59,7 @@ The CI badge tracks `main`; it does not certify every development change. The [N
 | **Reviews** | Review daily, weekly, and monthly evidence, retain saved analyses, and optionally use AI-assisted coaching or the manual ChatGPT prompt workflow. |
 | **Notebook** | Organize rich-text notes with folders, tags, images, templates, pinned notes, linked trades and setups, autosave, and recovery. |
 | **Data management** | Create complete backups, validate and restore compatible archives, and export data as JSON or CSV. |
-| **Reference data** | Manage Instruments with left-aligned columns, Edit inside each row's action menu, and horizontal table scrolling at narrow widths. Three-dot menus toggle open/closed; shared buttons have theme-aware hover highlights. |
+| **Reference data** | Instruments show Tick Value with its currency (for example, `5.00 USD`), left-aligned columns, row-menu Edit and narrow-window horizontal scrolling. Add defaults to editable USD; Edit retains the saved currency. Three-dot menus toggle open/closed; shared buttons have theme-aware hover highlights. |
 | **Appearance** | Choose System, Light, or Dark themes, with the Bull and Bear Trading Journal artwork, a distinct emerald sidebar header, and matching Windows application icons. |
 
 Analytics preserve currency boundaries and expose missing costs or incomplete evidence. Each view documents its Gross/Net policy; unavailable values are not silently treated as zero.

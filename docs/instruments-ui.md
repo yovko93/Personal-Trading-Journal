@@ -2,11 +2,46 @@
 
 ## Behavior — 8 November 2026
 
-Started on clean `develop`, `fb0a6157e499074e07cad04315bd8d7c9269b948`. Changes are local and uncommitted. No production app startup, journal/database access, commit, push or merge is part of this verification.
+The original menu/layout verification started on clean `develop`, `fb0a6157e499074e07cad04315bd8d7c9269b948`; its evidence is retained below. The currency refinement starts on clean `develop`, `dcccf2085865c540bdc4cc5b8c373345ab9ba208`. This follow-up remains local and uncommitted, with no production app startup, journal/database access, commit, push or merge.
 
 Instruments rows show View and a three-dot trigger. Edit is the first menu item, bound to the existing `EditInstrumentCommand` and that row's ID. Opening a different row's menu preserves selection; choosing Edit loads the clicked row through the existing command. Lifecycle/Delete commands and their visibility remain intact. The detail panel retains its Edit button.
 
-All ten table columns align left beneath their headers, including numbers, status and actions. Header and row grids share widths and inset, with 144 DIP for actions. At narrow sizes, a 1120-DIP minimum table scrolls horizontally as one region, keeping headers and rows aligned and all actions reachable. Partial columns at the horizontal viewport edges are intentional. The page retains its vertical scrolling.
+All nine table columns align left beneath their headers, including numbers, status and actions. Header and row grids share widths and inset, with 144 DIP for actions. At narrow sizes, a 1120-DIP minimum table scrolls horizontally as one region, keeping headers and rows aligned and all actions reachable. Partial columns at the horizontal viewport edges are intentional. The page retains its vertical scrolling.
+
+## Currency and Tick Value refinement
+
+The list has no separate Currency column. Tick Value uses both row bindings (`TickValue`, `Currency`) in one left-aligned cell, for example **5.00 USD**. Formatting displays at least two fractional digits and retains up to eight, so a value such as **1.23456789 EUR** is not rounded to cents. The former currency-column space is allocated to Tick Value; header and row grids have identical nine-column definitions, with their existing table minimum and horizontal scrolling preserved.
+
+Currency remains in the domain model, persistence, pricing snapshots, details and Add/Edit forms. Only the Desktop Add form's initial/reset value changes to **USD**. Users can override it; cancel, successful creation and navigation reset restore USD for the next new Instrument. Edit continues loading the saved currency and submits it unchanged unless the user edits it. Domain validation, stored currency, pricing snapshots, imports and Trade economics are unchanged; there is no stored-data rewrite or migration.
+
+Focused tests add default/reset, USD/EUR creation and EUR/JPY metadata edits plus an explicit EUR-to-GBP edit. Existing four compiled WPF cases (Light/Dark at 1280/96 and 480/240) now verify nine headers/cells, combined binding paths, exact two/eight-decimal strings, left alignment, reachable pricing/actions at narrow widths, non-USD details/Edit and editable Add currency. Native menu, keyboard, accessibility and hover assertions remain in place. Forms use in-memory fakes; no production data is involved.
+
+Release build: **0 warnings / 0 errors**, `TestResults/instruments-currency-build.log`. Focused checks: **48 top-level passed / 0 failed / 0 skipped**, plus **8 matching isolated children passed** (four Instruments and four Notebook overflow cases), `TestResults/instruments-currency/focused/` and `TestResults/instruments-currency-focused.log`. All six new ViewModel cases pass. The four existing WPF cases add currency assertions without adding new exclusive identities or changing scheduling.
+
+Inspected offscreen renders in `focused/instruments-ui-*/ui-evidence/`: Light/Dark normal tables and narrow pricing viewports at **1280/96** and **480/240** (logical width/render DPI). The combined USD/EUR values and headers align, and scrolling brings the entire pricing cell into view without overlap. The tests also retain left-end/action-end and Add/Edit captures. Render density does not change Windows desktop DPI. Automated native mouse checks pass; no live visual inspection is claimed, and the previously reported Computer Use runtime initialization issue remains unresolved.
+
+One complete Release gate after the focused passes completed with **5,553 passed / 0 failed / 1 skipped**, **exit 0**:
+
+```powershell
+pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults/instruments-currency/complete
+```
+
+Run: `release-20261108-214839-67fa51433b204bd2a8b61851a90afe52`; console: `TestResults/instruments-currency-complete.log`. The earlier menu/hover results below remain historical evidence.
+
+| Complete stage / project | Passed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| ExclusiveWpf / Desktop | 151 | 0 | 0 |
+| Parallel / Desktop | 2,142 | 0 | 1 |
+| Domain | 602 | 0 | 0 |
+| Application | 1,050 | 0 | 0 |
+| Infrastructure | 1,608 | 0 | 0 |
+| **Top-level total** | **5,553** | **0** | **1** |
+
+The inventory increases from 5,548 to **5,554** top-level cases solely through the six new ViewModel cases, all passed. The only skip remains `PersonalTradingJournal.Desktop.Tests.Rules.RulesViewTests.CompiledThemesNarrowHighDpiBindingsValidationHistoryAndWindowClose`; its [quarantine and restoration criteria](rules-view-quarantine.md) are unchanged. This does not establish that the quarantined CLR crash is fixed or that its acceptance coverage passed. No new skip, filter, retry, timeout, concurrency or workflow-budget change is made.
+
+The five top-level TRX files were audited independently: zero failed results and no duplicate test-ID/display-name identities across partitions (`TestResults/instruments-currency/complete-audit.json`). Child results are supporting evidence, not added to totals. All four Instruments children pass (`complete-instruments-audit.json`); the four Notebook overflow children also pass. `focused-audit.json` retains the 48-parent/8-child focused results, and `source-evidence.json` records the tested code and assembly hashes under `TestResults/instruments-currency/`. Hosted and live visual verification remain pending.
+
+Exact follow-up files: `src/PersonalTradingJournal.Desktop/ViewModels/Instruments/InstrumentsViewModel.cs`, `src/PersonalTradingJournal.Desktop/Views/Instruments/InstrumentsView.xaml`, `tests/PersonalTradingJournal.Desktop.Tests/Instruments/InstrumentsViewModelTests.cs`, `tests/PersonalTradingJournal.Desktop.Tests/Instruments/InstrumentsViewTests.cs`, `tests/PersonalTradingJournal.Desktop.Tests/Resources/EntityActionResourceTests.cs`, `README.md`, `docs/desktop-ui.md`, `docs/instruments-ui.md`.
 
 ## Three-dot inventory
 
@@ -29,7 +64,7 @@ Both theme dictionaries define `PtjButtonHoverTintBrush` and `PtjButtonHoverBord
 
 Native-hover checks cover normal, primary, secondary, danger, entity-action and icon buttons in both themes, requiring at least **4.5:1** text contrast against the composited surface. The existing Journal call-to-action assertion now requires the tint/outline design and contrast, while retaining its original focus, pressed and disabled checks.
 
-## Automated verification
+## Original menu/hover automated verification
 
 - Release build: **0 warnings / 0 errors**, `TestResults/instruments-ui/build-final.log`. An initial missing test import was corrected before successful execution.
 - Broad focused selection: **49 top-level passed / 0 failed / 0 skipped**, plus **10 matching children passed**: four Instruments, four Notebook note-menu and two tag-menu cases (`focused.log`, `focused/`). Children are evidence, not extra top-level cases.
@@ -74,9 +109,9 @@ The follow-up complete gate, `release-20261108-203848-e35ead66372f4d249a796e2430
 
 **No live visual inspection is claimed.** The Computer Use runtime failed before app selection/input: `failed to write kernel assets: The system cannot find the path specified. (os error 3)`. Initialization failed again after its reset recovery. No production app was opened.
 
-A standalone synthetic preview was built at `TestResults/instruments-ui/live/bin/Release/net10.0-windows/InstrumentsPreview.exe`, using in-memory test fakes and Light/Dark/normal/narrow controls. It was not launched after the automation runtime failed. A later manual check should use only that preview or an explicitly isolated synthetic app: inspect both themes and widths, click the same dot trigger twice, verify row Edit targets the intended instrument, and inspect hover/focus/keyboard behavior. Automated native input passed; human/live visual acceptance is pending.
+A standalone synthetic preview for the original menu work was built at `TestResults/instruments-ui/live/bin/Release/net10.0-windows/InstrumentsPreview.exe`, using in-memory test fakes and Light/Dark/normal/narrow controls. It was not launched after the automation runtime failed and has not been rebuilt for the currency refinement; it is not current verification evidence. A later manual check must use a freshly built synthetic preview or an explicitly isolated synthetic app: inspect both themes and widths, scroll the pricing/actions into view, check Add defaults to editable USD, verify non-USD details/Edit, click the same dot trigger twice and inspect hover/focus/keyboard behavior. Automated native input passed; human/live visual acceptance is pending.
 
-## Exact changed files
+## Original menu/layout changed files
 
 - `src/PersonalTradingJournal.Desktop/Interactions/EntityActionMenu.cs`
 - `src/PersonalTradingJournal.Desktop/Resources/Controls.xaml`

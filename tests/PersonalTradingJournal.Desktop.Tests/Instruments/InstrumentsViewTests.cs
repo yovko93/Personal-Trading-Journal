@@ -7,8 +7,10 @@ using System.Windows.Automation.Peers;
 using System.Windows.Automation.Provider;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -53,7 +55,7 @@ public sealed class InstrumentsViewTests
             PresentationTraceSources.DataBindingSource.Listeners.Add(errors);
             var (vm, reader) = CreateSyntheticModel();
             Pump(vm.EnsureLoadedAsync());
-            var view = new InstrumentsView { DataContext = vm };
+            var view = new InstrumentsView { DataContext = vm, Language = XmlLanguage.GetLanguage("en-US") };
             var outside = new Button { Content = "Outside menu", Height = 32, Style = (Style)app.Resources["PtjButtonStyle"] };
             var samples = new WrapPanel();
             string[] styles = ["PtjButtonStyle", "PtjPrimaryButtonStyle", "PtjSecondaryButtonStyle", "PtjDangerButtonStyle", "PtjEntityActionButtonStyle", "PtjIconButtonStyle"];
@@ -74,10 +76,13 @@ public sealed class InstrumentsViewTests
                 var headers = (Grid)view.FindName("InstrumentHeaders");
                 var rows = Descendants(view).OfType<Grid>().Where(g => g.Name == "InstrumentRow").ToArray();
                 Assert.Equal(2, rows.Length);
-                Assert.Equal(10, headers.Children.Count);
+                Assert.Equal(new[] { "Symbol", "Display Name", "Asset Class", "Exchange", "Tick Size", "Tick Value", "Point Value", "Status", "Actions" },
+                    headers.Children.OfType<TextBlock>().Select(h => h.Text));
+                Assert.Equal(9, headers.ColumnDefinitions.Count);
                 foreach (var row in rows)
                 {
-                    Assert.Equal(10, row.Children.Count);
+                    Assert.Equal(9, row.Children.Count);
+                    Assert.Equal(9, row.ColumnDefinitions.Count);
                     foreach (FrameworkElement cell in row.Children)
                     {
                         int column = Grid.GetColumn(cell);
@@ -88,10 +93,25 @@ public sealed class InstrumentsViewTests
                         Assert.True(cell.ActualWidth <= row.ColumnDefinitions[column].ActualWidth + 1);
                     }
                     Assert.DoesNotContain(Descendants(row).OfType<Button>(), b => ReferenceEquals(b.Command, vm.EditInstrumentCommand));
+                    var tickValue = row.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == 5);
+                    var binding = Assert.IsType<MultiBinding>(BindingOperations.GetMultiBinding(tickValue, TextBlock.TextProperty));
+                    Assert.Equal(new[] { "TickValue", "Currency" }, binding.Bindings.Cast<Binding>().Select(b => b.Path.Path));
+                    Assert.Equal(TextAlignment.Left, tickValue.TextAlignment);
                 }
+                var tickValues = rows.Select(r => r.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == 5)).ToArray();
+                Assert.Equal("5.00 USD", tickValues[0].Text);
+                Assert.Equal("1.23456789 EUR", tickValues[1].Text);
                 var scroller = (ScrollViewer)view.FindName("InstrumentTableScroll");
                 Assert.Equal(width < 1120, scroller.ScrollableWidth > 0);
                 Save(view, "table-left");
+                scroller.ScrollToHorizontalOffset(Math.Max(0, tickValues[0].TranslatePoint(new Point(), table).X - 16));
+                Layout();
+                foreach (var tickValue in tickValues)
+                {
+                    double left = tickValue.TranslatePoint(new Point(), scroller).X;
+                    Assert.InRange(left, 0, scroller.ViewportWidth - tickValue.ActualWidth);
+                }
+                Save(view, "table-pricing");
                 scroller.ScrollToRightEnd(); Layout(); Save(view, "table-actions");
 
                 foreach (Button sample in samples.Children)
@@ -133,7 +153,8 @@ public sealed class InstrumentsViewTests
 
                 var first = (InstrumentListItem)rows[0].DataContext;
                 var second = (InstrumentListItem)rows[1].DataContext;
-                reader.DetailsToReturn = Details(first); Pump(vm.ViewInstrumentCommand.ExecuteAsync(first.Id));
+                reader.DetailsToReturn = Details(first); Pump(vm.ViewInstrumentCommand.ExecuteAsync(first.Id)); Layout();
+                Assert.Equal("USD", DetailCurrency().Text);
                 reader.DetailsToReturn = Details(second);
                 Click(actions); Assert.True(menu.IsOpen);
                 Assert.Equal(first.Id, vm.SelectedInstrument!.Id); // Opening a different row's menu does not select it.
@@ -145,6 +166,21 @@ public sealed class InstrumentsViewTests
                 Assert.True(Wait(() => vm.EditInstrumentCommand.ExecutionTask?.IsCompleted == true && vm.IsEditFormVisible));
                 Assert.Equal(second.Id, vm.SelectedInstrument!.Id);
                 Assert.Equal(second.Symbol, vm.EditSymbol); Assert.False(menu.IsOpen);
+                Assert.Equal("EUR", vm.EditCurrency);
+                Layout(); Assert.Equal("EUR", DetailCurrency().Text);
+                var editCurrency = CurrencyInput("EditCurrency");
+                Assert.Equal("EUR", editCurrency.Text); Assert.False(editCurrency.IsReadOnly);
+                editCurrency.SetCurrentValue(TextBox.TextProperty, "GBP"); Layout();
+                Assert.Equal("GBP", vm.EditCurrency);
+                Save(view, "currency-edit");
+                vm.CancelEditCommand.Execute(null); vm.ShowCreateFormCommand.Execute(null); Layout();
+                var addCurrency = CurrencyInput("Currency");
+                Assert.Equal("USD", addCurrency.Text); Assert.False(addCurrency.IsReadOnly);
+                addCurrency.SetCurrentValue(TextBox.TextProperty, "CAD"); Layout();
+                Assert.Equal("CAD", vm.Currency);
+                Save(view, "currency-add");
+                vm.CancelCreateCommand.Execute(null); vm.ShowCreateFormCommand.Execute(null); Layout();
+                Assert.Equal("USD", addCurrency.Text);
                 Assert.Empty(errors.Messages);
             }
             finally
@@ -155,6 +191,10 @@ public sealed class InstrumentsViewTests
             }
 
             void Layout() { view.UpdateLayout(); window.UpdateLayout(); Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle); }
+            TextBox CurrencyInput(string path) => Descendants(view).OfType<TextBox>()
+                .Single(t => BindingOperations.GetBinding(t, TextBox.TextProperty)?.Path.Path == path);
+            TextBlock DetailCurrency() => Descendants(view).OfType<TextBlock>()
+                .Single(t => BindingOperations.GetBinding(t, TextBlock.TextProperty)?.Path.Path == "SelectedInstrument.Currency");
             void Move(FrameworkElement target, bool requireHover = true)
             {
                 target.BringIntoView(); Layout();
@@ -215,8 +255,8 @@ public sealed class InstrumentsViewTests
     {
         var reader = new FakeInstrumentReader(); var store = new FakeInstrumentStore(); var deletion = new FakeInstrumentDeletionStore(); var clock = new FixedTimeProvider();
         reader.EnqueueResult([
-            new(Guid.Parse("00000000-0000-0000-0000-000000000001"), "ES", "Synthetic S&P futures", AssetClass.Futures, "CME", "USD", .25m, 12.5m, 50m, true),
-            new(Guid.Parse("00000000-0000-0000-0000-000000000002"), "MES", "Synthetic micro futures", AssetClass.Futures, "CME", "USD", .25m, 1.25m, 5m, true)]);
+            new(Guid.Parse("00000000-0000-0000-0000-000000000001"), "ES", "Synthetic S&P futures", AssetClass.Futures, "CME", "USD", .25m, 5m, 20m, true),
+            new(Guid.Parse("00000000-0000-0000-0000-000000000002"), "MES", "Synthetic micro futures", AssetClass.Futures, "CME", "EUR", .25m, 1.23456789m, 4.93827156m, true)]);
         return (new(reader, new CreateInstrumentUseCase(store, clock), new InstrumentLifecycleUseCase(store, clock), new GetInstrumentDetailsUseCase(reader),
             new UpdateInstrumentUseCase(store, deletion, clock), new DeleteInstrumentUseCase(store, deletion), new FakeDialogService()), reader);
     }

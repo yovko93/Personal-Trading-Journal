@@ -159,7 +159,7 @@ public sealed class EntityActionResourceTests
 
         Assert.Equal(2, Regex.Matches(view, "<ColumnDefinition Width=\"144\" />").Count);
         Assert.Equal(2, Regex.Matches(view, "<ColumnDefinition Width=\"1.8\\*\" />").Count);
-        Assert.Equal(2, Regex.Matches(view, "<ColumnDefinition Width=\"0.55\\*\" />").Count);
+        Assert.Equal(2, Regex.Matches(view, "<ColumnDefinition Width=\"1.2\\*\" />").Count);
         Assert.Contains("Text=\"Actions\"", view, StringComparison.Ordinal);
         Assert.Contains("MinWidth=\"1120\"", view, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"InstrumentTableScroll\" HorizontalScrollBarVisibility=\"Auto\"", view, StringComparison.Ordinal);

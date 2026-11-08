@@ -10,6 +10,7 @@ namespace PersonalTradingJournal.Desktop.ViewModels.Instruments;
 
 public sealed class InstrumentsViewModel : ObservableObject
 {
+    private const string DefaultCurrency = "USD";
     private const NumberStyles DecimalNumberStyles =
         NumberStyles.AllowLeadingWhite |
         NumberStyles.AllowTrailingWhite |
@@ -47,7 +48,7 @@ public sealed class InstrumentsViewModel : ObservableObject
     private readonly DeleteInstrumentUseCase _deleteInstrumentUseCase;
     private readonly IDialogService _dialogService;
     private readonly SemaphoreSlim _loadGate = new(1, 1);
-    private string _currency = string.Empty;
+    private string _currency = DefaultCurrency;
     private string? _createErrorMessage;
     private string _displayName = string.Empty;
     private string? _errorMessage;
@@ -745,7 +746,7 @@ public sealed class InstrumentsViewModel : ObservableObject
         DisplayName = string.Empty;
         SelectedAssetClass = AssetClass.Futures;
         Exchange = string.Empty;
-        Currency = string.Empty;
+        Currency = DefaultCurrency;
         TickSizeText = string.Empty;
         TickValueText = string.Empty;
         IsSymbolInvalid = false;
