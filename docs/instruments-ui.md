@@ -66,6 +66,10 @@ The retained movement trace requests **1096,514**, then records **1121,569** and
 
 This is a completed, failing gate, not Release acceptance. No other skip, filter, retry, deadline or workflow-budget change was added. The Notebook failure remains open; a passing focused rerun does not establish a correction or attribution.
 
+Follow-up: the [post-close hover investigation](ci-menu-readiness.md#post-close-hover-precondition--8-november-2026) demonstrates a fixture precondition error with a controlled native pointer departure. The overflow test retains its immediate close assertion and now explicitly checks normal outside and hover inside. The historical gate above is preserved; the follow-up guide records new results separately and leaves the source of the original unrequested movement unknown.
+
+The follow-up complete gate, `release-20261108-203848-e35ead66372f4d249a796e2430c99ff5`, finishes with **5,547 passed / 0 failed / 1 existing Rules skip**, exit **0**. ExclusiveWpf passes **151/151**, including all four Instruments and all four Notebook overflow cases. Focused Notebook/shared-menu coverage passes **34 top-level cases plus 12 matching children**. This is a fixture correction, not evidence identifying the original cursor input producer or completing live visual acceptance.
+
 ## Live verification limit
 
 **No live visual inspection is claimed.** The Computer Use runtime failed before app selection/input: `failed to write kernel assets: The system cannot find the path specified. (os error 3)`. Initialization failed again after its reset recovery. No production app was opened.

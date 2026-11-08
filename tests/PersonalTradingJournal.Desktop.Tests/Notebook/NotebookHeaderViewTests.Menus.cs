@@ -100,7 +100,16 @@ public sealed partial class NotebookHeaderViewTests
                     Save(button.ContextMenu, button.Name + "-open-menu", button.ContextMenu.ActualWidth, button.ContextMenu.ActualHeight);
                     Save(view, button.Name + "-open-trigger", width, 900);
                     NotebookOverflowEvidence.Verify(button, host, dpi, $"{theme}-{width}-{dpi}-{button.Name}-open");
-                    MouseClick(button); Assert.False(button.ContextMenu.IsOpen); Color(button, "PtjPlanReadyHoverBrush");
+                    MouseClick(button); Assert.False(button.ContextMenu.IsOpen);
+                    // Test both real pointer states after dismissal. Closing a menu must
+                    // not pin hover when the pointer leaves, nor suppress it on return.
+                    MovePointer(outside);
+                    Assert.False(button.IsMouseOver); Assert.Null(Mouse.Captured);
+                    Color(button, "PtjPlanReadyBrush");
+                    Assert.False(button.ContextMenu.IsOpen);
+                    MovePointer(button);
+                    Assert.True(button.IsMouseOver);
+                    Color(button, "PtjPlanReadyHoverBrush");
                     NotebookOverflowEvidence.Verify(button, host, dpi, $"{theme}-{width}-{dpi}-{button.Name}-hover");
                     MouseClick(button); Assert.True(button.ContextMenu.IsOpen);
                     MouseClick(outside); Assert.False(button.ContextMenu.IsOpen); Assert.Same(outside, Keyboard.FocusedElement);
@@ -119,6 +128,7 @@ public sealed partial class NotebookHeaderViewTests
                 MouseClick(refresh);
                 Assert.NotNull(vm.RefreshCommand.ExecutionTask); Assert.NotSame(previousRefresh, vm.RefreshCommand.ExecutionTask); Pump(vm.RefreshCommand.ExecutionTask); Layout();
                 Assert.Equal(queries + 1, data.Queries.Count); Assert.False(note.ContextMenu.IsOpen);
+                MovePointer(refresh);
                 Color(refresh, "PtjPlanReadyHoverBrush");
                 queries = data.Queries.Count;
                 Pump(UiKeyboardProbe.SpaceCommand(refresh)); Layout(); Assert.Equal(queries + 1, data.Queries.Count);
@@ -165,6 +175,38 @@ public sealed partial class NotebookHeaderViewTests
             void Escape(ContextMenu menu)
             {
                 menu.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(menu), Environment.TickCount, Key.Escape) { RoutedEvent = Keyboard.KeyDownEvent }); Layout();
+            }
+            void MovePointer(FrameworkElement target)
+            {
+                // A hover assertion needs its own native pointer precondition. A completed
+                // click does not promise that the desktop cursor stays at its injection point.
+                using var movement = new NotebookMouseMovementTrace(target, directory);
+                Layout();
+                var source = Assert.IsType<HwndSource>(PresentationSource.FromVisual(target));
+                Assert.Equal(new WindowInteropHelper(window).Handle, GetForegroundWindow());
+                var point = target.PointToScreen(new Point(target.ActualWidth / 2, target.ActualHeight / 2));
+                Assert.Equal(source.Handle, WindowFromPoint(new((int)point.X, (int)point.Y)));
+                bool positioned = SetCursorPos((int)point.X, (int)point.Y);
+                movement.CursorRequested(point, positioned);
+                Assert.True(positioned);
+                var frame = new DispatcherFrame(); var watch = System.Diagnostics.Stopwatch.StartNew();
+                var timer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(10) };
+                bool ready = false;
+                void Tick(object? sender, EventArgs args)
+                {
+                    ready = GetCursorPos(out var cursor) && cursor == new NativePoint((int)point.X, (int)point.Y) &&
+                        WindowFromPoint(cursor) == source.Handle && target.IsMouseOver &&
+                        new Rect(target.RenderSize).Contains(Mouse.GetPosition(target));
+                    if (ready || watch.Elapsed >= TimeSpan.FromSeconds(3)) frame.Continue = false;
+                }
+                timer.Tick += Tick; timer.Start();
+                try { Dispatcher.PushFrame(frame); Assert.True(ready, "Native hover did not reach the owned target."); }
+                finally { timer.Stop(); timer.Tick -= Tick; }
+                var hit = window.InputHitTest(Mouse.GetPosition(window));
+                Assert.True(ReferenceEquals(hit, target) || hit is DependencyObject child && target.IsAncestorOf(child));
+                Assert.Equal(MouseButtonState.Released, Mouse.LeftButton);
+                GetCursorPos(out var final);
+                log.Add($"Pointer phase: target={target.Name}/{target.GetType().Name}; requested={point}; actual={final}; bounds={target.PointToScreen(new Point())}..{target.PointToScreen(new Point(target.ActualWidth,target.ActualHeight))}; position={Mouse.GetPosition(target)}; hover={target.IsMouseOver}; hit={hit}; capture={Mouse.Captured}; dpi={VisualTreeHelper.GetDpi(target).DpiScaleX},{VisualTreeHelper.GetDpi(target).DpiScaleY}");
             }
             void MouseClick(FrameworkElement target)
             {
