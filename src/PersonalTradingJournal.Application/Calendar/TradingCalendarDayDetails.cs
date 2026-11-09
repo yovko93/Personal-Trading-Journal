@@ -25,8 +25,12 @@ public sealed record TradingCalendarDayDetails(DateOnly Date, IReadOnlyList<Trad
     public int ClosedTradeCount => Trades.Count;
 
     public static TradingCalendarDayDetails Create(DateOnly date, IEnumerable<TradeListItem> trades,
+        CancellationToken cancellationToken = default) => Create(new TradingCalendarDayQuery(date), trades, cancellationToken);
+
+    public static TradingCalendarDayDetails Create(TradingCalendarDayQuery query, IEnumerable<TradeListItem> trades,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(trades);
         cancellationToken.ThrowIfCancellationRequested();
         var rows = new List<TradeListItem>();
@@ -34,15 +38,15 @@ public sealed record TradingCalendarDayDetails(DateOnly Date, IReadOnlyList<Trad
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (row.Status != TradeStatus.Closed || row.ClosedAtUtc is not { } closed ||
-                DashboardMetricCalculator.GetNewYorkCloseDate(closed) != date)
+                closed < query.ClosedFromUtc || closed >= query.ClosedBeforeUtc)
                 throw new ArgumentException("Provide only fully closed Trades attributed to the selected New York date.", nameof(trades));
             rows.Add(row);
         }
         TradeListItem[] ordered = rows.OrderByDescending(t => t.ClosedAtUtc).ThenBy(t => t.Id).ToArray();
         DashboardAnalyticsSnapshot metrics = DashboardMetricCalculator.Calculate(ordered.Select(t =>
             new TradeAnalyticsFact(t.Id, t.Status, t.OpenedAtUtc, t.ClosedAtUtc, t.Currency,
-                null, t.GrossPnL, t.TotalCosts, t.NetPnL)), cancellationToken);
-        return new(date, Array.AsReadOnly(ordered), Array.AsReadOnly(metrics.Currencies
+                null, t.GrossPnL, t.TotalCosts, t.NetPnL)), cancellationToken, _ => query.Date);
+        return new(query.Date, Array.AsReadOnly(ordered), Array.AsReadOnly(metrics.Currencies
             .Select(c => new TradingCalendarDayCurrency(c.Currency, c.Metrics)).ToArray()));
     }
 }

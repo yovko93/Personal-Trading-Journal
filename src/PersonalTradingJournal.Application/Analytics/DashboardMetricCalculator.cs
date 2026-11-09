@@ -9,25 +9,29 @@ public static class DashboardMetricCalculator
 {
     public static DashboardAnalyticsSnapshot Calculate(
         IEnumerable<TradeAnalyticsFact> trades,
-        CancellationToken cancellationToken = default) => CalculateCore(trades, null, cancellationToken);
+        CancellationToken cancellationToken = default,
+        Func<DateTimeOffset, DateOnly>? getCloseDate = null) => CalculateCore(trades, null, cancellationToken, getCloseDate);
 
     /// <summary>Reference metadata must cover the selected population; absent IDs are marked Missing.</summary>
     public static DashboardAnalyticsSnapshot Calculate(
         IEnumerable<TradeAnalyticsFact> trades,
         IReadOnlyCollection<TradingSetupAnalyticsReference> setupReferences,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<DateTimeOffset, DateOnly>? getCloseDate = null)
     {
         ArgumentNullException.ThrowIfNull(setupReferences);
-        return CalculateCore(trades, setupReferences, cancellationToken);
+        return CalculateCore(trades, setupReferences, cancellationToken, getCloseDate);
     }
 
     private static DashboardAnalyticsSnapshot CalculateCore(
         IEnumerable<TradeAnalyticsFact> trades,
         IReadOnlyCollection<TradingSetupAnalyticsReference>? setupReferences,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<DateTimeOffset, DateOnly>? getCloseDate)
     {
         ArgumentNullException.ThrowIfNull(trades);
         cancellationToken.ThrowIfCancellationRequested();
+        getCloseDate ??= GetNewYorkCloseDate;
         Dictionary<Guid, TradingSetupAnalyticsReference>? references = null;
         if (setupReferences is not null)
         {
@@ -63,7 +67,7 @@ public static class DashboardMetricCalculator
             var dailyPnl = new List<PnlChartPoint>();
             var cumulativePnl = new List<PnlChartPoint>();
             var cumulativeDays = new ClosedMetricsAccumulator();
-            foreach (var day in closed.GroupBy(t => GetNewYorkCloseDate(t.ClosedAtUtc!.Value)).OrderBy(g => g.Key))
+            foreach (var day in closed.GroupBy(t => getCloseDate(t.ClosedAtUtc!.Value)).OrderBy(g => g.Key))
             {
                 var period = new ClosedMetricsAccumulator();
                 foreach (TradeAnalyticsFact trade in day)
@@ -78,7 +82,7 @@ public static class DashboardMetricCalculator
                 cumulativePnl.Add(new(day.Key, metrics.CumulativeMetrics));
             }
             var cumulativeWeeks = new ClosedMetricsAccumulator();
-            foreach (var week in closed.GroupBy(t => GetWeekStartingMonday(GetNewYorkCloseDate(t.ClosedAtUtc!.Value)))
+            foreach (var week in closed.GroupBy(t => GetWeekStartingMonday(getCloseDate(t.ClosedAtUtc!.Value)))
                          .OrderBy(g => g.Key))
             {
                 var period = new ClosedMetricsAccumulator();

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Accounts;
+using PersonalTradingJournal.Application.Analytics;
 using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Application.Instruments;
 using PersonalTradingJournal.Domain.Accounts;
@@ -35,7 +36,7 @@ public sealed class TradingCalendarReaderTests
         var monthReader = db.ServiceProvider.GetRequiredService<ITradingCalendarReader>();
         var dayReader = db.ServiceProvider.GetRequiredService<ITradingCalendarDayReader>();
         var month = await monthReader.GetAsync(new(2026, 9, account));
-        var day = await dayReader.GetAsync(new(new(2026, 9, 5), account));
+        var day = await dayReader.GetAsync(TradingCalendarDayQuery.ForTradingDate(new(2026, 9, 5), account));
         Assert.Equal(3, day.ClosedTradeCount);
         Assert.All(day.Trades, t => Assert.Equal(account, t.TradingAccountId));
         foreach (string currency in new[] { "USD", "EUR" })
@@ -49,7 +50,7 @@ public sealed class TradingCalendarReaderTests
             Assert.Equal(currency == "USD" ? 2 : 1, day.Trades.Count(t => t.Currency == currency));
         }
         Assert.Empty((await monthReader.GetAsync(new(2026, 10, account))).Currencies);
-        Assert.Empty((await dayReader.GetAsync(new(new(2026, 10, 5), account))).Trades);
+        Assert.Empty((await dayReader.GetAsync(TradingCalendarDayQuery.ForTradingDate(new(2026, 10, 5), account))).Trades);
         var monthly = TradingCalendarMonthlyPnl.From(month);
         Assert.Equal(-265m, Assert.Single(monthly, m => m.Currency == "USD").Total);
         Assert.Equal(10m, Assert.Single(monthly, m => m.Currency == "EUR").Total);
@@ -69,7 +70,7 @@ public sealed class TradingCalendarReaderTests
         Guid account = await AddAccount(db, "Calendar A");
         Guid other = await AddAccount(db, "Calendar B");
         Guid instrument = await AddInstrument(db);
-        // DST starts Mar 8: 04:59 UTC is Mar 7 in New York; 05:00 UTC is Mar 8.
+        // Mar 7 at 23:59 EST and Mar 8 at midnight both belong to the Mar 8 trading day.
         await Add(db, Closed(account, instrument, new(2026, 3, 8, 4, 59, 0, TimeSpan.Zero), 3m),
             Closed(account, instrument, new(2026, 3, 8, 5, 0, 0, TimeSpan.Zero), 0m),
             Closed(account, instrument, new(2026, 3, 8, 12, 0, 0, TimeSpan.Zero), -5m, null),
@@ -84,13 +85,13 @@ public sealed class TradingCalendarReaderTests
         Assert.Equal(new DateOnly(2026, 4, 5), march.GridEnd);
         var usd = Assert.Single(march.Currencies, x => x.Currency == "USD");
         TradingCalendarWeek dstWeek = Assert.Single(usd.Weeks, x => x.Monday == new DateOnly(2026, 3, 2));
-        Assert.Equal(3, dstWeek.ClosedTradeCount); // Saturday + two Sunday, including the estimated loss.
+        Assert.Equal(3, dstWeek.ClosedTradeCount); // Three Sunday Trades, including the estimated loss.
         Assert.Equal(-2m, dstWeek.EffectiveNetTotal);
         Assert.True(dstWeek.IsEstimated);
         Assert.Null(dstWeek.Metrics!.Net.Total);
-        Assert.Equal(3m, dstWeek.Days[5].EffectiveNetTotal);
-        Assert.Equal(-5m, dstWeek.Days[6].EffectiveNetTotal);
-        Assert.Equal(2, dstWeek.Days[6].ClosedTradeCount);
+        Assert.Null(dstWeek.Days[5].Metrics);
+        Assert.Equal(-2m, dstWeek.Days[6].EffectiveNetTotal);
+        Assert.Equal(3, dstWeek.Days[6].ClosedTradeCount);
         Assert.Equal(2m, usd.Weeks[2].EffectiveNetTotal); // Monday after the DST Sunday.
         Assert.Equal(8m, Assert.Single(march.Currencies, x => x.Currency == "EUR")
             .Weeks[1].EffectiveNetTotal);
@@ -128,13 +129,68 @@ public sealed class TradingCalendarReaderTests
         TradingCalendarCurrency usd = Assert.Single(november.Currencies);
         TradingCalendarWeek first = usd.Weeks[0];
         Assert.Equal(new DateOnly(2026, 10, 26), first.Monday);
-        Assert.Equal(1m, first.Days[5].EffectiveNetTotal);
-        Assert.Equal(5m, first.Days[6].EffectiveNetTotal);
-        Assert.Equal(3, first.ClosedTradeCount);
-        Assert.Equal(6m, first.EffectiveNetTotal);
-        Assert.Equal(4m, usd.Weeks[1].Days[0].EffectiveNetTotal);
-        Assert.Equal(9m, Assert.Single(TradingCalendarMonthlyPnl.From(november)).Total); // Oct 31 is excluded, including at the DST edge.
+        Assert.Null(first.Days[5].Metrics);
+        Assert.Equal(3m, first.Days[6].EffectiveNetTotal);
+        Assert.Equal(2, first.ClosedTradeCount);
+        Assert.Equal(3m, first.EffectiveNetTotal);
+        Assert.Equal(7m, usd.Weeks[1].Days[0].EffectiveNetTotal);
+        Assert.Equal(10m, Assert.Single(TradingCalendarMonthlyPnl.From(november)).Total);
     }
+
+    [Theory]
+    [InlineData(2026, 3, 8, -4)] // Spring DST Sunday into the next week.
+    [InlineData(2026, 11, 1, -5)] // 18:12 EST belongs to November 2.
+    [InlineData(2027, 1, 31, -5)] // Sunday ends the January grid. February starts Monday.
+    [InlineData(2026, 12, 31, -5)] // The closing date rolls into a new year.
+    public async Task GridAndDayDetailsShareTheEveningCutoffAndExactAccountScope(int year, int month, int day, int offsetHours)
+    {
+        await using ReaderTestDatabase db = await ReaderTestDatabase.CreateAsync();
+        Guid account = await AddAccount(db, "Calendar cutoff A");
+        Guid other = await AddAccount(db, "Calendar cutoff B");
+        Guid instrument = await AddInstrument(db);
+        var date = new DateOnly(year, month, day);
+        DateOnly next = date.AddDays(1);
+        var cutoff = new DateTimeOffset(year, month, day, 18, 0, 0, TimeSpan.FromHours(offsetHours));
+        Trade before = Closed(account, instrument, cutoff.AddSeconds(-1).ToUniversalTime(), 1m);
+        Trade at = Closed(account, instrument, cutoff.ToUniversalTime(), 2m);
+        Trade after = Closed(account, instrument, cutoff.AddMinutes(12).ToUniversalTime(), 3m);
+        Trade midnight = Closed(account, instrument, cutoff.AddHours(6).ToUniversalTime(), 4m);
+        Trade otherAfter = Closed(other, instrument, cutoff.AddMinutes(12).ToUniversalTime(), 16m);
+        await Add(db, before, at, after, midnight, otherAfter);
+
+        var months = db.ServiceProvider.GetRequiredService<ITradingCalendarReader>();
+        var days = db.ServiceProvider.GetRequiredService<ITradingCalendarDayReader>();
+        foreach (Guid? scope in new Guid?[] { account, null })
+        {
+            TradingCalendarMonth first = await months.GetAsync(new(date.Year, date.Month, scope));
+            TradingCalendarMonth second = date.Month == next.Month ? first : await months.GetAsync(new(next.Year, next.Month, scope));
+            var firstDay = await days.GetAsync(TradingCalendarDayQuery.ForTradingDate(date, scope));
+            var nextDay = await days.GetAsync(TradingCalendarDayQuery.ForTradingDate(next, scope));
+            Assert.Equal(before.Id, Assert.Single(firstDay.Trades).Id);
+            Guid[] expected = scope.HasValue ? [at.Id, after.Id, midnight.Id] : [at.Id, after.Id, midnight.Id, otherAfter.Id];
+            Assert.Equal(expected.Order(), nextDay.Trades.Select(t => t.Id).Order());
+            Assert.Equal(after.ClosedAtUtc, nextDay.Trades.Single(t => t.Id == after.Id).ClosedAtUtc);
+            Assert.Equal(Assert.Single(firstDay.Currencies).Metrics, Cell(first, date).Metrics);
+            Assert.Equal(Assert.Single(nextDay.Currencies).Metrics, Cell(second, next).Metrics);
+            decimal nextTotal = scope.HasValue ? 9m : 25m;
+            Assert.Equal(nextTotal, Cell(second, next).EffectiveNetTotal);
+            Assert.Equal(date.Month == next.Month ? 1m + nextTotal : 1m, Assert.Single(TradingCalendarMonthlyPnl.From(first)).Total);
+            if (date.Month != next.Month)
+                Assert.Equal(nextTotal, Assert.Single(TradingCalendarMonthlyPnl.From(second)).Total);
+        }
+
+        // Other callers of the same readers still request New York civil dates.
+        var civilDay = await days.GetAsync(new(date, account));
+        Assert.Equal(new[] { after.Id, at.Id, before.Id }, civilDay.Trades.Select(t => t.Id));
+        var dashboard = await db.ServiceProvider.GetRequiredService<IDashboardAnalyticsReader>()
+            .GetAsync(new(account, closedFromNewYork: date, closedThroughNewYork: date));
+        var dashboardDay = Assert.Single(Assert.Single(dashboard.Currencies).Days);
+        Assert.Equal(date, dashboardDay.NewYorkDate);
+        Assert.Equal(Assert.Single(civilDay.Currencies).Metrics, dashboardDay.Metrics);
+    }
+
+    private static TradingCalendarDay Cell(TradingCalendarMonth month, DateOnly date) =>
+        Assert.Single(Assert.Single(month.Currencies).Weeks.SelectMany(w => w.Days), d => d.Date == date);
 
     private static async Task<Guid> AddAccount(ReaderTestDatabase db, string name)
     {

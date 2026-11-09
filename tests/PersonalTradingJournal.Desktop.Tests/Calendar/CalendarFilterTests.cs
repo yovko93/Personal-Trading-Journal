@@ -10,6 +10,28 @@ namespace PersonalTradingJournal.Desktop.Tests.CalendarPage;
 
 public sealed class CalendarFilterTests
 {
+    [Fact]
+    public async Task SelectingTheNextDateLoadsThePreviousEveningsTrade()
+    {
+        var data = new Data();
+        var date = new DateOnly(2026, 9, 9);
+        var close = new DateTimeOffset(2026, 9, 9, 22, 12, 0, TimeSpan.Zero);
+        var evening = data.Rows[0] with { Id = Guid.NewGuid(), OpenedAtUtc = close.AddHours(-1), ClosedAtUtc = close };
+        data.Rows = [evening];
+        var vm = await Create(data);
+
+        var previousCell = CalendarDayDetailsTests.Cell(vm, date);
+        var nextCell = CalendarDayDetailsTests.Cell(vm, date.AddDays(1));
+        Assert.Empty(previousCell.DailySummaries);
+        Assert.Equal(9m, Assert.Single(nextCell.DailySummaries).Amount);
+        await vm.SelectDayCommand.ExecuteAsync(previousCell);
+        Assert.Empty(vm.DayTrades);
+        await vm.SelectDayCommand.ExecuteAsync(nextCell);
+        Assert.Equal(evening.Id, Assert.Single(vm.DayTrades).Trade.Id);
+        Assert.Equal(9m, Assert.Single(vm.DaySummaries).Amount);
+        Assert.Equal(new DateTimeOffset(2026, 9, 9, 22, 0, 0, TimeSpan.Zero), data.DayQueries.Last().ClosedFromUtc);
+    }
+
     [Theory]
     [InlineData("create", 14)]
     [InlineData("edit", -285)]
@@ -354,10 +376,10 @@ public sealed class CalendarFilterTests
         public Task<DashboardAnalyticsSnapshot> GetAsync(DashboardAnalyticsQuery q, CancellationToken ct = default) =>
             Task.FromResult(DashboardMetricCalculator.Calculate(Rows.Where(r => (!q.TradingAccountId.HasValue || r.TradingAccountId == q.TradingAccountId) &&
                 r.ClosedAtUtc >= q.ClosedFromUtc && r.ClosedAtUtc < q.ClosedBeforeUtc).Select(r =>
-                    new TradeAnalyticsFact(r.Id, r.Status, r.OpenedAtUtc, r.ClosedAtUtc, r.Currency, null, r.GrossPnL, r.TotalCosts, r.NetPnL)), ct));
-        public TradingCalendarDayDetails Day(TradingCalendarDayQuery q) => TradingCalendarDayDetails.Create(q.Date,
+                    new TradeAnalyticsFact(r.Id, r.Status, r.OpenedAtUtc, r.ClosedAtUtc, r.Currency, null, r.GrossPnL, r.TotalCosts, r.NetPnL)), ct, q.GetCloseDate));
+        public TradingCalendarDayDetails Day(TradingCalendarDayQuery q) => TradingCalendarDayDetails.Create(q,
             Rows.Where(r => (!q.TradingAccountId.HasValue || r.TradingAccountId == q.TradingAccountId) &&
-                DashboardMetricCalculator.GetNewYorkCloseDate(r.ClosedAtUtc!.Value) == q.Date));
+                r.ClosedAtUtc >= q.ClosedFromUtc && r.ClosedAtUtc < q.ClosedBeforeUtc));
         private static TradeListItem Row(DateOnly date, Guid account, string currency, decimal gross, decimal? net) =>
             CalendarDayDetailsTests.Row(date, gross, net) with { TradingAccountId = account, Currency = currency };
     }

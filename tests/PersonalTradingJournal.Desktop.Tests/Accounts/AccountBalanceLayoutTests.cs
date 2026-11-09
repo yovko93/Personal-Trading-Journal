@@ -143,7 +143,7 @@ public sealed class AccountBalanceLayoutTests
             var section = Assert.IsType<Border>(view.FindName("AccountPayoutSection"));
             var children = Descendants(section).OfType<FrameworkElement>().Where(e => e is Button or TextBox).ToArray();
             Assert.Equal(4, children.Length);
-            var removeButtons = Descendants(section).OfType<Button>().Where(b => b.Content as string == "Remove…").ToArray();
+            var removeButtons = Descendants(section).OfType<Button>().Where(b => b.Content as string == "Remove").ToArray();
             Assert.Equal(2, removeButtons.Length);
             foreach (var remove in removeButtons)
             {
@@ -152,6 +152,7 @@ public sealed class AccountBalanceLayoutTests
                 Assert.Equal(((SolidColorBrush)app.Resources["PtjDangerBrush"]).Color, ((SolidColorBrush)remove.BorderBrush).Color);
                 Assert.Equal(((SolidColorBrush)app.Resources["PtjSurfaceBrush"]).Color, ((SolidColorBrush)remove.Foreground).Color);
                 Assert.Same(vm.RemovePayoutCommand, remove.Command);
+                Assert.Null(remove.ContextMenu);
                 Assert.Contains(Assert.IsType<AccountPayout>(remove.CommandParameter), vm.Payouts);
             }
             foreach (var element in children)

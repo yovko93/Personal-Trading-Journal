@@ -485,7 +485,7 @@ public sealed partial class CalendarViewModel : ObservableObject
             TradingCalendarDayDetails? source = await Task.Run(async () =>
             {
                 if (requestedAccount is { } id && !(await _accountReader.GetAllAsync(cancellation.Token)).Any(a => a.Id == id)) return null;
-                return await _dayReader.GetAsync(new(date, requestedAccount), cancellation.Token);
+                return await _dayReader.GetAsync(TradingCalendarDayQuery.ForTradingDate(date, requestedAccount), cancellation.Token);
             }, cancellation.Token);
             if (generation != _dayGeneration || cancellation.IsCancellationRequested || !_isActive || SelectedDate != date) return;
             if (source is null)

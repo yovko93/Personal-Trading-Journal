@@ -164,7 +164,7 @@ public sealed class TradingCalendarReaderTests
             cancellationToken.ThrowIfCancellationRequested();
             TradeAnalyticsFact[] selected = facts.Where(f => f.ClosedAtUtc >= query.ClosedFromUtc &&
                 f.ClosedAtUtc < query.ClosedBeforeUtc).ToArray();
-            return Task.FromResult(DashboardMetricCalculator.Calculate(selected, cancellationToken));
+            return Task.FromResult(DashboardMetricCalculator.Calculate(selected, cancellationToken, query.GetCloseDate));
         }
     }
 }

@@ -56,7 +56,7 @@ public sealed class TradingCalendarDayReader(IDbContextFactory<JournalDbContext>
                                   Name = mistake == null ? null : mistake.Name,
                                   Active = mistake == null ? (bool?)null : mistake.IsActive }).ToListAsync(cancellationToken);
         var byTrade = mistakes.ToLookup(m => m.TradeId);
-        return TradingCalendarDayDetails.Create(query.Date,
+        return TradingCalendarDayDetails.Create(query,
             selected.Select(row => row.Trade with { Size = sizes[row.Trade.Id] }), cancellationToken) with
         {
             Classifications = setups.ToDictionary(s => s.Id, s => new CalendarTradeClassification(

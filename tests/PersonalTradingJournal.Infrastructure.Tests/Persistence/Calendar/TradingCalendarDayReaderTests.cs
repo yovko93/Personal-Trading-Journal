@@ -87,7 +87,7 @@ public sealed class TradingCalendarDayReaderTests
     {
         await using ReaderTestDatabase db = await ReaderTestDatabase.CreateAsync();
         var (account, instrument) = await References(db);
-        var query = new TradingCalendarDayQuery(new(year, month, day));
+        var query = TradingCalendarDayQuery.ForTradingDate(new(year, month, day));
         Trade before = Closed(account, instrument, query.ClosedFromUtc.AddTicks(-1), 1m);
         Trade first = Closed(account, instrument, query.ClosedFromUtc, 2m);
         Trade last = Closed(account, instrument, query.ClosedBeforeUtc.AddTicks(-1), 3m);
@@ -105,7 +105,7 @@ public sealed class TradingCalendarDayReaderTests
             Assert.False(reference.AccountIsActive);
             Assert.True(reference.InstrumentIsActive);
         });
-        Assert.Empty((await reader.GetAsync(new(query.Date, Guid.NewGuid()))).Trades);
+        Assert.Empty((await reader.GetAsync(TradingCalendarDayQuery.ForTradingDate(query.Date, Guid.NewGuid()))).Trades);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reader.GetAsync(query, new CancellationToken(true)));
         await using JournalDbContext check = await db.ContextFactory.CreateDbContextAsync();
         Assert.Equal(5, await check.Trades.CountAsync());

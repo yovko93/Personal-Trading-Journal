@@ -640,7 +640,10 @@ public sealed class CalendarViewLayoutTests
     [InlineData("Dark", 640, 240)]
     public async Task PopulatedGridRendersSignsAndCenteredWeeklyOnlySaturdayAcrossThemes(string theme, int width, int dpi)
     {
-        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync();
+        var eveningClose = new DateTimeOffset(2026, 9, 23, 22, 12, 0, TimeSpan.Zero);
+        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync(additionalFact: new(Guid.NewGuid(),
+            PersonalTradingJournal.Domain.Trades.TradeStatus.Closed, eveningClose.AddHours(-1), eveningClose,
+            "USD", null, 12m, 0m, 12m));
         await OnSta(() =>
         {
             var view = new CalendarView { DataContext = vm };
@@ -678,6 +681,8 @@ public sealed class CalendarViewLayoutTests
             Assert.Equal(Brush("PtjSurfaceBrush"), ((SolidColorBrush)Cell(9, 5).Background).Color);
             Assert.Equal(Brush("PtjBorderBrush"), ((SolidColorBrush)Cell(9, 9).BorderBrush).Color);
             Assert.Equal(1d, Cell(9, 9).Opacity);
+            Assert.Empty(((CalendarDayCell)Cell(9, 23).DataContext).DailySummaries);
+            Assert.Contains(Descendants(Cell(9, 24)).OfType<TextBlock>(), t => t.Text == "12.00 USD");
             foreach (TextBlock amount in Descendants(view).OfType<TextBlock>().Where(t =>
                          t.DataContext is CalendarPnlSummary summary && t.Text == summary.AmountText))
             {

@@ -340,7 +340,7 @@
                                             <TextBlock.Text><MultiBinding StringFormat="{}{0:N2} {1}"><Binding Path="Amount" /><Binding Path="Currency" /></MultiBinding></TextBlock.Text>
                                         </TextBlock>
                                         <TextBlock Text="{Binding CreatedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm:ss} UTC}" VerticalAlignment="Center" Margin="0,0,16,0" Style="{StaticResource PtjSecondaryTextStyle}" />
-                                        <Button Content="Remove…" AutomationProperties.Name="Remove erroneous payout"
+                                        <Button Content="Remove" AutomationProperties.Name="Remove erroneous payout"
                                                 Command="{Binding DataContext.RemovePayoutCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
                                                 Style="{StaticResource PtjDangerButtonStyle}" />
                                     </WrapPanel>

@@ -43,7 +43,7 @@ Accounts show cumulative payouts in the Account currency and deduct them from Cu
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Latest complete local Release gate: **5,562 passed / 0 failed / 1 skipped**, exit 0, including the Accounts action layout and payout removal checks. See [verification evidence](docs/account-payouts.md#accounts-action-layout-refinement). One Rules-view acceptance test remains [temporarily quarantined](docs/rules-view-quarantine.md); hosted confirmation and live visual acceptance are pending. |
+| Verification | Latest complete local Release gate: **5,569 passed / 0 failed / 1 skipped**, exit 0, including the Calendar cutoff and payout removal checks. See [verification evidence](docs/trading-calendar.md#trading-day-verification). The sole skip is the existing [Rules-view quarantine](docs/rules-view-quarantine.md). Hosted confirmation and live visual acceptance are pending. |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
@@ -55,7 +55,7 @@ The CI badge tracks `main`; it does not certify every development change. The [N
 | --- | --- |
 | **Trade tracking** | Manage accounts and instruments; record entries, scale-ins, partial exits, and closures; attach screenshots and classify trades by setup and mistake. |
 | **CSV import** | Preview and confirm supported Tradovate matched-fills and TopstepX Trades exports, with validation and duplicate detection. |
-| **Analytics** | Explore Dashboard metrics, Calendar results, and Breakdown groups with drill-down into the contributing trades. |
+| **Analytics** | Explore Dashboard metrics, Calendar results, and Breakdown groups with drill-down into the contributing trades. Calendar assigns Trades closed at or after 18:00 New York time to the next date. |
 | **Daily journal** | Capture reflections, save drafts and completed entries, and revisit revision history by date and account. |
 | **Planning** | Maintain Playbook definitions, trading rules, daily principles, and Trading Plans with saved Ready revisions. |
 | **Reviews** | Review daily, weekly, and monthly evidence, retain saved analyses, and optionally use AI-assisted coaching or the manual ChatGPT prompt workflow. |

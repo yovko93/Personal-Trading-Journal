@@ -16,7 +16,7 @@ public sealed record TradingCalendarQuery
         DateOnly last = new(year, month, DateTime.DaysInMonth(year, month));
         int before = ((int)MonthStart.DayOfWeek + 6) % 7;
         int after = 6 - (((int)last.DayOfWeek + 6) % 7);
-        // DashboardAnalyticsQuery uses the exclusive midnight after GridEnd.
+        // The analytics range uses the start of the trading day after GridEnd as its exclusive end.
         if (last.DayNumber + after >= DateOnly.MaxValue.DayNumber)
             throw new ArgumentOutOfRangeException(nameof(year), "The calendar grid must have a representable exclusive end date.");
         GridStart = MonthStart.AddDays(-before);
