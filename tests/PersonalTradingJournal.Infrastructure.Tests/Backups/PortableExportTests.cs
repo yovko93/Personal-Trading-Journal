@@ -32,11 +32,11 @@ public sealed class PortableExportTests
         var service = f.Services.GetRequiredService<IPortableExportService>(); Assert.False(Directory.Exists(Output(f)));
         var result = await service.CreateAsync(Output(f)); Assert.True(result.Succeeded, result.ToString()); Assert.Equal(2, result.Rows); // Rules and principles concurrency singletons, no user records.
         using var document = Read(f); var root = document.RootElement;
-        Assert.Equal(18, root.GetProperty("version").GetInt32()); Assert.False(root.GetProperty("restorableBackup").GetBoolean());
+        Assert.Equal(19, root.GetProperty("version").GetInt32()); Assert.False(root.GetProperty("restorableBackup").GetBoolean());
         Assert.Equal("metadata-only", root.GetProperty("screenshotContent").GetString());
         foreach (var table in PortableExportSchema.Tables) Assert.Equal(table.Name is "tradingRuleCatalogState" or "dailyTradingPrincipleState" ? 1 : 0, root.GetProperty("tables").GetProperty(table.Name).GetArrayLength());
         Assert.Equal(0, root.GetProperty("tables").GetProperty("tradingRuleCatalogState")[0].GetProperty("version").GetInt64());
-        Assert.Equal(6, Directory.GetFiles(Output(f)).Length); NoPartial(f);
+        Assert.Equal(7, Directory.GetFiles(Output(f)).Length); NoPartial(f);
         using var manifest = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(Output(f), PortableExportContract.InventoryFile)));
         foreach (var file in manifest.RootElement.GetProperty("files").EnumerateArray())
         {

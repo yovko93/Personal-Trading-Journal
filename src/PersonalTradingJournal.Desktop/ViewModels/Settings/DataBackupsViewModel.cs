@@ -9,7 +9,7 @@ namespace PersonalTradingJournal.Desktop.ViewModels.Settings;
 public sealed class DataBackupsViewModel : ObservableObject
 {
     public const string BackupDisclosure = "Backup contains the database and required original images, including Notebook notes, saved recovery drafts, Journal revisions and saved AI analyses. Only saved or checkpointed edits are included. It is unencrypted and excludes AI API keys.";
-    public const string ExportDisclosure = "Export contains JSON, four CSVs and an inventory. Screenshots are metadata only. Exports are unencrypted and cannot be restored as backups.";
+    public const string ExportDisclosure = "Export contains JSON, five CSVs and an inventory. Screenshots are metadata only. Exports are unencrypted and cannot be restored as backups.";
     private readonly IBackupArchiveService backup;
     private readonly IPortableExportService export;
     private readonly IRestorePreflightService preflight;
@@ -90,7 +90,7 @@ public sealed class DataBackupsViewModel : ObservableObject
         if (target is null) { Status = "Export selection cancelled; nothing was written."; return; }
         Status = "Exporting a consistent snapshot… Cancellation waits for a safe boundary.";
         var result = await export.CreateAsync(target, token);
-        if (result.Succeeded && !result.CleanupFailed) { Status = "Export complete. JSON and four CSVs; screenshot metadata only. Not a restorable backup."; OutputLocation = target; }
+        if (result.Succeeded && !result.CleanupFailed) { Status = "Export complete. JSON and five CSVs; screenshot metadata only. Not a restorable backup."; OutputLocation = target; }
         else Status = result.Status == PortableExportStatus.Cancelled ? "Export cancelled; no completed export is reported." :
             $"Export did not complete ({result.Status}). Choose a new destination with available space and write access.";
         if (result.CleanupFailed) Status += " Cleanup is incomplete; sensitive temporary files may remain.";

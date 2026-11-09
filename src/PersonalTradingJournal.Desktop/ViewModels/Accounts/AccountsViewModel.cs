@@ -8,7 +8,7 @@ using System.Globalization;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Accounts;
 
-public sealed class AccountsViewModel : ObservableObject
+public sealed partial class AccountsViewModel : ObservableObject
 {
     private const string CreateErrorMessageFallback = "Account could not be created.";
     private const string CreateReloadErrorMessage =
@@ -29,7 +29,7 @@ public sealed class AccountsViewModel : ObservableObject
         "Account was deleted, but the list could not be refreshed.";
     private const string DeleteBlockedTitle = "Cannot delete account";
     private const string DeleteBlockedMessage =
-        "This account is used by existing trades or daily journals and cannot be deleted. " +
+        "This account is used by existing trades, payouts or daily journals and cannot be deleted. " +
         "Deactivate it instead to preserve historical data.";
 
     private readonly ITradingAccountReader _accountReader;
@@ -88,7 +88,8 @@ public sealed class AccountsViewModel : ObservableObject
         DeleteTradingAccountUseCase deleteTradingAccountUseCase,
         IDialogService dialogService,
         DeleteAccountTradesUseCase? deleteAccountTrades = null,
-        ITradingAccountBalanceReader? balanceReader = null)
+        ITradingAccountBalanceReader? balanceReader = null,
+        IAccountPayoutStore? payoutStore = null)
     {
         ArgumentNullException.ThrowIfNull(accountReader);
         ArgumentNullException.ThrowIfNull(createTradingAccountUseCase);
@@ -107,6 +108,9 @@ public sealed class AccountsViewModel : ObservableObject
         _dialogService = dialogService;
         _deleteAccountTrades = deleteAccountTrades;
         _balanceReader = balanceReader;
+        _payoutStore = payoutStore;
+        AddPayoutCommand = new AsyncRelayCommand(AddPayoutAsync, CanWritePayout);
+        RemovePayoutCommand = new AsyncRelayCommand<AccountPayout>(RemovePayoutAsync, p => p is not null && CanWritePayout());
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, CanRefresh);
         ShowCreateFormCommand = new RelayCommand(ShowCreateForm, CanShowCreateForm);
         CancelCreateCommand = new RelayCommand(CancelCreate, CanCancelCreate);
@@ -749,6 +753,9 @@ public sealed class AccountsViewModel : ObservableObject
             }
 
             SelectedAccount = account;
+            Payouts = _payoutStore is null ? [] : await _payoutStore.GetAsync(account.Id, cancellationToken);
+            PayoutAmountText = string.Empty;
+            PayoutError = null;
             return account;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -850,6 +857,9 @@ public sealed class AccountsViewModel : ObservableObject
 
             startingBalance = parsedStartingBalance;
         }
+
+        if (Payouts.Count > 0 && !string.Equals(EditCurrency.Trim(), SelectedAccount.Currency, StringComparison.OrdinalIgnoreCase))
+        { EditErrorMessage = "Remove recorded payouts before changing the Account currency."; return; }
 
         IsUpdating = true;
 
@@ -1035,7 +1045,7 @@ public sealed class AccountsViewModel : ObservableObject
             account.ExternalAccountId,
             account.Currency,
             account.StartingBalance,
-            account.IsActive);
+            account.IsActive) { PayoutTotal = Accounts.FirstOrDefault(x => x.Id == account.Id)?.PayoutTotal ?? 0 };
         Accounts = Accounts
             .Select(item => item.Id == account.Id ? replacement : item)
             .ToArray();
@@ -1050,6 +1060,7 @@ public sealed class AccountsViewModel : ObservableObject
     }
 
     private bool IsAnyOperationInProgress =>
+        _isSavingPayout ||
         IsLoading ||
         IsCreating ||
         IsChangingAccountState ||
@@ -1164,6 +1175,8 @@ public sealed class AccountsViewModel : ObservableObject
 
     private void NotifyOperationCanExecuteChanged()
     {
+        AddPayoutCommand.NotifyCanExecuteChanged();
+        RemovePayoutCommand.NotifyCanExecuteChanged();
         RefreshCommand.NotifyCanExecuteChanged();
         ShowCreateFormCommand.NotifyCanExecuteChanged();
         CreateAccountCommand.NotifyCanExecuteChanged();

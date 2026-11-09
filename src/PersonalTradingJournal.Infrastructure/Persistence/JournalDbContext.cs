@@ -67,10 +67,20 @@ public sealed class JournalDbContext : DbContext
     public DbSet<TradovateImportedExecutionRecord> TradovateImportedExecutions =>
         Set<TradovateImportedExecutionRecord>();
 
+    public DbSet<AccountPayoutRecord> AccountPayouts => Set<AccountPayoutRecord>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
         NotebookConfiguration.Configure(modelBuilder);
+        modelBuilder.Entity<AccountPayoutRecord>(entity =>
+        {
+            entity.ToTable("AccountPayouts", table => table.HasCheckConstraint("CK_AccountPayouts_Positive", "CAST(Amount AS REAL) > 0"));
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).ValueGeneratedNever();
+            entity.Property(x => x.Currency).IsRequired();
+            entity.Property(x => x.CreatedAtUtc).HasConversion(new PersonalTradingJournal.Infrastructure.Persistence.Converters.SqliteUtcDateTimeOffsetConverter());
+            entity.HasOne<TradingAccountRecord>().WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Restrict);
+        });
         modelBuilder.Entity<DailyTradingPrincipleRecord>(b =>
         {
             b.ToTable("DailyTradingPrinciples", t => t.HasCheckConstraint("CK_DailyTradingPrinciples_Content", "length(trim(Text)) > 0 AND length(Text) <= 500 AND Position > 0"));

@@ -147,15 +147,15 @@ Blocked results retain the analysis and relevant recovery information but disabl
 
 ### Current Balance
 
-The table places Current Balance directly after Starting Balance. For each exact Account, across all recorded history, its formula is:
+The table places Current Balance directly after Starting Balance, then Payout and Status. All headings and values, including money and actions, align left. [Optional Account payouts](account-payouts.md) retain withdrawal history and support confirmed erroneous-entry removal. For each exact Account, across all recorded history, its formula is:
 
-`Starting Balance + sum(fully closed Trade Gross in Account currency) - sum(each recorded commission and fee component on those Trades)`
+`Starting Balance + sum(fully closed Trade Gross in Account currency) - sum(each recorded commission and fee component on those Trades) - sum(recorded Account payouts)`
 
 Gross comes from the existing Domain-derived projection. A fully closed lifecycle contributes its allocated entry and exit costs, including existing import/reversal allocations; the view does not prorate, multiply or allocate them again. Open Trades, including partially exited positions, contribute neither Gross nor costs until fully closed. Other-currency closed Trades are excluded with a visible count, never converted or combined. No date filter or timezone rebasing is introduced.
 
 When any included execution commission or fee is unknown, the numeric result is prefixed **Estimated** in every color. Visible supporting text reports affected Trades and missing commission/fee entry counts (not monetary amounts). The focusable value's accessible name and tooltip explain coverage and exclusions. Known components are deducted even when another component is missing. This is deliberately not Calendar's Effective Net fallback, which uses Gross when strict Net is unavailable; neither strict Net nor Calendar economics changes. With all costs known there is no Estimated prefix. Above/below/equal to Starting Balance uses the theme's green/red/neutral text respectively.
 
-No Trades means exactly Starting Balance. A missing Starting Balance is not silently assumed zero. Missing required Gross/projection/execution facts and arithmetic overflow report an explicit Unavailable reason rather than a partial numeric total. A page-level note identifies this as a Trade-based calculation, not a broker balance, excluding unrecorded deposits, withdrawals, payouts and other broker adjustments.
+No Trades means Starting Balance minus recorded payouts. A missing Starting Balance is not silently assumed zero. Missing required Gross/projection/execution facts and arithmetic overflow report an explicit Unavailable reason rather than a partial numeric total. A page-level note identifies this as a Trade-based calculation, not a broker balance, excluding unrecorded deposits, withdrawals, payouts and other broker adjustments.
 
 Trade create/edit/close/delete, committed Tradovate/Topstep imports, and Delete All Trades invalidate the read; visible Accounts refresh immediately and inactive Accounts refresh on return. An invalidation during a pending read discards that snapshot and rereads. Account currency/Starting Balance edits use the existing authoritative reload. Read failures expose Refresh without replacing missing data with zero. Only Accounts requests the balance-enriched batch; Account selectors remain lightweight.
 

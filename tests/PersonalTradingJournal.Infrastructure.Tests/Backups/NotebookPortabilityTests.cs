@@ -97,8 +97,8 @@ public sealed partial class NotebookPortabilityTests
         Assert.True(result.Succeeded, result.ToString()); Assert.False(result.CleanupFailed);
         using var json = JsonDocument.Parse(await File.ReadAllBytesAsync(Path.Combine(output, PortableExportContract.DataFile)));
         using var inventory = JsonDocument.Parse(await File.ReadAllBytesAsync(Path.Combine(output, PortableExportContract.InventoryFile)));
-        Assert.Equal(18, json.RootElement.GetProperty("version").GetInt32());
-        Assert.Equal(18, inventory.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(19, json.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(19, inventory.RootElement.GetProperty("version").GetInt32());
         Assert.False(json.RootElement.GetProperty("restorableBackup").GetBoolean());
         Assert.Equal("metadata-only", json.RootElement.GetProperty("screenshotContent").GetString());
         var tables = json.RootElement.GetProperty("tables");

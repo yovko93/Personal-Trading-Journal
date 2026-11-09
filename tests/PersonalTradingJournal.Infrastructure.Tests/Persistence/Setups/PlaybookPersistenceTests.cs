@@ -337,7 +337,7 @@ public sealed partial class PlaybookPersistenceTests
         string output = Path.Combine(f.Root, "export");
         Assert.True((await f.Get<IPortableExportService>().CreateAsync(output)).Succeeded);
         using var data = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(output, PortableExportContract.DataFile)));
-        Assert.Equal(18, data.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(19, data.RootElement.GetProperty("version").GetInt32());
         var tables = data.RootElement.GetProperty("tables");
         var revisions = tables.GetProperty("playbookRevisions");
         Assert.Equal(new[] { 1, 2 }, revisions.EnumerateArray().Select(r => r.GetProperty("revision").GetInt32()));
@@ -350,7 +350,7 @@ public sealed partial class PlaybookPersistenceTests
         var snapshot = Assert.Single(tables.GetProperty("tradePlaybookContexts").EnumerateArray());
         Assert.Equal(g.Trade.Id, snapshot.GetProperty("tradeId").GetGuid());
         Assert.Equal((await db.TradePlaybookContexts.SingleAsync()).DefinitionJson, snapshot.GetProperty("definitionJson").GetString());
-        Assert.Equal(4, Directory.GetFiles(output, "*.csv").Length);
+        Assert.Equal(5, Directory.GetFiles(output, "*.csv").Length);
         Assert.Empty(Directory.GetDirectories(output)); // Screenshot bytes are still metadata-only in exports.
     }
 

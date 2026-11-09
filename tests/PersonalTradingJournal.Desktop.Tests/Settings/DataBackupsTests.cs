@@ -21,7 +21,7 @@ public sealed class DataBackupsTests
         Assert.Contains("required original images", DataBackupsViewModel.BackupDisclosure);
         Assert.Contains("Notebook notes, saved recovery drafts", DataBackupsViewModel.BackupDisclosure);
         Assert.Contains("Only saved or checkpointed edits", DataBackupsViewModel.BackupDisclosure);
-        Assert.Contains("four CSVs", DataBackupsViewModel.ExportDisclosure);
+        Assert.Contains("five CSVs", DataBackupsViewModel.ExportDisclosure);
         Assert.Contains("metadata only", DataBackupsViewModel.ExportDisclosure);
     }
     [Theory]

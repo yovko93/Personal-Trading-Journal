@@ -82,6 +82,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<IBackupArchiveService>(provider => new BackupArchiveService(applicationPaths,
             provider.GetRequiredService<IDatabaseSnapshotService>()));
         services.AddTransient<TradeBrowseProjectionReconciler>();
+        services.AddTransient<IAccountPayoutStore, AccountPayoutStore>();
         services.AddTransient<ITradingAccountReader, TradingAccountReader>();
         services.AddTransient<ITradingAccountBalanceReader, TradingAccountReader>();
         services.AddTransient<ITradingAccountStore, TradingAccountStore>();

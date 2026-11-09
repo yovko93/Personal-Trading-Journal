@@ -17,6 +17,34 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.11");
 
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.AccountPayoutRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId");
+
+                    b.ToTable("AccountPayouts", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AccountPayouts_Positive", "CAST(Amount AS REAL) > 0");
+                        });
+                });
+
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.CoachingAnalysisRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1708,6 +1736,15 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("TradovateImportedExecutions", (string)null);
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.AccountPayoutRecord", b =>
+                {
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingAccountRecord", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.CurrentPlaybookExampleRecord", b =>

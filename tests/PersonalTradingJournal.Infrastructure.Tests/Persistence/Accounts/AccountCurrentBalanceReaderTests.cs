@@ -49,7 +49,7 @@ public sealed class AccountCurrentBalanceReaderTests
             .AddInterceptors(counter).Options;
         var reader = new TradingAccountReader(new Factory(options));
         var result = await reader.GetAllWithBalancesAsync();
-        Assert.Equal(3, counter.Selects); // Independent of Account and Trade count.
+        Assert.Equal(4, counter.Selects); // Independent of Account and Trade count.
         var balance = result.Single(x => x.Id == a.Id).CurrentBalance!;
         Assert.Equal(1027, balance.Value); Assert.True(balance.IsEstimated);
         Assert.Equal(2, balance.ClosedTradeCount); Assert.Equal(1, balance.TradesWithUnknownCosts);

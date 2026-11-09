@@ -30,7 +30,7 @@ public sealed class TradingAccountReader : ITradingAccountReader, ITradingAccoun
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         await context.Database.OpenConnectionAsync(cancellationToken);
-        // One coherent read snapshot across three batched queries, never one query per Account.
+        // One coherent read snapshot across four batched queries, never one query per Account.
         await using var transaction = ((SqliteConnection)context.Database.GetDbConnection()).BeginTransaction(deferred: true);
         await context.Database.UseTransactionAsync(transaction, cancellationToken);
         var accounts = await ReadAccountsAsync(context, cancellationToken);
@@ -49,11 +49,13 @@ public sealed class TradingAccountReader : ITradingAccountReader, ITradingAccoun
             select new { execution.TradeId, execution.Commission, execution.Fees }).ToArrayAsync(cancellationToken);
         var costsByTrade = costs.ToLookup(e => e.TradeId, e => new AccountBalanceCost(e.Commission, e.Fees));
         var tradesByAccount = trades.ToLookup(t => t.TradingAccountId);
+        var payouts = (await context.AccountPayouts.AsNoTracking().ToArrayAsync(cancellationToken)).ToLookup(x => x.AccountId);
         return accounts.Select(account => account with
         {
+            PayoutTotal = payouts[account.Id].Sum(x => x.Amount),
             CurrentBalance = AccountCurrentBalanceCalculator.Calculate(account.StartingBalance, account.Currency,
                 tradesByAccount[account.Id].Select(t => new AccountBalanceTrade(t.Id, t.PricingCurrency, t.Status,
-                    t.Gross, costsByTrade[t.Id].ToArray())), cancellationToken)
+                    t.Gross, costsByTrade[t.Id].ToArray())), cancellationToken, payouts[account.Id].Sum(x => x.Amount))
         }).ToArray();
     }
 

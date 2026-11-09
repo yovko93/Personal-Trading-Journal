@@ -28,7 +28,7 @@ public sealed class AccountBalanceDisplayConverter : IValueConverter
         string text = (balance?.IsEstimated == true ? "Estimated " : "") +
             (balance?.Value is { } amount ? amount.ToString("N2", culture) + " " + account.Currency : "Unavailable");
         string help = $"Current Balance for {account.Name}: {text}. {string.Join(" ", supporting)} " +
-            $"Trade-based calculation: Starting Balance plus Gross from {balance?.ClosedTradeCount ?? 0:N0} fully closed Trades in {account.Currency}, minus individually recorded commissions and fees. " +
+            $"Trade-based calculation: Starting Balance plus Gross from {balance?.ClosedTradeCount ?? 0:N0} fully closed Trades in {account.Currency}, minus individually recorded commissions, fees and Account payouts. " +
             $"Missing costs remain unknown and are omitted from arithmetic. {balance?.OpenTradeCount ?? 0:N0} open or partially closed Trades excluded, including their costs. " +
             "Not a broker balance; excludes unrecorded deposits, withdrawals, payouts and other broker adjustments.";
         return new AccountBalanceDisplay(text, string.Join(" ", supporting), help, balance?.Comparison ?? 0);

@@ -1,5 +1,11 @@
 # Backup and restore
 
+## Account payouts — current extension
+
+Portable export **v19** includes payout ID, Account ID, amount, currency and UTC creation time in `accountPayouts` JSON and `accountPayouts.csv` (five CSVs total). JSON/CSV exports remain non-restorable. Whole-database archive v1, preflight and offline restore include the additive AccountPayouts table and foreign key. No historical payouts are inferred; existing accounts are untouched. Older archives retain the established schema compatibility checks.
+
+See [Account payouts](account-payouts.md) for current verification. Historical version/count statements below describe their original milestones.
+
 ## Integrated Notebook backup and restore — M22.11A
 
 Current contract (21 October 2026): a complete `.ptjbackup` uses **archive v1**, a whole SQLite snapshot of the **exact current 29-migration database schema** (latest `20261021121554_AddNotebookDeletionCleanup`), and required managed original files. Notebook document JSON remains **v1**. Logical export is separately **v18**, with eight Notebook tables; JSON/four CSVs/inventory are metadata-only for images and **cannot be restored**. No schema, export or archive change is introduced by this phase. Older and future schema archives and unsupported archive versions are rejected before replacement; installed-database migration does not authorize archive migration.

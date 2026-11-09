@@ -23,7 +23,7 @@ public sealed record AccountCurrentBalance(decimal? Value, int Comparison, int C
 public static class AccountCurrentBalanceCalculator
 {
     public static AccountCurrentBalance Calculate(decimal? startingBalance, string currency,
-        IEnumerable<AccountBalanceTrade> source, CancellationToken cancellationToken = default)
+        IEnumerable<AccountBalanceTrade> source, CancellationToken cancellationToken = default, decimal payouts = 0)
     {
         var trades = source.OrderBy(t => t.Id).ToArray();
         var included = trades.Where(t => t.Status == TradeStatus.Closed && t.Currency == currency).ToArray();
@@ -58,6 +58,7 @@ public static class AccountCurrentBalanceCalculator
                     if (execution.Fees is { } fee) balance = checked(balance - fee);
                 }
             }
+            balance = checked(balance - payouts);
             return result with { Value = balance, Comparison = decimal.Compare(balance, startingBalance.Value) };
         }
         catch (OverflowException) { return result with { Unavailable = AccountBalanceUnavailable.Overflow }; }

@@ -29,7 +29,7 @@ public sealed class SavedPeriodPortabilityTests
         Assert.True((await source.Services.GetRequiredService<IPortableExportService>().CreateAsync(export)).Succeeded);
         using (var document = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(export, "journal.json"))))
         {
-            var root = document.RootElement; Assert.Equal(18, root.GetProperty("version").GetInt32());
+            var root = document.RootElement; Assert.Equal(19, root.GetProperty("version").GetInt32());
             Assert.False(root.GetProperty("restorableBackup").GetBoolean()); Assert.Equal("metadata-only", root.GetProperty("screenshotContent").GetString());
             var rows = root.GetProperty("tables").GetProperty("periodReviews"); Assert.Equal(2, rows.GetArrayLength());
             foreach (var r in rows.EnumerateArray())
@@ -41,7 +41,7 @@ public sealed class SavedPeriodPortabilityTests
                 Assert.Equal(expected.Summary.Scope.AccountId?.ToString(), r.GetProperty("accountId").ValueKind == JsonValueKind.Null ? null : r.GetProperty("accountId").GetString()!.ToLowerInvariant());
             }
         }
-        Assert.Equal(4, Directory.GetFiles(export, "*.csv").Length);
+        Assert.Equal(5, Directory.GetFiles(export, "*.csv").Length);
         await using var target = await Fixture.Create();
         var original = await target.Services.GetRequiredService<IPeriodReviewRepository>().SaveAsync(PeriodReviewRepositoryTests.Snapshot());
         await target.Services.DisposeAsync(); JournalDataSession.ClearOwnedPools(target.Paths);

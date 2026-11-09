@@ -84,7 +84,7 @@ public sealed class NotebookImagePortabilityTests
         Assert.True((await source.Services.GetRequiredService<IPortableExportService>().CreateAsync(exportPath)).Succeeded);
         using (var json = JsonDocument.Parse(await File.ReadAllBytesAsync(Path.Combine(exportPath, PortableExportContract.DataFile))))
         {
-            Assert.Equal(18, json.RootElement.GetProperty("version").GetInt32());
+            Assert.Equal(19, json.RootElement.GetProperty("version").GetInt32());
             var row = Assert.Single(json.RootElement.GetProperty("tables").GetProperty("notebookOwnedImageFiles").EnumerateArray());
             Assert.Equal(image.Id, row.GetProperty("id").GetGuid()); Assert.Equal(note.Id, row.GetProperty("noteId").GetGuid());
             Assert.Equal(image.StorageKey, row.GetProperty("storageKey").GetString()); Assert.Equal(image.SizeBytes, row.GetProperty("sizeBytes").GetInt64());

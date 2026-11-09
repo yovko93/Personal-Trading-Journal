@@ -27,12 +27,12 @@ public sealed class TradingPlanPortabilityTests
         Assert.True((await source.Get<IPortableExportService>().CreateAsync(export)).Succeeded);
         using (var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(export, "journal.json"))))
         {
-            Assert.Equal(18, json.RootElement.GetProperty("version").GetInt32());
+            Assert.Equal(19, json.RootElement.GetProperty("version").GetInt32());
             var tables = json.RootElement.GetProperty("tables");
             Assert.Equal(draft, tables.GetProperty("tradingPlans")[0].GetProperty("draftJson").GetString());
             Assert.Equal(ready, tables.GetProperty("tradingPlanReadyRevisions")[0].GetProperty("snapshotJson").GetString());
         }
-        Assert.Equal(4, Directory.GetFiles(export, "*.csv").Length);
+        Assert.Equal(5, Directory.GetFiles(export, "*.csv").Length);
         await using var target = await Fixture.Create(); var original = await target.Ready(await target.CreatePlan());
         await target.Stop();
         var outcome = await new JournalRestoreService(target.Paths).RestoreAsync(new(archive, check.Summary!.ArchiveSha256));

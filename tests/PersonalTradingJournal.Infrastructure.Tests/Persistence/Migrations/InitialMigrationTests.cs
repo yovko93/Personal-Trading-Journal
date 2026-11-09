@@ -38,6 +38,7 @@ public sealed partial class InitialMigrationTests
         new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
             ["NotebookOwnedImageFiles"] = ["Id", "NoteId", "StorageKey", "SizeBytes", "Sha256", "CleanupPending"],
+            ["AccountPayouts"] = ["Id", "AccountId", "Amount", "Currency", "CreatedAtUtc"],
             ["NotebookRecoveryDrafts"] = ["Id", "NoteId", "EnvelopeVersion", "ExpectedVersion", "Revision", "Title", "DocumentJson", "CheckpointedAtUtc"],
             ["NotebookFolders"] = ["Id", "Name", "NameKey", "Version", "CreatedAtUtc", "UpdatedAtUtc"],
             ["NotebookTags"] = ["Id", "Name", "NameKey", "Version", "CreatedAtUtc", "UpdatedAtUtc"],
@@ -171,7 +172,7 @@ public sealed partial class InitialMigrationTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations", "20261011220636_AllowUnreferencedPlaybookRevisionDeletion", "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion", "20261013102243_AddTradingRuleOrder", PeriodReviewsMigrationId, "20261017152354_AddTradingPlans", "20261019080838_SharedTradingPlansAndScreenshots", "20261019100107_DirectPlaybookDefinitions", "20261019160256_TombstoneTradingPlans", "20261019171746_AddDailyTradingPrinciples", NotebookMigrationId, "20261020130020_AddNotebookRecovery", "20261020180223_AddNotebookOwnedImageFiles", "20261021121554_AddNotebookDeletionCleanup"],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations", "20261011220636_AllowUnreferencedPlaybookRevisionDeletion", "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion", "20261013102243_AddTradingRuleOrder", PeriodReviewsMigrationId, "20261017152354_AddTradingPlans", "20261019080838_SharedTradingPlansAndScreenshots", "20261019100107_DirectPlaybookDefinitions", "20261019160256_TombstoneTradingPlans", "20261019171746_AddDailyTradingPrinciples", NotebookMigrationId, "20261020130020_AddNotebookRecovery", "20261020180223_AddNotebookOwnedImageFiles", "20261021121554_AddNotebookDeletionCleanup", "20261108232624_AddAccountPayouts"],
                 context.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)context.Database.GetDbConnection();
@@ -183,7 +184,7 @@ public sealed partial class InitialMigrationTests
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray();
             Assert.Equal(expectedTables, ReadTableNames(connection));
-            Assert.Equal(29L, ReadRowCount(connection, "__EFMigrationsHistory"));
+            Assert.Equal(30L, ReadRowCount(connection, "__EFMigrationsHistory"));
             Assert.Equal(0L, ReadRowCount(connection, "__EFMigrationsLock"));
 
             foreach ((string tableName, string[] expectedColumns) in ExpectedApplicationColumns)
@@ -585,7 +586,7 @@ public sealed partial class InitialMigrationTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations", "20261011220636_AllowUnreferencedPlaybookRevisionDeletion", "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion", "20261013102243_AddTradingRuleOrder", PeriodReviewsMigrationId, "20261017152354_AddTradingPlans", "20261019080838_SharedTradingPlansAndScreenshots", "20261019100107_DirectPlaybookDefinitions", "20261019160256_TombstoneTradingPlans", "20261019171746_AddDailyTradingPrinciples", NotebookMigrationId, "20261020130020_AddNotebookRecovery", "20261020180223_AddNotebookOwnedImageFiles", "20261021121554_AddNotebookDeletionCleanup"],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations", "20261011220636_AllowUnreferencedPlaybookRevisionDeletion", "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion", "20261013102243_AddTradingRuleOrder", PeriodReviewsMigrationId, "20261017152354_AddTradingPlans", "20261019080838_SharedTradingPlansAndScreenshots", "20261019100107_DirectPlaybookDefinitions", "20261019160256_TombstoneTradingPlans", "20261019171746_AddDailyTradingPrinciples", NotebookMigrationId, "20261020130020_AddNotebookRecovery", "20261020180223_AddNotebookOwnedImageFiles", "20261021121554_AddNotebookDeletionCleanup", "20261108232624_AddAccountPayouts"],
                 readContext.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)readContext.Database.GetDbConnection();
@@ -722,7 +723,8 @@ public sealed partial class InitialMigrationTests
             .SelectMany(table => ReadForeignKeys(connection, table))
             .ToList();
 
-        Assert.Equal(40, foreignKeys.Count); // Composite revision keys each have two columns.
+        AssertForeignKey(foreignKeys, "AccountPayouts", "AccountId", "TradingAccounts", "RESTRICT");
+        Assert.Equal(41, foreignKeys.Count); // Composite revision keys each have two columns.
         AssertForeignKey(foreignKeys, "NotebookNotes", "FolderId", "NotebookFolders", "RESTRICT");
         AssertForeignKey(foreignKeys, "NotebookNotes", "PreviousFolderId", "NotebookFolders", "RESTRICT");
         AssertForeignKey(foreignKeys, "NotebookImages", "NoteId", "NotebookNotes", "RESTRICT");
