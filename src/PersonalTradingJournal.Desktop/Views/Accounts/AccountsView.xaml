@@ -342,7 +342,7 @@
                                         <TextBlock Text="{Binding CreatedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm:ss} UTC}" VerticalAlignment="Center" Margin="0,0,16,0" Style="{StaticResource PtjSecondaryTextStyle}" />
                                         <Button Content="Remove…" AutomationProperties.Name="Remove erroneous payout"
                                                 Command="{Binding DataContext.RemovePayoutCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
-                                                Style="{StaticResource PtjSecondaryButtonStyle}" />
+                                                Style="{StaticResource PtjDangerButtonStyle}" />
                                     </WrapPanel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -601,7 +601,7 @@
             <ScrollViewer x:Name="AccountTableScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
                           HorizontalContentAlignment="Stretch" PanningMode="HorizontalOnly"
                           interactions:NestedTableWheelRouting.ForwardVerticalWheel="True">
-            <Grid MinWidth="1120" Width="{Binding ViewportWidth, ElementName=AccountTableScroll}">
+            <Grid MinWidth="1120" Width="{Binding ViewportWidth, ElementName=AccountTableScroll}" Grid.IsSharedSizeScope="True">
                 <Grid.Style>
                     <Style TargetType="{x:Type Grid}">
                         <Setter Property="Visibility" Value="Collapsed" />
@@ -628,7 +628,7 @@
                         <ColumnDefinition Width="{StaticResource AccountCurrentBalanceColumnWidth}" />
                         <ColumnDefinition Width="1.2*" />
                         <ColumnDefinition Width="0.75*" />
-                        <ColumnDefinition Width="2.2*" />
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="AccountRowActions" />
                     </Grid.ColumnDefinitions>
 
                     <TextBlock Grid.Column="0"
@@ -658,7 +658,7 @@
                                Style="{StaticResource AccountColumnHeaderStyle}"
                                Text="Status" />
                     <TextBlock Grid.Column="8"
-                               HorizontalAlignment="Left"
+                               HorizontalAlignment="Right"
                                Style="{StaticResource AccountColumnHeaderStyle}"
                                Text="Actions" />
                 </Grid>
@@ -682,7 +682,7 @@
                                             <ColumnDefinition Width="{StaticResource AccountCurrentBalanceColumnWidth}" />
                                             <ColumnDefinition Width="1.2*" />
                         <ColumnDefinition Width="0.75*" />
-                                            <ColumnDefinition Width="2.2*" />
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="AccountRowActions" />
                                         </Grid.ColumnDefinitions>
 
                                         <TextBlock Grid.Column="0"
@@ -740,11 +740,11 @@
 
                                         <StackPanel Grid.Column="8"
                                                     Margin="0"
-                                                    HorizontalAlignment="Left"
+                                                    HorizontalAlignment="Right" VerticalAlignment="Center"
                                                     Orientation="Horizontal">
                                             <Button Command="{Binding DataContext.ViewAccountCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                                                     CommandParameter="{Binding Id}"
-                                                    Style="{StaticResource PtjEntityActionButtonStyle}"
+                                                    Style="{StaticResource PtjEntityActionButtonStyle}" Height="36"
                                                     ToolTip="View account details">
                                                 <StackPanel Orientation="Horizontal">
                                                     <Viewbox Width="14" Height="14">
@@ -760,7 +760,7 @@
                                             <Button Margin="4,0,0,0"
                                                     AutomationProperties.Name="More account actions"
                                                     interactions:EntityActionMenu.OpensContextMenu="True"
-                                                    Style="{StaticResource PtjIconButtonStyle}"
+                                                    Style="{StaticResource PtjIconButtonStyle}" Height="36"
                                                     Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                                                     ToolTip="More account actions">
                                                 <Button.ContextMenu>

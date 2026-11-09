@@ -48,7 +48,36 @@ public sealed class AccountBalanceLayoutTests
             Assert.Equal(Grid.GetColumn(payoutHeader) + 1, Grid.GetColumn(statusHeader));
             Assert.All(Descendants(scroll).OfType<TextBlock>(), t => Assert.Equal(TextAlignment.Left, t.TextAlignment));
             Assert.All(Descendants(scroll).OfType<StackPanel>().Where(p => p.Orientation == Orientation.Horizontal && p.Parent is Grid),
-                p => Assert.Equal(HorizontalAlignment.Left, p.HorizontalAlignment));
+                p => Assert.Equal(HorizontalAlignment.Right, p.HorizontalAlignment));
+            var actionsHeader = elements.OfType<TextBlock>().Single(t => t.Text == "Actions");
+            var headerGridForActions = (Grid)actionsHeader.Parent;
+            Assert.Equal(HorizontalAlignment.Right, actionsHeader.HorizontalAlignment);
+            Assert.True(headerGridForActions.ColumnDefinitions[8].Width.IsAuto);
+            var actionPanels = Descendants(scroll).OfType<StackPanel>().Where(p => p.Parent is Grid && Grid.GetColumn(p) == 8).ToArray();
+            Assert.Equal(3, actionPanels.Length);
+            foreach (var panel in actionPanels)
+            {
+                var row = (Grid)panel.Parent;
+                var buttons = panel.Children.OfType<Button>().ToArray();
+                Assert.Equal(2, buttons.Length);
+                Assert.Equal(VerticalAlignment.Center, panel.VerticalAlignment);
+                Assert.Equal(36, buttons[0].ActualHeight);
+                Assert.Equal(buttons[0].ActualHeight, buttons[1].ActualHeight);
+                Assert.Equal(buttons[0].TranslatePoint(new(), row).Y, buttons[1].TranslatePoint(new(), row).Y, 2);
+                Assert.Equal(row.ActualHeight / 2, panel.TranslatePoint(new(0, panel.ActualHeight / 2), row).Y, 2);
+                Assert.Equal(row.ActualWidth, panel.TranslatePoint(new(panel.ActualWidth, 0), row).X, 2);
+                Assert.Equal(actionsHeader.TranslatePoint(new(actionsHeader.ActualWidth, 0), scroll).X,
+                    buttons[1].TranslatePoint(new(buttons[1].ActualWidth, 0), scroll).X, 2);
+                Assert.Equal(panel.ActualWidth, row.ColumnDefinitions[8].ActualWidth, 2);
+                for (int column = 0; column < 9; column++)
+                {
+                    Assert.Equal(headerGridForActions.ColumnDefinitions[column].ActualWidth, row.ColumnDefinitions[column].ActualWidth, 2);
+                    if (column == 8) continue;
+                    var heading = headerGridForActions.Children.OfType<TextBlock>().Single(h => Grid.GetColumn(h) == column);
+                    var cell = row.Children.OfType<FrameworkElement>().Single(c => Grid.GetColumn(c) == column);
+                    Assert.Equal(heading.TranslatePoint(new(), scroll).X, cell.TranslatePoint(new(), scroll).X, 2);
+                }
+            }
             var values = elements.OfType<TextBlock>().Where(t => t.Name == "CurrentBalanceValue").ToArray();
             Assert.Equal(3, values.Length);
             Assert.Equal(TextAlignment.Left, header.TextAlignment);
@@ -114,7 +143,17 @@ public sealed class AccountBalanceLayoutTests
             var section = Assert.IsType<Border>(view.FindName("AccountPayoutSection"));
             var children = Descendants(section).OfType<FrameworkElement>().Where(e => e is Button or TextBox).ToArray();
             Assert.Equal(4, children.Length);
-            Assert.Equal(2, Descendants(section).OfType<Button>().Count(b => b.Content as string == "Remove…"));
+            var removeButtons = Descendants(section).OfType<Button>().Where(b => b.Content as string == "Remove…").ToArray();
+            Assert.Equal(2, removeButtons.Length);
+            foreach (var remove in removeButtons)
+            {
+                Assert.Same(app.Resources["PtjDangerButtonStyle"], remove.Style);
+                Assert.Equal(((SolidColorBrush)app.Resources["PtjDangerBrush"]).Color, ((SolidColorBrush)remove.Background).Color);
+                Assert.Equal(((SolidColorBrush)app.Resources["PtjDangerBrush"]).Color, ((SolidColorBrush)remove.BorderBrush).Color);
+                Assert.Equal(((SolidColorBrush)app.Resources["PtjSurfaceBrush"]).Color, ((SolidColorBrush)remove.Foreground).Color);
+                Assert.Same(vm.RemovePayoutCommand, remove.Command);
+                Assert.Contains(Assert.IsType<AccountPayout>(remove.CommandParameter), vm.Payouts);
+            }
             foreach (var element in children)
             {
                 Assert.True(element.IsEnabled);

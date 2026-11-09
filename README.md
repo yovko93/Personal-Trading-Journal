@@ -35,7 +35,7 @@ The guiding principle is simple: **process quality and financial outcome are sep
 
 ## Project Status
 
-Accounts support optional payout history with confirmed removal. Recorded payouts reduce Current Balance without changing Trade performance; cumulative payouts appear in the Account currency. See [Account payouts](docs/account-payouts.md) for persistence, verification and limitations.
+Accounts show cumulative payouts in the Account currency and deduct them from Current Balance. View and overflow controls share the same height at the right edge of each row. The red Remove button in payout history asks for confirmation. See [Account payouts](docs/account-payouts.md) for persistence and verification.
 
 **In development.** The repository contains a working desktop application with the features below. Release acceptance is still in progress.
 
@@ -43,7 +43,7 @@ Accounts support optional payout history with confirmed removal. Recorded payout
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Latest complete local Release gate: **5,562 passed / 0 failed / 1 skipped**, exit 0, including Account payouts, migration, backup/export and compiled layouts. See [verification evidence](docs/account-payouts.md#verification). One Rules-view acceptance test remains [temporarily quarantined](docs/rules-view-quarantine.md); hosted confirmation and live visual acceptance are pending. |
+| Verification | Latest complete local Release gate: **5,562 passed / 0 failed / 1 skipped**, exit 0, including the Accounts action layout and payout removal checks. See [verification evidence](docs/account-payouts.md#accounts-action-layout-refinement). One Rules-view acceptance test remains [temporarily quarantined](docs/rules-view-quarantine.md); hosted confirmation and live visual acceptance are pending. |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 

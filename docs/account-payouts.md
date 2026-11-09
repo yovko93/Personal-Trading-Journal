@@ -2,7 +2,7 @@
 
 Account details provides an optional, bordered theme-aware Payouts section. Record a positive withdrawal in that exact Account's currency, view each amount and UTC creation time, and remove an erroneous record only after confirmation. No historical withdrawals are inferred.
 
-The list places **Payout** immediately after **Current Balance** and before **Status**, including zero with no entries. All table headings and values align left; horizontal scrolling retains access at narrow widths.
+The list places **Payout** immediately after **Current Balance** and before **Status**, including zero with no entries. Data headings and values align left. The Actions header and controls align to the right content edge. Horizontal scrolling retains access at narrow widths.
 
 Current Balance deducts cumulative payouts from the existing closed-Trade calculation. Missing Starting Balance, incomplete economics, overflow, Estimated state and missing-cost explanations remain intact. Payouts do not mutate Trades, execution costs, P&L, win rate or analytics.
 
@@ -13,6 +13,24 @@ The additive `AddAccountPayouts` migration creates an Account-owned table with p
 An immediate SQLite write transaction validates the Account currency and inserts the payout together. Account updates use the same transaction discipline and reject currency changes while payouts exist; removing erroneous entries permits a later currency edit. Removal matches both payout ID and Account ID. Total overflow is rejected before insertion. No currency conversion is performed.
 
 [Backup and restore](backup-restore.md) use the existing whole-database archive. Portable export v19 includes `accountPayouts` in JSON plus a fifth CSV; portable exports are not restore inputs.
+
+## Accounts action layout refinement
+
+The Actions column now shares a content-sized width across the header and bound rows. Its right edge follows the row content edge inside the card padding. The proportional data columns share the freed space. View and overflow use 36-DIP heights and a vertically centered panel, independent of multi-line Current Balance coverage. The 1120-DIP table minimum and horizontal scrolling remain in place.
+
+Payout Remove uses the existing theme-aware red danger button style. It continues to call the removal command with the exact payout record and requires confirmation. The refinement is scoped to the Accounts view and its layout checks.
+
+Bound-WPF regressions verify all header/row column widths and data origins, right-edge placement, equal button heights and vertical centers, narrow scrolling, and resolved destructive brushes/command parameters in Light/Dark at 1280 DIP/96 DPI and 480 DIP/240 DPI. The Release build passed with zero warnings and errors. The focused Accounts run passed 48 top-level cases, including eight balance and payout layout cases and four bulk-action layout cases in their isolated child hosts. Eight offscreen balance and payout renders were inspected across both themes and sizes. The narrow balance images show the viewport after bringing Current Balance into view. The bound checks also scroll to the right edge and verify that the overflow trigger is fully reachable. Live window inspection, physical DPI and screen-reader checks remain pending.
+
+On 9 November 2026, `pwsh -File scripts/Test-Release.ps1` exited **0** with **5,562 passed, 0 failed and 1 skipped**. Exclusive WPF passed 151, Domain 602, Application 1,050, Infrastructure 1,612 and parallel Desktop 2,147. The sole skip was the existing Rules-view quarantine. The focused run and renders are under `TestResults/account-actions-focused` and `TestResults/account-actions-renders`. The complete run is under `TestResults/release-20261109-140411-1bd13d62a14c41edbb733dd8a655e6ce`.
+
+Exact changed files for this refinement
+
+- `src/PersonalTradingJournal.Desktop/Views/Accounts/AccountsView.xaml`
+- `tests/PersonalTradingJournal.Desktop.Tests/Accounts/AccountBalanceLayoutTests.cs`
+- `README.md`
+- `docs/account-payouts.md`
+- `docs/desktop-ui.md`
 
 ## Verification
 
@@ -46,7 +64,7 @@ Focused evidence: `TestResults/payouts-desktop-corrected` (83 parents / 16 separ
 
 Eight Account table/detail renders in `TestResults/payout-renders` were inspected: Light/Dark at 1280 DIP/96 DPI and 480 DIP/240 DPI. Payout inputs/history fit, money and headings align left, and horizontal scrolling retains action access. The existing four-column Account metadata grid wraps heavily at narrow widths; this task preserves that layout. Native visual, physical-DPI and screen-reader acceptance remain pending. Hosted CI has not been run for these local changes.
 
-## Exact changed files
+## Original payout implementation files
 
 - `docs/account-payouts.md`
 - `docs/backup-restore.md`
