@@ -53,6 +53,18 @@
                     </Grid>
                     <Button Margin="0,8,0,0" HorizontalAlignment="Left" Command="{Binding CancelOperationCommand}"
                             Content="Cancel operation" IsEnabled="{Binding IsBusy}" Style="{StaticResource PtjSecondaryButtonStyle}" />
+                    <StackPanel Margin="0,12,0,0">
+                        <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding IsTradovate}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+                        <TextBlock Text="Optional verified Net P/L: select matching Fills and Cash History after Performance. The Account external ID must match the exports. Without both files, costs remain unknown."
+                                   TextWrapping="Wrap" Style="{StaticResource PtjFormHelperTextStyle}" />
+                        <WrapPanel Margin="0,8,0,0">
+                            <Button Content="Select Fills CSV" Command="{Binding SelectFillsCommand}" Style="{StaticResource PtjSecondaryButtonStyle}" Margin="0,0,8,8" />
+                            <Button Content="Select Cash History CSV" Command="{Binding SelectCashHistoryCommand}" Style="{StaticResource PtjSecondaryButtonStyle}" Margin="0,0,8,8" />
+                            <Button Content="Use Performance only" Command="{Binding ClearCostSourcesCommand}" Style="{StaticResource PtjSecondaryButtonStyle}" Margin="0,0,0,8" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding CostSourceFiles}" TextWrapping="Wrap" Style="{StaticResource PtjFormHelperTextStyle}" />
+                        <TextBlock x:Name="VerifiedCostPreview" Text="{Binding VerifiedCostSummary}" Margin="0,8,0,0" TextWrapping="Wrap" Style="{StaticResource PtjBodyTextStyle}" />
+                    </StackPanel>
                     <TextBlock Margin="0,12,0,0" Text="{Binding WorkflowErrorMessage}">
                         <TextBlock.Style>
                             <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjFormErrorTextStyle}">
@@ -225,7 +237,7 @@
                     </Grid>
                     <TextBlock Margin="0,14,0,0" Foreground="{DynamicResource PtjWarningBrush}"
                                Style="{StaticResource PtjBodyTextStyle}"
-                               Text="Commission and fee values are not present in this Tradovate export. Imported costs and Net P&amp;L will remain unknown until supplied."
+                               Text="Performance alone has unknown costs and Net P&amp;L. With matching Fills and Cash History, review the verified Gross, costs and Net above before confirmation."
                                TextWrapping="Wrap" />
                 </StackPanel>
             </Border>

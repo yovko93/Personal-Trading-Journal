@@ -53,7 +53,7 @@ public sealed class TradovateBoundPreviewTests
             await provider.GetRequiredService<JournalDatabaseInitializer>().InitializeAsync();
             var now = DateTimeOffset.UnixEpoch;
             var account = new TradingAccount("Synthetic Account", TradingAccountType.PropEvaluation,
-                "Tradovate", null, "USD", 0m, now);
+                "Tradovate", "SYN-COST", "USD", 0m, now);
             await provider.GetRequiredService<ITradingAccountStore>().AddAsync(account);
             var accounts = provider.GetRequiredService<ITradingAccountReader>();
             var preparation = new TradovateImportPreparationService(accounts);
@@ -77,11 +77,12 @@ public sealed class TradovateBoundPreviewTests
                                 app.Resources.MergedDictionaries.Add(new ResourceDictionary
                                 { Source = new Uri($"/PersonalTradingJournal.Desktop;component/Resources/{resource}.xaml", UriKind.Relative) });
                             var dialogs = new FakeDialogService { ConfirmationResult = false };
+                            var picker = new Picker();
                             var vm = new ImportViewModel(accounts, new TradovateCsvParser(), new TradovateExecutionReconstructor(),
                                 new TradovateInstrumentResolver(provider.GetRequiredService<IInstrumentReader>()), preparation,
-                                new TradovateImportPreviewBuilder(), new Picker(),
+                                new TradovateImportPreviewBuilder(), picker,
                                 new ImportTradovateTradesUseCase(preparation, provider.GetRequiredService<ITradovateImportStore>(), TimeProvider.System),
-                                dialogs, new Infrastructure.Imports.Csv.ImportCsvFormatDetector(), null!, null!, null!, null!);
+                                dialogs, new Infrastructure.Imports.Csv.ImportCsvFormatDetector(), null!, null!, null!, null!, new TradovateCostCsvParser());
                             var view = new ImportView { DataContext = vm };
                             var window = new Window { Content = view, Width = 1280, Height = 900, ShowInTaskbar = false };
                             try
@@ -113,6 +114,40 @@ public sealed class TradovateBoundPreviewTests
                                 Complete(vm.ConfirmImportCommand.ExecuteAsync(null));
                                 Assert.NotNull(dialogs.ConfirmationRequest);
                                 Complete(AssertReadOnly());
+
+                                // Supporting exports remain read-only until the same explicit confirmation.
+                                picker.Content = FillsCsv;
+                                Complete(vm.SelectFillsCommand.ExecuteAsync(null));
+                                Complete(vm.BuildPreviewCommand.ExecuteAsync(null));
+                                Assert.Equal(ImportWorkflowPhase.Blocked, vm.Phase);
+                                Assert.False(vm.ConfirmImportCommand.CanExecute(null));
+                                picker.Content = CashCsv;
+                                Complete(vm.SelectCashHistoryCommand.ExecuteAsync(null));
+                                Complete(vm.BuildPreviewCommand.ExecuteAsync(null));
+                                view.UpdateLayout();
+                                Assert.Equal(ImportWorkflowPhase.PreviewReady, vm.Phase);
+                                Assert.Contains("Gross 4.00", vm.VerifiedCostSummary);
+                                Assert.Contains("Costs 2.08", vm.VerifiedCostSummary);
+                                Assert.Contains("Net 1.92", vm.VerifiedCostSummary);
+                                var verifiedText = Assert.IsType<TextBlock>(view.FindName("VerifiedCostPreview"));
+                                Assert.Equal(vm.VerifiedCostSummary, verifiedText.Text);
+                                Assert.DoesNotContain(vm.Diagnostics, d => d.Code == "COSTS_UNAVAILABLE");
+                                Complete(vm.ConfirmImportCommand.ExecuteAsync(null));
+                                Assert.Contains("Net 1.92", dialogs.ConfirmationRequest!.Message);
+                                Complete(AssertReadOnly());
+
+                                // A failed replacement cannot silently reuse the previously verified source.
+                                picker.Content = "invalid";
+                                Complete(vm.SelectFillsCommand.ExecuteAsync(null));
+                                Complete(vm.BuildPreviewCommand.ExecuteAsync(null));
+                                Assert.False(vm.ConfirmImportCommand.CanExecute(null));
+                                Assert.Null(vm.VerifiedCostSummary);
+                                picker.Content = CashCsv;
+                                Complete(vm.SelectCashHistoryCommand.ExecuteAsync(null));
+                                Complete(vm.BuildPreviewCommand.ExecuteAsync(null));
+                                Assert.False(vm.ConfirmImportCommand.CanExecute(null));
+                                Assert.Contains("both Fills and Cash History", vm.WorkflowErrorMessage);
+                                vm.ClearCostSourcesCommand.Execute(null);
 
                                 vm.PropertyChanged += (_, args) =>
                                 {
@@ -179,6 +214,20 @@ public sealed class TradovateBoundPreviewTests
 
     private sealed class Picker : ITradovateCsvFilePicker
     {
-        public TradovateCsvFileSelection Pick() => new("synthetic.csv", new MemoryStream(Encoding.UTF8.GetBytes(Csv)));
+        public string Content { get; set; } = Csv;
+        public TradovateCsvFileSelection Pick() => new("synthetic.csv", new MemoryStream(Encoding.UTF8.GetBytes(Content)));
     }
+
+    private const string FillsCsv = "_id,Fill ID,Account,Contract,B/S,Quantity,Price,Timestamp,_timestamp,_tradeDate,commission,_active\n" +
+        "SYN-B1,SYN-B1,SYN-COST,MNQU6,Buy,1,20000,09/10/2026 16:30:03,2026-09-10 13:30:03Z,2026-09-10,0.52,true\n" +
+        "SYN-S1,SYN-S1,SYN-COST,MNQU6,Sell,1,20001,09/10/2026 16:30:15,2026-09-10 13:30:15Z,2026-09-10,0.52,true\n" +
+        "SYN-B2,SYN-B2,SYN-COST,MNQZ6,Buy,1,20000,12/10/2026 16:30:03,2026-12-10 14:30:03Z,2026-12-10,0.52,true\n" +
+        "SYN-S2,SYN-S2,SYN-COST,MNQZ6,Sell,1,20001,12/10/2026 16:30:15,2026-12-10 14:30:15Z,2026-12-10,0.52,true";
+    private const string CashCsv = "Account,Transaction ID,Timestamp,Date,Delta,Amount,Cash Change Type,Currency,Contract\n" +
+        "SYN-COST,C1,09/10/2026 16:30:03,2026-09-10,-0.52,99.48,Commission,USD,MNQU6\n" +
+        "SYN-COST,C2,09/10/2026 16:30:15,2026-09-10,-0.52,98.96,Commission,USD,MNQU6\n" +
+        "SYN-COST,P1,09/10/2026 16:30:15,2026-09-10,2.00,100.96,Trade Paired,USD,MNQU6\n" +
+        "SYN-COST,C3,12/10/2026 16:30:03,2026-12-10,-0.52,100.44,Commission,USD,MNQZ6\n" +
+        "SYN-COST,C4,12/10/2026 16:30:15,2026-12-10,-0.52,99.92,Commission,USD,MNQZ6\n" +
+        "SYN-COST,P2,12/10/2026 16:30:15,2026-12-10,2.00,101.92,Trade Paired,USD,MNQZ6";
 }

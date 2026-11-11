@@ -65,7 +65,8 @@ public sealed partial class ImportViewModel : ObservableObject
         ITopstepCsvParser topstepParser,
         ITopstepTradeCandidateReconstructor topstepReconstructor,
         TopstepImportPreviewBuilder topstepPreviewBuilder,
-        ImportTopstepTradesUseCase topstepImport)
+        ImportTopstepTradesUseCase topstepImport,
+        ITradovateCostCsvParser? costCsvParser = null)
     {
         ArgumentNullException.ThrowIfNull(accountReader);
         ArgumentNullException.ThrowIfNull(csvParser);
@@ -90,12 +91,18 @@ public sealed partial class ImportViewModel : ObservableObject
         _topstepReconstructor = topstepReconstructor;
         _topstepPreviewBuilder = topstepPreviewBuilder;
         _topstepImport = topstepImport;
+        _costCsvParser = costCsvParser;
+        SelectFillsCommand = new AsyncRelayCommand(token => SelectCostsAsync(true, token), CanSelectCosts);
+        SelectCashHistoryCommand = new AsyncRelayCommand(token => SelectCostsAsync(false, token), CanSelectCosts);
+        ClearCostSourcesCommand = new RelayCommand(() => { ClearCostSources(); InvalidatePreview(); WorkflowErrorMessage = null; }, CanSelectCosts);
         SelectCsvCommand = new AsyncRelayCommand(SelectCsvAsync, CanSelectCsv);
         BuildPreviewCommand = new AsyncRelayCommand(BuildPreviewAsync, CanBuildPreview);
         ConfirmImportCommand = new AsyncRelayCommand(ConfirmImportAsync, CanConfirmImport);
         CancelOperationCommand = new RelayCommand(() =>
         {
             SelectCsvCommand.Cancel();
+            SelectFillsCommand.Cancel();
+            SelectCashHistoryCommand.Cancel();
             BuildPreviewCommand.Cancel();
             ConfirmImportCommand.Cancel();
             _topstepConfirmationCancellation?.Cancel();
@@ -159,6 +166,9 @@ public sealed partial class ImportViewModel : ObservableObject
                 SelectCsvCommand.NotifyCanExecuteChanged();
                 BuildPreviewCommand.NotifyCanExecuteChanged();
                 ConfirmImportCommand.NotifyCanExecuteChanged();
+                SelectFillsCommand.NotifyCanExecuteChanged();
+                SelectCashHistoryCommand.NotifyCanExecuteChanged();
+                ClearCostSourcesCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -341,6 +351,8 @@ public sealed partial class ImportViewModel : ObservableObject
     public void ResetTransientState()
     {
         SelectCsvCommand.Cancel();
+        SelectFillsCommand.Cancel();
+        SelectCashHistoryCommand.Cancel();
         BuildPreviewCommand.Cancel();
         ConfirmImportCommand.Cancel();
         _workflowVersion++;
@@ -553,11 +565,18 @@ public sealed partial class ImportViewModel : ObservableObject
             }
 
             diagnosticStage = "PROJECTION";
+            VerifyCosts(preparation);
             TradovateImportPreview preview = _previewBuilder.Build(
                 SelectedFileName!,
                 _parseResult!,
                 _reconstruction!,
                 preparation);
+            if (_verifiedSources is not null)
+            {
+                var retained = preview.Diagnostics.Where(d => d.Code != "COSTS_UNAVAILABLE").ToArray();
+                preview = preview with { Diagnostics = retained,
+                    Summary = preview.Summary with { WarningCount = retained.Count(d => d.Severity == TradovateReconstructionDiagnosticSeverity.Warning) } };
+            }
             var instruments = preview.Instruments.Select(ToInstrumentItem).ToArray();
             var trades = preview.Trades.Select(ToTradeItem).ToArray();
             var diagnostics = preview.Diagnostics.Select(ToDiagnosticItem).ToArray();
@@ -579,6 +598,13 @@ public sealed partial class ImportViewModel : ObservableObject
             {
                 Phase = ImportWorkflowPhase.FileAnalyzed;
             }
+        }
+        catch (TradovateCostSourceException exception)
+        {
+            if (version != _workflowVersion || previewVersion != _previewVersion) return;
+            InvalidatePreview();
+            WorkflowErrorMessage = "COST_RECONCILIATION_BLOCKED: " + exception.Message;
+            Phase = ImportWorkflowPhase.Blocked;
         }
         catch (Exception exception)
         {
@@ -629,7 +655,9 @@ public sealed partial class ImportViewModel : ObservableObject
 
             bool confirmed = _dialogService.Confirm(new ConfirmationDialogRequest(
                 "Import Tradovate trades?",
-                BuildConfirmationMessage(preview, account),
+                _verifiedSources is null ? BuildConfirmationMessage(preview, account) :
+                    $"Account: {account.DisplayText}{Environment.NewLine}{VerifiedCostSummary}{Environment.NewLine}" +
+                    "Import new Trades or update unknown costs on exact existing imported Trades? Conflicting known costs block the entire write.",
                 "Import Trades",
                 "Cancel",
                 isDestructive: false));
@@ -646,7 +674,7 @@ public sealed partial class ImportViewModel : ObservableObject
                     reconstruction,
                     resolution,
                     account.Id,
-                    cancellationToken);
+                    cancellationToken, _verifiedSources);
 
                 await HandleImportResultAsync(result);
             }
@@ -684,7 +712,7 @@ public sealed partial class ImportViewModel : ObservableObject
         {
             case TradovateImportStatus.Imported:
                 ImportResultStatus = "Imported";
-                ImportSuccessMessage = "Tradovate import completed successfully.";
+                ImportSuccessMessage = $"Tradovate import completed successfully. Existing Trades with costs updated: {result.UpdatedCostTradeCount}.";
                 ImportedTradeCount = result.ImportedTradeCount;
                 SkippedDuplicateTradeCount = result.SkippedDuplicateTradeCount;
                 CreatedInstrumentCount = result.CreatedInstrumentCount;
@@ -762,6 +790,8 @@ public sealed partial class ImportViewModel : ObservableObject
 
     private void InvalidatePreview()
     {
+        _verifiedSources = null;
+        VerifiedCostSummary = null;
         ClearTopstepPreview();
         _preview = null;
         PreviewSummary = null;
@@ -781,6 +811,7 @@ public sealed partial class ImportViewModel : ObservableObject
 
     private void ClearCompletedPreviewState()
     {
+        ClearCostSources();
         ClearTopstepState();
         _workflowVersion++;
         _previewVersion++;
@@ -805,6 +836,7 @@ public sealed partial class ImportViewModel : ObservableObject
 
     private void ClearAnalysis()
     {
+        ClearCostSources();
         ClearTopstepState();
         _parseResult = null;
         _reconstruction = null;

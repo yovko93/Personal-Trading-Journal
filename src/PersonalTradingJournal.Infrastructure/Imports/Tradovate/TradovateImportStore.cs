@@ -8,7 +8,7 @@ using PersonalTradingJournal.Infrastructure.Persistence.Records;
 
 namespace PersonalTradingJournal.Infrastructure.Imports.Tradovate;
 
-public sealed class TradovateImportStore : ITradovateImportStore
+public sealed partial class TradovateImportStore : ITradovateImportStore
 {
     private readonly IDbContextFactory<JournalDbContext> _contextFactory;
 
@@ -39,10 +39,9 @@ public sealed class TradovateImportStore : ITradovateImportStore
             await context.Database.BeginTransactionAsync(cancellationToken);
 
         Guid accountId = request.Preparation.AccountSnapshot.TradingAccountId;
-        bool accountExists = await context.TradingAccounts
-            .AsNoTracking()
-            .AnyAsync(record => record.Id == accountId, cancellationToken);
-        if (!accountExists)
+        var currentAccount = await context.TradingAccounts.AsNoTracking()
+            .SingleOrDefaultAsync(record => record.Id == accountId, cancellationToken);
+        if (currentAccount is null)
         {
             await transaction.RollbackAsync(CancellationToken.None);
             return TradovateImportResult.Blocked(
@@ -68,7 +67,27 @@ public sealed class TradovateImportStore : ITradovateImportStore
                 classification.ConflictMessage);
         }
 
-        if (classification.NewCandidates.Count == 0)
+        TradovateVerifiedCosts? costs = null;
+        int updatedCostTrades = 0;
+        if (request.CostSources is not null)
+        {
+            try
+            {
+                if (currentAccount.ExternalAccountId != request.Preparation.AccountSnapshot.ExternalAccountId ||
+                    currentAccount.Currency != request.Preparation.AccountSnapshot.Currency)
+                    throw new TradovateCostSourceException("Account identity or currency changed; rebuild the preview.");
+                costs = TradovateCostReconciler.Reconcile(request.Preparation, request.MatchedPairs ?? [], request.CostSources);
+                updatedCostTrades = await UpdateExistingCostsAsync(context, request, classification.DuplicateTradeIds,
+                    persistedIdentities, costs, cancellationToken);
+            }
+            catch (TradovateCostSourceException error)
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+                return TradovateImportResult.Blocked("COST_RECONCILIATION_BLOCKED", error.Message);
+            }
+        }
+
+        if (classification.NewCandidates.Count == 0 && updatedCostTrades == 0)
         {
             await transaction.RollbackAsync(CancellationToken.None);
             return new TradovateImportResult(
@@ -131,8 +150,10 @@ public sealed class TradovateImportStore : ITradovateImportStore
                 candidate,
                 accountId,
                 instrument,
-                request.ImportedAtUtc);
+                request.ImportedAtUtc, costs);
 
+            if (costs is not null && trade.GrossPnL != request.MatchedPairs!.Where(p => candidate.SourceRecordIndices.Contains(p.SourceRecordIndex)).Sum(p => p.SourceReportedPnL))
+                return TradovateImportResult.Blocked("COST_RECONCILIATION_BLOCKED", "Current Instrument economics differ from verified Gross.");
             importedTradeIds.Add(trade.Id);
             tradeRecords.Add(TradePersistenceMapper.ToRecord(trade));
             browseRecords.Add(TradeBrowsePersistenceMapper.ToRecord(trade));
@@ -179,11 +200,11 @@ public sealed class TradovateImportStore : ITradovateImportStore
         return new TradovateImportResult(
             TradovateImportStatus.Imported,
             importedTradeIds.Count,
-            classification.DuplicateTradeIds.Count,
+            classification.DuplicateTradeIds.Count - updatedCostTrades,
             newInstrumentRecords.Count,
             importedTradeIds,
             newInstrumentRecords.Select(record => record.Id).ToArray(),
-            classification.DuplicateTradeIds);
+            classification.DuplicateTradeIds, UpdatedCostTradeCount: updatedCostTrades);
     }
 
     private static Classification ClassifyCandidates(
@@ -413,7 +434,7 @@ public sealed class TradovateImportStore : ITradovateImportStore
         TradovatePreparedTradeCandidate candidate,
         Guid accountId,
         InstrumentRecord instrument,
-        DateTimeOffset importedAtUtc)
+        DateTimeOffset importedAtUtc, TradovateVerifiedCosts? costs = null)
     {
         Guid tradeId = Guid.NewGuid();
         TradeExecution[] executions = candidate.OrderedExecutions
@@ -424,8 +445,8 @@ public sealed class TradovateImportStore : ITradovateImportStore
                 execution.Side,
                 execution.Quantity,
                 execution.Price,
-                commission: null,
-                fees: null,
+                commission: costs?.For(execution),
+                fees: costs is null ? null : 0m,
                 execution.ExternalFillId,
                 externalOrderId: null,
                 execution.BrokerSymbol))

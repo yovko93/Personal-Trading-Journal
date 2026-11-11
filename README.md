@@ -43,7 +43,7 @@ Accounts show cumulative payouts in the Account currency and deduct them from Cu
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Latest complete local Release gate: **5,569 passed / 0 failed / 1 skipped**, exit 0, including the Calendar cutoff and payout removal checks. See [verification evidence](docs/trading-calendar.md#trading-day-verification). The sole skip is the existing [Rules-view quarantine](docs/rules-view-quarantine.md). Hosted confirmation and live visual acceptance are pending. |
+| Verification | Latest complete local Release gate: **5,600 passed / 0 failed / 1 skipped**, exit 0, including verified Tradovate costs and existing-import enrichment. See [verification evidence](docs/tradovate-verified-costs.md#verification), including the earlier restricted-run failures. The sole skip is the existing [Rules-view quarantine](docs/rules-view-quarantine.md). Hosted confirmation and manual visual acceptance are pending. |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
@@ -54,7 +54,7 @@ The CI badge tracks `main`; it does not certify every development change. The [N
 | Workflow | What you can do |
 | --- | --- |
 | **Trade tracking** | Manage accounts and instruments; record entries, scale-ins, partial exits, and closures; attach screenshots and classify trades by setup and mistake. |
-| **CSV import** | Preview and confirm supported Tradovate matched-fills and TopstepX Trades exports, with validation and duplicate detection. |
+| **CSV import** | Preview and confirm Tradovate matched fills and TopstepX Trades exports. Matching Tradovate Fills and Cash History verify costs and Net, including safe enrichment of unedited Performance imports. |
 | **Analytics** | Explore Dashboard metrics, Calendar results, and Breakdown groups with drill-down into the contributing trades. Calendar assigns Trades closed at or after 18:00 New York time to the next date. |
 | **Daily journal** | Capture reflections, save drafts and completed entries, and revisit revision history by date and account. |
 | **Planning** | Maintain Playbook definitions, trading rules, daily principles, and Trading Plans with saved Ready revisions. |
@@ -112,6 +112,8 @@ On startup, the app creates its local data directories and applies database migr
 ### Tradovate and TopstepX desktop import
 
 Import supports two distinct formats: [Tradovate matched fills](docs/tradovate-csv-import.md) and [TopstepX Trades exports](docs/topstep-csv-import.md). Select the appropriate account and review the preview before confirming. Tradovate reconstructs trades from matched fills; each supported TopstepX row represents one journal trade.
+
+For verified Tradovate Net P/L, select the Performance CSV, then its **Fills** and **Cash History** exports. The selected Account's external ID must match the exports exactly. Review Gross, allocated costs and Net before confirmation. Each unique fill is charged once, including split allocations. Replaying the same evidence is idempotent; conflicting known costs or edited historical Trades block enrichment. Performance-only imports retain unknown costs. See [reconciliation, safeguards and verification](docs/tradovate-verified-costs.md).
 
 Shared limits are 16 MiB per source file, 64 KiB for header detection, 50,000 CSV records including headers and blank records, 32 fields per record, 4,096 decoded UTF-16 code units per field, and 16,384 raw UTF-16 code units per record. Oversized files are rejected without truncation; export a smaller date range and rebuild the preview.
 

@@ -192,6 +192,83 @@ public sealed class TradovateImportAcceptanceTests
         }
     }
 
+    [Fact]
+    public async Task VerifiedCostEnrichmentRequiresConfirmationAndNotifiesWithoutCreatingAnotherTrade()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"PTJ-cost-confirmation-{Guid.NewGuid():N}");
+        var paths = new LocalApplicationPaths(root);
+        paths.EnsureDirectoriesExist();
+        var services = new ServiceCollection();
+        services.AddPersistence(paths);
+        var provider = services.BuildServiceProvider();
+        try
+        {
+            await provider.GetRequiredService<JournalDatabaseInitializer>().InitializeAsync();
+            var now = new DateTimeOffset(2026, 11, 10, 0, 0, 0, TimeSpan.Zero);
+            var account = new TradingAccount("Cost acceptance", TradingAccountType.Personal, "Tradovate", "SIM-COST", "USD", 50000m, now);
+            await provider.GetRequiredService<ITradingAccountStore>().AddAsync(account);
+            var accounts = provider.GetRequiredService<ITradingAccountReader>();
+            var preparation = new TradovateImportPreparationService(accounts);
+            var dialog = new FakeDialogService { ConfirmationResult = true };
+            var picker = new ReusableCsvFilePicker(Csv.Replace("$125.00", "$5.00"));
+            var vm = new ImportViewModel(accounts, new TradovateCsvParser(), new TradovateExecutionReconstructor(),
+                new TradovateInstrumentResolver(provider.GetRequiredService<PersonalTradingJournal.Application.Instruments.IInstrumentReader>()),
+                preparation, new TradovateImportPreviewBuilder(), picker,
+                new ImportTradovateTradesUseCase(preparation, provider.GetRequiredService<ITradovateImportStore>(), new AcceptanceTimeProvider(now)),
+                dialog, new Infrastructure.Imports.Csv.ImportCsvFormatDetector(), null!, null!, null!, null!, new TradovateCostCsvParser());
+            int notifications = 0;
+            vm.ImportCommitted += (_, _) => notifications++;
+            await vm.EnsureLoadedAsync();
+            vm.SelectedSource = vm.Sources.Single(s => s.Name == "Tradovate");
+            await vm.SelectCsvCommand.ExecuteAsync(null);
+            vm.SelectedAccount = Assert.Single(vm.Accounts);
+            await vm.BuildPreviewCommand.ExecuteAsync(null);
+            await vm.ConfirmImportCommand.ExecuteAsync(null);
+            Assert.Equal(1, vm.ImportedTradeCount);
+            var balances = provider.GetRequiredService<ITradingAccountBalanceReader>();
+            Assert.True(Assert.Single(await balances.GetAllWithBalancesAsync()).CurrentBalance!.IsEstimated);
+
+            for (int replay = 0; replay < 2; replay++)
+            {
+                picker.Csv = Csv.Replace("$125.00", "$5.00");
+                await vm.SelectCsvCommand.ExecuteAsync(null);
+                vm.SelectedAccount = Assert.Single(vm.Accounts);
+                picker.Csv = "_id,Fill ID,Account,Contract,B/S,Quantity,Price,Timestamp,_timestamp,_tradeDate,commission,_active\n" +
+                    "M10-7-BUY,M10-7-BUY,SIM-COST,MNQU6,Buy,2,20123.125,09/10/2026 16:30:03,2026-09-10 13:30:03Z,2026-09-10,1.04,true\n" +
+                    "M10-7-SELL,M10-7-SELL,SIM-COST,MNQU6,Sell,2,20124.375,09/10/2026 16:30:15,2026-09-10 13:30:15Z,2026-09-10,1.04,true";
+                await vm.SelectFillsCommand.ExecuteAsync(null);
+                picker.Csv = "Account,Transaction ID,Timestamp,Date,Delta,Amount,Cash Change Type,Currency,Contract\n" +
+                    "SIM-COST,C1,09/10/2026 16:30:03,2026-09-10,-1.04,98.96,Commission,USD,MNQU6\n" +
+                    "SIM-COST,C2,09/10/2026 16:30:15,2026-09-10,-1.04,97.92,Commission,USD,MNQU6\n" +
+                    "SIM-COST,P1,09/10/2026 16:30:15,2026-09-10,5.00,102.92,Trade Paired,USD,MNQU6";
+                await vm.SelectCashHistoryCommand.ExecuteAsync(null);
+                await vm.BuildPreviewCommand.ExecuteAsync(null);
+                Assert.Equal(ImportWorkflowPhase.PreviewReady, vm.Phase);
+                Assert.Contains("Gross 5.00", vm.VerifiedCostSummary);
+                Assert.Contains("Costs 2.08", vm.VerifiedCostSummary);
+                Assert.Contains("Net 2.92", vm.VerifiedCostSummary);
+                dialog.ConfirmationResult = false;
+                await vm.ConfirmImportCommand.ExecuteAsync(null);
+                Assert.Equal(replay == 0 ? 1 : 2, notifications);
+                dialog.ConfirmationResult = true;
+                await vm.ConfirmImportCommand.ExecuteAsync(null);
+                Assert.Equal(0, vm.ImportedTradeCount);
+                Assert.Equal(replay == 0 ? "Imported" : "No changes", vm.ImportResultStatus);
+                Assert.Equal(2, notifications); // enrichment emits the normal refresh event; replay does not
+                var balance = Assert.Single(await balances.GetAllWithBalancesAsync()).CurrentBalance!;
+                Assert.Equal(50002.92m, balance.Value);
+                Assert.False(balance.IsEstimated);
+            }
+        }
+        finally
+        {
+            await provider.DisposeAsync();
+            using var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = paths.DatabasePath, ForeignKeys = true }.ToString());
+            SqliteConnection.ClearPool(connection);
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private sealed class ReusableCsvFilePicker(string csv) : ITradovateCsvFilePicker
     {
         public int CallCount { get; private set; }

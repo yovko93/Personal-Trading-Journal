@@ -9,7 +9,8 @@ public sealed record TradovateImportResult(
     IReadOnlyList<Guid> CreatedInstrumentIds,
     IReadOnlyList<Guid> DuplicateTradeIds,
     string? ConflictCode = null,
-    string? Message = null)
+    string? Message = null,
+    int UpdatedCostTradeCount = 0)
 {
     public static TradovateImportResult Blocked(string code, string message) =>
         new(

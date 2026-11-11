@@ -28,7 +28,8 @@ public sealed class ImportTradovateTradesUseCase
         TradovateExecutionReconstructionResult reconstruction,
         TradovateInstrumentResolutionResult instrumentResolution,
         Guid selectedTradingAccountId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        TradovateCostSources? costSources = null)
     {
         ArgumentNullException.ThrowIfNull(reconstruction);
         ArgumentNullException.ThrowIfNull(instrumentResolution);
@@ -52,7 +53,7 @@ public sealed class ImportTradovateTradesUseCase
 
         DateTimeOffset importedAtUtc = _timeProvider.GetUtcNow();
         return await _store.ImportAsync(
-            new TradovateImportRequest(preparation, importedAtUtc),
+            new TradovateImportRequest(preparation, importedAtUtc, costSources, reconstruction.MatchedPairs),
             cancellationToken);
     }
 }

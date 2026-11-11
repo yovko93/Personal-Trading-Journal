@@ -1,5 +1,15 @@
 # Tradovate CSV Import
 
+## Verified costs and Net P/L
+
+The optional three-file workflow now accepts matching **Performance**, **Fills** and **Cash History** exports. Select Performance as the main CSV, choose the exact Account, select both supporting exports, then build the preview. Gross, costs and Net are shown before explicit confirmation. The Account external ID and USD currency must match the source. Full fill quantities, source facts, daily cash charges and Gross, and running cash balances are reconciled. Cash Trade Paired entries are evidence, never additional Trades or additional P/L.
+
+Each unique fill's commission is allocated once, in exact decimal cents, across its matched Trade allocations. Unedited Performance imports with unknown costs can be enriched atomically without new Trades; conflicting known costs and modified executions are preserved and block the write. Exact replay makes no changes. The usual committed-data notification refreshes Account balances and analytics after new imports or cost-only updates. No schema migration is required; execution costs and derived browse projections use their existing persistence and backup/export paths.
+
+If supporting files are missing, malformed or inconsistent, verified confirmation is blocked. **Use Performance only** explicitly clears supporting evidence and retains the established unknown-cost import behavior. Selecting a new main file clears all supporting sources. Parsed supporting snapshots are retained only in memory for that workflow, revalidated at write time, and never stored as raw CSV.
+
+See [verified-cost contract, source reconciliation, tests and limitations](tradovate-verified-costs.md). The M10 sections below describe the original Performance-only path unless explicitly stated otherwise. Historical verification totals remain historical.
+
 ## Bound WPF preview failure — 2026-10-09
 
 The reported generic preview error was reproduced with the supplied 342-row, 13-column export in an isolated migrated SQLite database and the actual compiled `ImportView`. No production journal was opened, the source file was read without modification, and the full CSV is not a repository fixture.
@@ -158,6 +168,6 @@ The matched-fills source has no independent commission or fee facts. Imported ex
 
 The Trades list uses authoritative paged reads. **Size** is the peak absolute position over that Trade's own execution allocations, not cumulative entries or final Open Qty. Details retain the actual remaining Open Qty and full ordered executions. Average prices display exactly two decimal places in preview, list, and Details without changing stored precision. Gross and Net show their currencies and independent sign colors. A null Net is `—` with unknown-cost guidance; known zero is numeric. Row color follows known Net, otherwise known Gross; a green Gross result does not establish profitability after unknown costs.
 
-The current Edit form supports the manual one-entry/optional-full-exit shape and refuses unknown costs or richer imported lifecycles. The row menu still exposes Edit with that explanatory refusal, and Delete retains its confirmation. Cost source identification and commission/fee import are explicitly deferred. Other limits include the fixed Sofia source-time assumption, one destination Account per file, the MNQ-only automatic creation profile, no arbitrary mapping editor, no independent completeness proof, no source-P&L reconciliation/FX conversion, and no persisted import-history or raw-CSV archive.
+The current Edit form supports the manual one-entry/optional-full-exit shape and refuses unknown costs or richer imported lifecycles. The row menu still exposes Edit with that explanatory refusal, and Delete retains its confirmation. Optional verified cost import is described above. Other limits include the fixed Sofia source-time assumption, one destination Account per file, the MNQ-only automatic creation profile, no arbitrary mapping editor, no proof of activity outside the supplied period, no FX conversion, and no persisted import-history or raw-CSV archive. Performance-only imports still have no independent source-P&L/cost reconciliation.
 
 The original `Tradovate-A049.csv` contains private trading activity and must remain untracked. Synthetic fixtures are used for automated tests. Full-file validation is local-only when the original file is explicitly made available.
