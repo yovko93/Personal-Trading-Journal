@@ -2,6 +2,14 @@
 
 ## Verified costs and Net P/L
 
+### Source panel
+
+Fills and Cash History each have a **Select** or **Replace** action, a wrapping filename, and a text status. A parsed file stays **Pending** until the other export and Account are available and **Build Preview** reconciles all three exports for that Account. A green check and **Verified** appear together on both supporting rows after a successful preview.
+
+A malformed file retains its filename and shows a replacement error. An Account mismatch or other reconciliation error marks both rows and shows the reason below the source panel. Changing the Account or replacing an export clears verification immediately. **Use Performance only** clears both supporting selections and their statuses so you can build an unknown-cost preview.
+
+Performance, Fills, Cash History, and the fallback use teal, blue, purple, and amber respectively in Light and Dark themes. Button labels and live status announcements identify each source and describe its state.
+
 The optional three-file workflow now accepts matching **Performance**, **Fills** and **Cash History** exports. Select Performance as the main CSV, choose the exact Account, select both supporting exports, then build the preview. Gross, costs and Net are shown before explicit confirmation. The Account external ID and USD currency must match the source. Full fill quantities, source facts, daily cash charges and Gross, and running cash balances are reconciled. Cash Trade Paired entries are evidence, never additional Trades or additional P/L.
 
 Each unique fill's commission is allocated once, in exact decimal cents, across its matched Trade allocations. Unedited Performance imports with unknown costs can be enriched atomically without new Trades; conflicting known costs and modified executions are preserved and block the write. Exact replay makes no changes. The usual committed-data notification refreshes Account balances and analytics after new imports or cost-only updates. No schema migration is required; execution costs and derived browse projections use their existing persistence and backup/export paths.
@@ -9,6 +17,14 @@ Each unique fill's commission is allocated once, in exact decimal cents, across 
 If supporting files are missing, malformed or inconsistent, verified confirmation is blocked. **Use Performance only** explicitly clears supporting evidence and retains the established unknown-cost import behavior. Selecting a new main file clears all supporting sources. Parsed supporting snapshots are retained only in memory for that workflow, revalidated at write time, and never stored as raw CSV.
 
 See [verified-cost contract, source reconciliation, tests and limitations](tradovate-verified-costs.md). The M10 sections below describe the original Performance-only path unless explicitly stated otherwise. Historical verification totals remain historical.
+
+### Source panel verification
+
+The Release build finished with zero warnings and errors. All 73 focused Desktop import tests passed, including ViewModel and compiled WPF coverage for pending, verified, invalid, Account mismatch, replacement, and clearing. The compiled checks covered four distinct button colors, text contrast of at least 4.5:1 in the resting and hover treatments, and automation names and live-region settings. The bound preview test used synthetic exports and temporary storage.
+
+Light and Dark offscreen renders were inspected at 960 DIP/96 DPI and 360 DIP/240 DPI. Verified and invalid renders and the focused TRX are in `TestResults/TradovateSourcePanel`. An initial render test inherited the host DPI in late-created WPF templates. The fixture now applies the synthetic DPI after creating those templates and checks the result on the panel. Live hover, keyboard focus, and screen-reader speech remain unverified.
+
+The complete Release gate `release-20261112-122751-869a785da96440818d324c08d8a34bfa` exited 0 with **5,601 passed, 0 failed, and 1 skipped**. The totals include 151 exclusive WPF, 602 Domain, 1,052 Application, 1,646 Infrastructure, and 2,150 parallel Desktop passes. The sole skip is the existing [Rules-view quarantine](rules-view-quarantine.md). The console log is in `TestResults/TradovateSourcePanel/release.log`.
 
 ## Bound WPF preview failure — 2026-10-09
 

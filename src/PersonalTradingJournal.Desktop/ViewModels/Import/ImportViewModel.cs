@@ -591,6 +591,7 @@ public sealed partial class ImportViewModel : ObservableObject
                 : preparation.Status == TradovateImportPreparationStatus.RequiresUserInput
                     ? ImportWorkflowPhase.RequiresUserInput
                     : ImportWorkflowPhase.Blocked;
+            NotifyCostSources();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -603,6 +604,8 @@ public sealed partial class ImportViewModel : ObservableObject
         {
             if (version != _workflowVersion || previewVersion != _previewVersion) return;
             InvalidatePreview();
+            _costReconciliationFailed = _costFills is not null && _costCash is not null;
+            NotifyCostSources();
             WorkflowErrorMessage = "COST_RECONCILIATION_BLOCKED: " + exception.Message;
             Phase = ImportWorkflowPhase.Blocked;
         }
@@ -744,6 +747,11 @@ public sealed partial class ImportViewModel : ObservableObject
     private async Task HandleBlockedImportAsync(TradovateImportResult result)
     {
         _preview = null;
+        bool hadVerifiedCosts = _verifiedSources is not null;
+        ResetCostVerification();
+        _costReconciliationFailed = hadVerifiedCosts &&
+            result.ConflictCode is "COST_RECONCILIATION_BLOCKED" or TradovateImportConflictCodes.ReferenceDataChanged;
+        NotifyCostSources();
         string guidance = result.ConflictCode switch
         {
             TradovateImportConflictCodes.ReferenceDataChanged =>
@@ -790,8 +798,7 @@ public sealed partial class ImportViewModel : ObservableObject
 
     private void InvalidatePreview()
     {
-        _verifiedSources = null;
-        VerifiedCostSummary = null;
+        ResetCostVerification();
         ClearTopstepPreview();
         _preview = null;
         PreviewSummary = null;

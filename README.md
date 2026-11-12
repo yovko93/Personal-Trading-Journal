@@ -43,7 +43,7 @@ Accounts show cumulative payouts in the Account currency and deduct them from Cu
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Latest complete local Release gate: **5,600 passed / 0 failed / 1 skipped**, exit 0, including verified Tradovate costs and existing-import enrichment. See [verification evidence](docs/tradovate-verified-costs.md#verification), including the earlier restricted-run failures. The sole skip is the existing [Rules-view quarantine](docs/rules-view-quarantine.md). Hosted confirmation and manual visual acceptance are pending. |
+| Verification | The latest complete local Release gate exited 0 with **5,601 passed, 0 failed, and 1 skipped**. See the [Tradovate source panel verification](docs/tradovate-csv-import.md#source-panel-verification). The sole skip is the existing [Rules-view quarantine](docs/rules-view-quarantine.md). Hosted confirmation and manual interaction checks are pending. |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
@@ -114,6 +114,8 @@ On startup, the app creates its local data directories and applies database migr
 Import supports two distinct formats: [Tradovate matched fills](docs/tradovate-csv-import.md) and [TopstepX Trades exports](docs/topstep-csv-import.md). Select the appropriate account and review the preview before confirming. Tradovate reconstructs trades from matched fills; each supported TopstepX row represents one journal trade.
 
 For verified Tradovate Net P/L, select the Performance CSV, then its **Fills** and **Cash History** exports. The selected Account's external ID must match the exports exactly. Review Gross, allocated costs and Net before confirmation. Each unique fill is charged once, including split allocations. Replaying the same evidence is idempotent; conflicting known costs or edited historical Trades block enrichment. Performance-only imports retain unknown costs. See [reconciliation, safeguards and verification](docs/tradovate-verified-costs.md).
+
+The Tradovate source panel shows each supporting filename and its status. Select **Build Preview** to reconcile the three exports for the selected Account. Both rows show **Verified** when that preview succeeds. **Use Performance only** clears the supporting files and returns to the unknown-cost workflow. See the [Tradovate source panel guide](docs/tradovate-csv-import.md#source-panel).
 
 Shared limits are 16 MiB per source file, 64 KiB for header detection, 50,000 CSV records including headers and blank records, 32 fields per record, 4,096 decoded UTF-16 code units per field, and 16,384 raw UTF-16 code units per record. Oversized files are rejected without truncation; export a smaller date range and rebuild the preview.
 

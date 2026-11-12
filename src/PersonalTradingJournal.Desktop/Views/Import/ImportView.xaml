@@ -2,9 +2,38 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:PersonalTradingJournal.Desktop.Views.Import"
+             xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
              xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters">
     <UserControl.Resources>
         <converters:TradingTimestampConverter x:Key="TradingTimestamp" />
+        <Style x:Key="SourceAction" TargetType="Button" BasedOn="{StaticResource PtjButtonStyle}">
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+        <DataTemplate x:Key="CostSourceDetails">
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{Binding FileName, TargetNullValue=No file selected}"
+                           Style="{StaticResource PtjBodyTextStyle}" TextWrapping="Wrap" />
+                <TextBlock Margin="0,3,0,0" TextWrapping="Wrap"
+                           AutomationProperties.Name="{Binding Announcement}"
+                           AutomationProperties.LiveSetting="Polite"
+                           interactions:LiveAnnouncement.Text="{Binding Announcement}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource PtjFormHelperTextStyle}">
+                            <Setter Property="Text" Value="{Binding Status}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsVerified}" Value="True">
+                                    <Setter Property="Text" Value="✓ Verified" />
+                                    <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsError}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </DataTemplate>
     </UserControl.Resources>
     <ScrollViewer HorizontalContentAlignment="Stretch"
                   HorizontalScrollBarVisibility="Disabled"
@@ -19,7 +48,7 @@
                        Text="Choose Tradovate or TopstepX before selecting its CSV. Review the preview, then confirm the import."
                        TextWrapping="Wrap" />
 
-            <Border Margin="0,16,0,0" Style="{StaticResource PtjFormSectionStyle}">
+            <Border x:Name="SourcePanel" Margin="0,16,0,0" Style="{StaticResource PtjFormSectionStyle}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}" Text="1. Source file" />
                     <TextBlock Margin="0,4,0,0" Style="{StaticResource PtjFormHelperTextStyle}"
@@ -38,18 +67,29 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <Button Command="{Binding SelectCsvCommand}"
-                                Content="Select CSV"
-                                Style="{StaticResource PtjPrimaryButtonStyle}" />
-                        <TextBlock Grid.Column="1" Margin="16,0,16,0" VerticalAlignment="Center"
-                                   Style="{StaticResource PtjBodyTextStyle}"
-                                   Text="{Binding SelectedFileName, TargetNullValue=No file selected}"
-                                   TextTrimming="CharacterEllipsis" />
-                        <TextBlock Grid.Column="2" VerticalAlignment="Center"
-                                   Style="{StaticResource PtjCaptionTextStyle}"
-                                   Text="{Binding Phase}" />
+                        <Button x:Name="SelectPerformance" Command="{Binding SelectCsvCommand}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource PtjPrimaryButtonStyle}">
+                                    <Setter Property="Content" Value="Select CSV" />
+                                    <Setter Property="VerticalAlignment" Value="Top" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedSource.Name}" Value="Tradovate">
+                                            <Setter Property="Content" Value="Select Performance" />
+                                            <Setter Property="Background" Value="{DynamicResource PtjPerformanceSourceBrush}" />
+                                            <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                            <TextBlock Style="{StaticResource PtjBodyTextStyle}" TextWrapping="Wrap"
+                                       Text="{Binding SelectedFileName, TargetNullValue=No file selected}" />
+                            <TextBlock Style="{StaticResource PtjCaptionTextStyle}" TextWrapping="Wrap"
+                                       Text="{Binding Phase}" />
+                        </StackPanel>
                     </Grid>
                     <Button Margin="0,8,0,0" HorizontalAlignment="Left" Command="{Binding CancelOperationCommand}"
                             Content="Cancel operation" IsEnabled="{Binding IsBusy}" Style="{StaticResource PtjSecondaryButtonStyle}" />
@@ -57,15 +97,43 @@
                         <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding IsTradovate}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
                         <TextBlock Text="Optional verified Net P/L: select matching Fills and Cash History after Performance. The Account external ID must match the exports. Without both files, costs remain unknown."
                                    TextWrapping="Wrap" Style="{StaticResource PtjFormHelperTextStyle}" />
-                        <WrapPanel Margin="0,8,0,0">
-                            <Button Content="Select Fills CSV" Command="{Binding SelectFillsCommand}" Style="{StaticResource PtjSecondaryButtonStyle}" Margin="0,0,8,8" />
-                            <Button Content="Select Cash History CSV" Command="{Binding SelectCashHistoryCommand}" Style="{StaticResource PtjSecondaryButtonStyle}" Margin="0,0,8,8" />
-                            <Button Content="Use Performance only" Command="{Binding ClearCostSourcesCommand}" Style="{StaticResource PtjSecondaryButtonStyle}" Margin="0,0,0,8" />
-                        </WrapPanel>
-                        <TextBlock Text="{Binding CostSourceFiles}" TextWrapping="Wrap" Style="{StaticResource PtjFormHelperTextStyle}" />
+                        <StackPanel Grid.IsSharedSizeScope="True">
+                            <Grid Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="SupportingSourceAction" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="SelectFills" Content="{Binding FillsSource.ActionLabel}"
+                                        AutomationProperties.Name="{Binding FillsSource.ActionLabel}"
+                                        Command="{Binding SelectFillsCommand}" Style="{StaticResource SourceAction}"
+                                        Background="{DynamicResource PtjFillsSourceBrush}" />
+                                <ContentControl x:Name="FillsDetails" Grid.Column="1" Margin="12,0,0,0"
+                                                HorizontalContentAlignment="Stretch" Focusable="False"
+                                                Content="{Binding FillsSource}" ContentTemplate="{StaticResource CostSourceDetails}" />
+                            </Grid>
+                            <Grid Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="SupportingSourceAction" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="SelectCashHistory" Content="{Binding CashHistorySource.ActionLabel}"
+                                        AutomationProperties.Name="{Binding CashHistorySource.ActionLabel}"
+                                        Command="{Binding SelectCashHistoryCommand}" Style="{StaticResource SourceAction}"
+                                        Background="{DynamicResource PtjCashSourceBrush}" />
+                                <ContentControl x:Name="CashHistoryDetails" Grid.Column="1" Margin="12,0,0,0"
+                                                HorizontalContentAlignment="Stretch" Focusable="False"
+                                                Content="{Binding CashHistorySource}" ContentTemplate="{StaticResource CostSourceDetails}" />
+                            </Grid>
+                        </StackPanel>
+                        <Button x:Name="PerformanceOnly" Content="Use Performance only" HorizontalAlignment="Left" Margin="0,12,0,0"
+                                Command="{Binding ClearCostSourcesCommand}" Style="{StaticResource SourceAction}"
+                                AutomationProperties.HelpText="Clear the supporting files and continue with unknown costs."
+                                Background="{DynamicResource PtjPerformanceOnlyBrush}" />
                         <TextBlock x:Name="VerifiedCostPreview" Text="{Binding VerifiedCostSummary}" Margin="0,8,0,0" TextWrapping="Wrap" Style="{StaticResource PtjBodyTextStyle}" />
                     </StackPanel>
-                    <TextBlock Margin="0,12,0,0" Text="{Binding WorkflowErrorMessage}">
+                    <TextBlock Margin="0,12,0,0" Text="{Binding WorkflowErrorMessage}" TextWrapping="Wrap"
+                               AutomationProperties.LiveSetting="Polite"
+                               interactions:LiveAnnouncement.Text="{Binding WorkflowErrorMessage}">
                         <TextBlock.Style>
                             <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjFormErrorTextStyle}">
                                 <Style.Triggers>

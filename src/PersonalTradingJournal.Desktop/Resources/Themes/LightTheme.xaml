@@ -32,6 +32,10 @@
 
     <SolidColorBrush x:Key="PtjBackgroundBrush" Color="{StaticResource PtjColorBackground}" />
     <SolidColorBrush x:Key="PtjSurfaceBrush" Color="{StaticResource PtjColorSurface}" />
+    <SolidColorBrush x:Key="PtjPerformanceSourceBrush" Color="#D2EEE9" />
+    <SolidColorBrush x:Key="PtjFillsSourceBrush" Color="#DCE7FA" />
+    <SolidColorBrush x:Key="PtjCashSourceBrush" Color="#E9DDF5" />
+    <SolidColorBrush x:Key="PtjPerformanceOnlyBrush" Color="#F3E4C6" />
     <SolidColorBrush x:Key="PtjSurfaceElevatedBrush" Color="{StaticResource PtjColorSurfaceElevated}" />
     <SolidColorBrush x:Key="PtjPageHeaderSurfaceBrush" Color="#EAF3F2" />
     <SolidColorBrush x:Key="PtjPageHeaderBorderBrush" Color="#B9D5D2" />
