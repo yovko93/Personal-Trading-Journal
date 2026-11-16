@@ -1,0 +1,74 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.Trades.TradeScreenshotWorkspace"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <UserControl.Resources><BooleanToVisibilityConverter x:Key="VisibleIf" /></UserControl.Resources>
+ <StackPanel>
+  <WrapPanel Margin="0,8">
+   <TextBlock Text="Screenshots" Style="{DynamicResource PtjSectionTitleTextStyle}" VerticalAlignment="Center" Margin="0,0,12,8" />
+   <Button x:Name="AddScreenshot" Content="Add Screenshot" Command="{Binding ShowAddScreenshotCommand}" Style="{DynamicResource PtjSecondaryButtonStyle}" Margin="0,0,0,8" />
+  </WrapPanel>
+  <ItemsControl ItemsSource="{Binding ScreenshotCards}">
+   <ItemsControl.Style><Style TargetType="ItemsControl"><Style.Triggers><DataTrigger Binding="{Binding IsManualEntryVisible}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></ItemsControl.Style>
+   <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+   <ItemsControl.ItemTemplate><DataTemplate>
+    <StackPanel Width="144" Margin="0,4,8,8">
+     <Button Command="{Binding DataContext.OpenScreenshotPreviewCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Item}" Style="{DynamicResource PtjSecondaryButtonStyle}" AutomationProperties.Name="{Binding Item.Type, StringFormat=View {0} screenshot}">
+      <StackPanel><Image Source="{Binding Image}" Height="72" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
+       <TextBlock Text="{Binding Item.Type}" TextWrapping="Wrap" /><TextBlock Text="{Binding Item.Timeframe}" TextWrapping="Wrap" /></StackPanel>
+     </Button>
+     <Button Content="Remove" Margin="0,4,0,0" Command="{Binding DataContext.DeleteScreenshotCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Item}" Style="{DynamicResource PtjPlaybookRemoveButtonStyle}" AutomationProperties.Name="{Binding Item.Type, StringFormat=Remove {0} screenshot}" />
+    </StackPanel>
+   </DataTemplate></ItemsControl.ItemTemplate>
+  </ItemsControl>
+  <ItemsControl ItemsSource="{Binding StagedScreenshots}">
+   <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+   <ItemsControl.ItemTemplate><DataTemplate>
+    <StackPanel Width="144" Margin="0,4,8,8">
+     <Button Command="{Binding DataContext.OpenStagedScreenshotCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{DynamicResource PtjSecondaryButtonStyle}" AutomationProperties.Name="View staged screenshot">
+      <Image Source="{Binding Image}" Height="80" Stretch="Uniform" />
+     </Button>
+     <TextBlock Text="{Binding Draft.Type}" TextWrapping="Wrap" Style="{DynamicResource PtjBodyTextStyle}" />
+     <TextBlock Text="{Binding Draft.Timeframe}" TextWrapping="Wrap" Style="{DynamicResource PtjSecondaryTextStyle}" />
+     <TextBlock Text="Staged · saved with Trade" TextWrapping="Wrap" Style="{DynamicResource PtjCaptionTextStyle}" />
+     <Button Content="Remove" Command="{Binding DataContext.RemoveStagedScreenshotCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{DynamicResource PtjPlaybookRemoveButtonStyle}" />
+    </StackPanel>
+   </DataTemplate></ItemsControl.ItemTemplate>
+  </ItemsControl>
+  <Border Padding="12" Style="{DynamicResource PtjCardStyle}" Visibility="{Binding IsAddScreenshotVisible, Converter={StaticResource VisibleIf}}">
+   <StackPanel>
+    <TextBlock Text="Type" Style="{DynamicResource PtjFormLabelTextStyle}" />
+    <ComboBox x:Name="ScreenshotType" ItemsSource="{Binding ScreenshotTypeOptions}" SelectedItem="{Binding SelectedScreenshotType}" Style="{DynamicResource PtjComboBoxStyle}" AutomationProperties.Name="Screenshot type" Margin="0,6,0,12" />
+    <TextBlock Text="Timeframe" Style="{DynamicResource PtjFormLabelTextStyle}" />
+    <TextBox x:Name="ScreenshotTimeframe" Text="{Binding ScreenshotTimeframeText, UpdateSourceTrigger=PropertyChanged}" Style="{DynamicResource PtjTextBoxStyle}" AutomationProperties.Name="Screenshot timeframe" Margin="0,6,0,12" />
+    <Button x:Name="UploadScreenshot" Content="Upload Screenshot" Command="{Binding UploadScreenshotCommand}" Style="{DynamicResource PtjPrimaryButtonStyle}" HorizontalAlignment="Left" />
+    <TextBlock Text="{Binding UploadedScreenshotFileName}" TextWrapping="Wrap" Style="{DynamicResource PtjSecondaryTextStyle}" Margin="0,6" />
+    <Image Source="{Binding UploadedScreenshotImage}" MaxHeight="140" Stretch="Uniform" HorizontalAlignment="Left" />
+    <WrapPanel Margin="0,12,0,0">
+     <Button x:Name="SaveScreenshot" Content="Save" Command="{Binding SaveScreenshotCommand}" Style="{DynamicResource PtjPrimaryButtonStyle}" Margin="0,0,8,0" />
+     <Button Content="Cancel" Command="{Binding CancelAddScreenshotCommand}" Style="{DynamicResource PtjSecondaryButtonStyle}" />
+    </WrapPanel>
+   </StackPanel>
+  </Border>
+  <TextBlock Visibility="{Binding HasScreenshotValidationError, Converter={StaticResource VisibleIf}}" Text="{Binding ScreenshotValidationErrorMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Polite" />
+  <TextBlock Visibility="{Binding HasScreenshotSaveError, Converter={StaticResource VisibleIf}}" Text="{Binding ScreenshotSaveErrorMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Polite" />
+  <TextBlock Visibility="{Binding HasTradeScreenshotsError, Converter={StaticResource VisibleIf}}" Text="{Binding TradeScreenshotsErrorMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" />
+  <TextBlock Visibility="{Binding HasScreenshotDeleteError, Converter={StaticResource VisibleIf}}" Text="{Binding ScreenshotDeleteErrorMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" />
+  <TextBlock Visibility="{Binding HasScreenshotDeleteWarning, Converter={StaticResource VisibleIf}}" Text="{Binding ScreenshotDeleteWarningMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjWarningBrush}" />
+  <Border>
+   <Border.Style>
+    <Style TargetType="Border">
+     <Setter Property="Visibility" Value="Collapsed" />
+     <Style.Triggers>
+      <DataTrigger Binding="{Binding IsScreenshotPreviewVisible}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+      <DataTrigger Binding="{Binding HasScreenshotPreviewError}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+     </Style.Triggers>
+    </Style>
+   </Border.Style>
+   <Border Padding="12" Style="{DynamicResource PtjCardStyle}"><StackPanel>
+    <Button Content="Close preview" Command="{Binding CloseScreenshotPreviewCommand}" Style="{DynamicResource PtjSecondaryButtonStyle}" HorizontalAlignment="Left" />
+    <Image Source="{Binding PreviewScreenshotImage}" MaxHeight="480" Stretch="Uniform" Margin="0,8" />
+    <TextBlock Visibility="{Binding HasScreenshotPreviewError, Converter={StaticResource VisibleIf}}" Text="{Binding ScreenshotPreviewErrorMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" />
+   </StackPanel></Border>
+  </Border>
+ </StackPanel>
+</UserControl>

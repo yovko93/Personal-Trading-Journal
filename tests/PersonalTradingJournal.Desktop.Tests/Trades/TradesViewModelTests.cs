@@ -3215,10 +3215,7 @@ public sealed partial class TradesViewModelTests
         FakeTradeMistakeStore? tradeMistakeStore = null,
         FakeTradeDeletionStore? tradeDeletionStore = null,
         FakeDialogService? dialogService = null,
-        UpdateTradeUseCase? updateTradeUseCase = null,
-        ITradePlaybookAssociationStore? playbookAssociations = null,
-        ITradePlaybookContextStore? playbookContexts = null,
-        PersonalTradingJournal.Desktop.Dialogs.IRuleAssessmentDialog? ruleAssessments = null)
+        UpdateTradeUseCase? updateTradeUseCase = null)
     {
         reader ??= new FakeManualTradeReferenceDataReader();
         tradeListReader ??= new FakeTradeListReader();
@@ -3295,7 +3292,7 @@ public sealed partial class TradesViewModelTests
             new DeleteTradeUseCase(
                 tradeDeletionStore,
                 tradeScreenshotFileStorage),
-            dialogService, playbookAssociations: playbookAssociations, playbookContexts: playbookContexts, ruleAssessments: ruleAssessments);
+            dialogService);
     }
 
     private static ManualTradeSaveFixture CreateSaveFixture(

@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.DailyReview;
@@ -30,7 +32,7 @@ public sealed partial class DailyReviewEvidenceReaderTests
         var first = TradingSetupPlaybookRevision.Create(setup, guidance, Audit);
         var store = db.ServiceProvider.GetRequiredService<ITradingSetupPlaybookStore>();
         Assert.True(await store.TryAppendAsync(first, 0, Audit));
-        Assert.True(await db.ServiceProvider.GetRequiredService<ITradePlaybookContextStore>()
+        Assert.True(await (await LegacyTradeCaptureFixture.ContextsAsync(db.ContextFactory))
             .TryAddAsync(TradePlaybookContext.Capture(trade, setup, first, Close.AddMinutes(1)), Audit));
         var associations = new Infrastructure.Trades.TradePlaybookAssociationStore(db.ContextFactory, TimeProvider.System);
         var reader = Reader(db);
@@ -75,6 +77,16 @@ public sealed partial class DailyReviewEvidenceReaderTests
         Assert.Equal(saved.EvidenceJson, reopened!.EvidenceJson);
         Assert.DoesNotContain("Renamed plan", reopened.EvidenceJson);
         await using var context = await db.ContextFactory.CreateDbContextAsync();
+        // Apply the actual retirement migration to historical synthetic capture data.
+        var migrations = (await context.Database.GetAppliedMigrationsAsync()).ToArray();
+        await context.GetService<IMigrator>().MigrateAsync(migrations[^2]);
+        await context.GetService<IMigrator>().MigrateAsync();
+        Assert.Empty(await context.TradePlaybookContexts.ToArrayAsync());
+        Assert.Empty(await context.TradePlaybookAssociations.ToArrayAsync());
+        var afterRetirement = (await repository.GetAsync(saved.Summary.Id))!;
+        Assert.Equal(saved.EvidenceJson, afterRetirement.EvidenceJson);
+        Assert.Equal(saved.ResponseJson, afterRetirement.ResponseJson);
+        Assert.Equal(ReviewPlaybookState.LegacyClassification, (await reader.GetAsync(query)).Trades[0].Playbook!.CurrentState);
         await context.Trades.Where(t => t.Id == trade.Id).ExecuteDeleteAsync();
         Assert.Equal(saved.EvidenceJson, (await repository.GetAsync(saved.Summary.Id))!.EvidenceJson);
         Assert.Empty((await reader.GetAsync(query)).Trades);

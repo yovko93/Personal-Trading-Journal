@@ -42,7 +42,7 @@ public sealed partial class TradingRulePersistenceTests
             Assert.Empty(await db.TradingRuleRevisions.ToArrayAsync()); Assert.Empty(await db.TradingRuleAssessments.ToArrayAsync());
             var execution = await db.TradeExecutions.OrderBy(e => e.Sequence).FirstAsync();
             Assert.Null(execution.Commission); Assert.Equal(trade.Id, execution.TradeId);
-            Assert.Equal("20261108232624_AddAccountPayouts", (await db.Database.GetAppliedMigrationsAsync()).Last());
+            Assert.Equal("20261114204255_SimplifyTradeWorkspace", (await db.Database.GetAppliedMigrationsAsync()).Last());
         }
         Assert.Equal(TradingRuleWriteStatus.Saved, (await f.Get<WriteTradingRuleUseCase>().ExecuteAsync(
             new(Guid.NewGuid(), 0, TradingRuleAuthoringAction.Create, Definition(trade.TradingAccountId)))).Status);
@@ -255,7 +255,17 @@ public sealed partial class TradingRulePersistenceTests
             var trade = Trade.Start(account, instrument, new(1, currency),
                 new(Guid.NewGuid(), 1, entry ?? Now.AddDays(-1).AddMinutes(-1), ExecutionSide.Buy, 1, 100, null, 0, null, null, null), Now);
             trade.AddExecution(new(trade.Id, 2, close ?? Now.AddDays(-1), ExecutionSide.Sell, 1, 110, 1, 0, null, null, null), Now);
-            await Get<ITradeStore>().AddAsync(trade); return trade;
+            await using var schema = Context();
+            if (!(await schema.Database.GetAppliedMigrationsAsync()).Any(m => m.EndsWith("SimplifyTradeWorkspace", StringComparison.Ordinal)))
+            {
+                // Seed the historical schema without referencing the later optional Description column.
+                await schema.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO Trades (Id,TradingAccountId,InstrumentId,PricingPointValue,PricingCurrency,TradingSetupId,CreatedAtUtc,UpdatedAtUtc) VALUES ({trade.Id},{account},{instrument},{1m},{currency},{(Guid?)null},{Now.UtcDateTime},{Now.UtcDateTime})");
+                schema.TradeExecutions.AddRange(trade.Executions.Select(PersonalTradingJournal.Infrastructure.Persistence.Mapping.TradeExecutionPersistenceMapper.ToRecord));
+                schema.TradeBrowse.Add(PersonalTradingJournal.Infrastructure.Persistence.Mapping.TradeBrowsePersistenceMapper.ToRecord(trade));
+                await schema.SaveChangesAsync();
+            }
+            else await Get<ITradeStore>().AddAsync(trade);
+            return trade;
         }
         public async ValueTask DisposeAsync() { await Stop(); Directory.Delete(Root, true); }
     }

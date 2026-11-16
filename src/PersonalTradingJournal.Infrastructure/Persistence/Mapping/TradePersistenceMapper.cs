@@ -17,6 +17,7 @@ public static class TradePersistenceMapper
             PricingPointValue = trade.Pricing.PointValue,
             PricingCurrency = trade.Pricing.Currency,
             TradingSetupId = trade.TradingSetupId,
+            Description = trade.Description,
             CreatedAtUtc = trade.CreatedAtUtc,
             UpdatedAtUtc = trade.UpdatedAtUtc,
         };
@@ -44,6 +45,7 @@ public static class TradePersistenceMapper
             record.TradingSetupId,
             executions,
             record.CreatedAtUtc,
-            record.UpdatedAtUtc);
+            record.UpdatedAtUtc,
+            record.Description);
     }
 }

@@ -53,10 +53,12 @@ public sealed partial class PlaybookPersistenceTests
         await using var db = f.Context();
         Assert.False(await db.PlaybookExamples.AnyAsync(e => e.Revision == 2)); Assert.Single(await db.Trades.ToArrayAsync());
         Assert.Empty(await db.Database.SqlQueryRaw<string>("SELECT 'broken' AS Value FROM pragma_foreign_key_check").ToArrayAsync());
+        await f.RetireTradeCaptures();
         string archive = Path.Combine(f.Root, "gapped-history.ptjbackup");
         Assert.True((await f.Get<IBackupArchiveService>().CreateAsync(archive)).Succeeded);
         Assert.True((await f.Get<IRestorePreflightService>().InspectAsync(archive, f.Root)).Validated);
         string export = Path.Combine(f.Root, "export");
+        await f.RetireTradeCaptures();
         Assert.True((await f.Get<IPortableExportService>().CreateAsync(export)).Succeeded);
         using var json = System.Text.Json.JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(export, PortableExportContract.DataFile)));
         Assert.Equal(new[] { 1, 3, 4 }, json.RootElement.GetProperty("tables").GetProperty("playbookRevisions").EnumerateArray().Select(r => r.GetProperty("revision").GetInt32()));

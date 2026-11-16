@@ -101,4 +101,6 @@
     <SolidColorBrush x:Key="PtjPlaybookCreatePressedBrush" Color="#1B4B46" />
     <SolidColorBrush x:Key="PtjPlaybookRemoveHoverBrush" Color="#A9364C" />
     <SolidColorBrush x:Key="PtjPlaybookRemovePressedBrush" Color="#982B40" />
+    <SolidColorBrush x:Key="PtjTradeExecutionFactsBrush" Color="#E4EEF9" />
+    <SolidColorBrush x:Key="PtjTradeExecutionSourceBrush" Color="#EFEAF6" />
 </ResourceDictionary>

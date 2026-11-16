@@ -4,6 +4,8 @@ using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Domain.Instruments;
 using PersonalTradingJournal.Domain.Trades;
+using PersonalTradingJournal.Application.Screenshots;
+using PersonalTradingJournal.Domain.Screenshots;
 
 namespace PersonalTradingJournal.Application.Trades;
 
@@ -14,13 +16,17 @@ public sealed class CreateManualTradeUseCase
     private readonly ITradeStore _tradeStore;
     private readonly ITradingSetupStore _tradingSetupStore;
     private readonly TimeProvider _timeProvider;
+    private readonly ITradeScreenshotFileStorage? _files;
+    private readonly IManualTradeScreenshotStore? _atomicStore;
 
     public CreateManualTradeUseCase(
         ITradingAccountStore tradingAccountStore,
         IInstrumentStore instrumentStore,
         ITradingSetupStore tradingSetupStore,
         ITradeStore tradeStore,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ITradeScreenshotFileStorage? files = null,
+        IManualTradeScreenshotStore? atomicStore = null)
     {
         ArgumentNullException.ThrowIfNull(tradingAccountStore);
         ArgumentNullException.ThrowIfNull(instrumentStore);
@@ -33,6 +39,8 @@ public sealed class CreateManualTradeUseCase
         _tradingSetupStore = tradingSetupStore;
         _tradeStore = tradeStore;
         _timeProvider = timeProvider;
+        _files = files;
+        _atomicStore = atomicStore;
     }
 
     public async Task<Guid> ExecuteAsync(
@@ -135,7 +143,41 @@ public sealed class CreateManualTradeUseCase
             trade.AddExecution(closingExecution, createdAtUtc);
         }
 
-        await _tradeStore.AddAsync(trade, cancellationToken);
+        trade.SetDescription(command.Description, createdAtUtc);
+        if (command.Screenshots is not { Count: > 0 } drafts)
+            await _tradeStore.AddAsync(trade, cancellationToken);
+        else
+        {
+            if (_files is null || _atomicStore is null)
+                throw new InvalidOperationException("Atomic Trade screenshot storage is unavailable.");
+            var keys = new List<string>();
+            var screenshots = new List<TradeScreenshot>();
+            try
+            {
+                foreach (var draft in drafts)
+                {
+                    using var content = new MemoryStream(draft.Content, writable: false);
+                    var input = new AddTradeScreenshotCommand(trade.Id, draft.Type, content, draft.FileName, null, draft.Timeframe, null);
+                    var extension = AddTradeScreenshotUseCase.ValidateCommand(input);
+                    var key = await _files.StoreAsync(content, extension, cancellationToken);
+                    keys.Add(key);
+                    screenshots.Add(new TradeScreenshot(trade.Id, draft.Type, key, draft.FileName, null, draft.Timeframe, null, createdAtUtc));
+                }
+                await _atomicStore.AddAsync(trade, screenshots, cancellationToken);
+            }
+            catch (Exception failure)
+            {
+                var cleanupErrors = new List<Exception>();
+                foreach (var key in keys)
+                {
+                    try { await _files.DeleteIfExistsAsync(key, CancellationToken.None); }
+                    catch (Exception cleanup) { cleanupErrors.Add(cleanup); }
+                }
+                if (cleanupErrors.Count > 0)
+                    throw new AggregateException("Trade was not saved; staged screenshot cleanup requires attention.", new[] { failure }.Concat(cleanupErrors));
+                throw;
+            }
+        }
 
         return trade.Id;
     }

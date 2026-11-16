@@ -289,11 +289,7 @@ public sealed partial class TradesViewModel : ObservableObject
         ITradeScreenshotDeleteConfirmation tradeScreenshotDeleteConfirmation,
         UpdateTradeUseCase? updateTradeUseCase = null,
         DeleteTradeUseCase? deleteTradeUseCase = null,
-        IDialogService? dialogService = null,
-        ITradePlaybookAssociationStore? playbookAssociations = null,
-        ITradePlaybookContextStore? playbookContexts = null,
-        IPlaybookExampleImages? playbookImages = null,
-        IRuleAssessmentDialog? ruleAssessments = null)
+        IDialogService? dialogService = null)
     {
         ArgumentNullException.ThrowIfNull(referenceDataReader);
         ArgumentNullException.ThrowIfNull(tradingSetupReader);
@@ -335,18 +331,6 @@ public sealed partial class TradesViewModel : ObservableObject
         _updateTradeUseCase = updateTradeUseCase;
         _deleteTradeUseCase = deleteTradeUseCase;
         _dialogService = dialogService;
-        _playbookAssociations = playbookAssociations;
-        _playbookContexts = playbookContexts;
-        _playbookImages = playbookImages;
-        AssessRulesCommand = new RelayCommand(() =>
-        {
-            if (SelectedTradeDetail is { } detail && !IsSaving && !IsTradingSetupSaving)
-                ruleAssessments?.ShowTarget(PersonalTradingJournal.Domain.Rules.TradingRuleAssessmentTarget.ForTrade(detail.Id, detail.TradingAccountId));
-        }, () => ruleAssessments is not null);
-        LoadPlaybookHistoryCommand = new AsyncRelayCommand(LoadPlaybookHistoryAsync);
-        RefreshAssociationPreviewCommand = new AsyncRelayCommand(PrepareAssociationAsync);
-        LoadOlderAssociationsCommand = new AsyncRelayCommand(token => HasOlderAssociations ? LoadAssociationPageAsync(_associationCursor, token) : Task.CompletedTask);
-        OpenCapturedImageCommand = new AsyncRelayCommand<PersonalTradingJournal.Domain.Setups.PlaybookExample>(OpenCapturedImageAsync);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, CanRefresh);
         InitializeBreakdownCommands();
         ShowManualEntryCommand = new RelayCommand(ShowManualEntry, CanShowManualEntry);
@@ -383,6 +367,15 @@ public sealed partial class TradesViewModel : ObservableObject
         SaveCloseTradeCommand = new AsyncRelayCommand(
             SaveCloseTradeAsync,
             CanSaveCloseTrade);
+        UploadScreenshotCommand = new AsyncRelayCommand(UploadScreenshotAsync, () => !IsAddingScreenshot && !IsSaving);
+        RemoveStagedScreenshotCommand = new RelayCommand<StagedTradeScreenshot>(s => { if (s is not null) { StagedScreenshots.Remove(s); CloseScreenshotPreview(); } }, _ => !IsSaving);
+        OpenStagedScreenshotCommand = new RelayCommand<StagedTradeScreenshot>(s =>
+        {
+            if (s is null || !StagedScreenshots.Contains(s)) return;
+            CloseScreenshotPreview();
+            PreviewScreenshotImage = s.Image;
+            IsScreenshotPreviewVisible = true;
+        }, s => s is not null && !IsSaving);
         ShowAddScreenshotCommand = new RelayCommand(
             ShowAddScreenshot,
             CanShowAddScreenshot);
@@ -483,7 +476,6 @@ public sealed partial class TradesViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedTradeDetailTradingSetup, value))
             {
-                _ = PrepareAssociationAsync(CancellationToken.None);
                 SaveTradingSetupCommand.NotifyCanExecuteChanged();
             }
         }
@@ -657,12 +649,6 @@ public sealed partial class TradesViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedTradeDetail, value))
             {
-                CapturedAssociations = [];
-                HasOlderAssociations = false;
-                _displayedTradeToken = null;
-                _selectedAssociationPreview = null;
-                ++_selectionPreviewGeneration;
-                PlaybookAssociationStatus = value?.TradingSetupId is null ? "No Setup associated." : "Setup classification · no captured Playbook revision loaded. Open captured context to inspect.";
                 OnPropertyChanged(nameof(IsSelectedTradeOpen));
                 ShowCloseTradeCommand.NotifyCanExecuteChanged();
                 SaveCloseTradeCommand.NotifyCanExecuteChanged();
@@ -681,8 +667,6 @@ public sealed partial class TradesViewModel : ObservableObject
                 SaveTradeEditCommand.NotifyCanExecuteChanged();
                 DeleteTradeCommand.NotifyCanExecuteChanged();
                 DeleteSelectedTradeCommand.NotifyCanExecuteChanged();
-                _ = LoadPlaybookHistoryAsync(CancellationToken.None);
-                _ = PrepareAssociationAsync(CancellationToken.None);
             }
         }
     }
@@ -985,6 +969,9 @@ public sealed partial class TradesViewModel : ObservableObject
         {
             if (SetProperty(ref _isSaving, value))
             {
+                UploadScreenshotCommand.NotifyCanExecuteChanged();
+                RemoveStagedScreenshotCommand.NotifyCanExecuteChanged();
+                OpenStagedScreenshotCommand.NotifyCanExecuteChanged();
                 RefreshCommand.NotifyCanExecuteChanged();
                 ShowManualEntryCommand.NotifyCanExecuteChanged();
                 CancelManualEntryCommand.NotifyCanExecuteChanged();
@@ -1187,6 +1174,8 @@ public sealed partial class TradesViewModel : ObservableObject
         {
             if (SetProperty(ref _isAddingScreenshot, value))
             {
+                UploadScreenshotCommand.NotifyCanExecuteChanged();
+                ShowManualEntryCommand.NotifyCanExecuteChanged();
                 RefreshCommand.NotifyCanExecuteChanged();
                 SaveManualTradeCommand.NotifyCanExecuteChanged();
                 ShowTradeDetailCommand.NotifyCanExecuteChanged();
@@ -1720,6 +1709,8 @@ public sealed partial class TradesViewModel : ObservableObject
         {
             if (SetProperty(ref _isManualEntryVisible, value))
             {
+                ShowAddScreenshotCommand.NotifyCanExecuteChanged();
+                SaveScreenshotCommand.NotifyCanExecuteChanged();
                 OnPropertyChanged(nameof(IsTradeFormVisible));
                 OnPropertyChanged(nameof(TradeFormTitle));
                 OnPropertyChanged(nameof(TradeFormDescription));
@@ -1891,7 +1882,6 @@ public sealed partial class TradesViewModel : ObservableObject
 
     public IAsyncRelayCommand<TradeListItem> ShowTradeEditCommand { get; }
 
-    public IRelayCommand AssessRulesCommand { get; }
     public IAsyncRelayCommand ShowSelectedTradeEditCommand { get; }
 
     public IRelayCommand CancelTradeEditCommand { get; }
@@ -2120,7 +2110,7 @@ public sealed partial class TradesViewModel : ObservableObject
             direction,
             quantity,
             entry,
-            exit);
+            exit, TradeDescriptionText, StagedScreenshots.Select(s => s.Draft).ToArray());
         return true;
     }
 
@@ -2264,6 +2254,8 @@ public sealed partial class TradesViewModel : ObservableObject
 
     private bool CanShowManualEntry() =>
         !IsManualEntryVisible &&
+        !IsAddingScreenshot &&
+        !IsAddScreenshotVisible &&
         !IsTradeEditVisible &&
         !IsLoading &&
         !IsSaving &&
@@ -2458,6 +2450,7 @@ public sealed partial class TradesViewModel : ObservableObject
             : null;
         SelectedDirection = detail.Direction;
         QuantityText = FormatDecimal(entry.Quantity);
+        TradeDescriptionText = detail.Description ?? string.Empty;
         _editingOriginalEntryExecutedAtUtc = entry.ExecutedAtUtc;
         _editingOriginalEntryNewYorkText = FormatTradingTimestamp(entry.ExecutedAtUtc);
         EntryExecutedAtNewYorkText = _editingOriginalEntryNewYorkText;
@@ -2531,7 +2524,7 @@ public sealed partial class TradesViewModel : ObservableObject
                     draft.Exit.ExecutedAtUtc,
                     draft.Exit.Price,
                     draft.Exit.Commission,
-                    draft.Exit.Fees));
+                    draft.Exit.Fees), draft.Description);
 
         IsUpdatingTrade = true;
         try
@@ -2975,9 +2968,8 @@ public sealed partial class TradesViewModel : ObservableObject
         IsTradeDetailVisible &&
         SelectedTradeDetail is { } detail &&
         SelectedTradeDetailTradingSetup is { } setup &&
-        (setup.Id != detail.TradingSetupId || _playbookAssociations is not null) &&
+        setup.Id != detail.TradingSetupId &&
         setup.IsActive &&
-        (_playbookAssociations is null || (_selectedAssociationPreview?.TradeId == detail.Id && _selectedAssociationPreview.SetupId == setup.Id)) &&
         !IsTradeDetailLoading &&
         !IsTradeScreenshotsLoading &&
         !IsTradingSetupSaving &&
@@ -3027,28 +3019,7 @@ public sealed partial class TradesViewModel : ObservableObject
 
         try
         {
-            if (_playbookAssociations is not null)
-            {
-                var preview = tradingSetupId.HasValue ? _selectedAssociationPreview : await _playbookAssociations.PreviewAsync(detail.Id, null, cancellationToken);
-                if (preview is null || preview.TradeId != detail.Id || preview.SetupId != tradingSetupId ||
-                    _displayedTradeToken is null || preview.TradeToken != _displayedTradeToken)
-                {
-                    TradingSetupSaveErrorMessage = "The Trade changed or its preview is not ready. Your selection is retained. Reopen Trade details, then review and confirm the association.";
-                    return;
-                }
-                string target = preview.SetupId is null ? "Remove the Setup association" :
-                    preview.Definition is { } definition ? $"{preview.SetupName} · Playbook revision {definition.Revision}" :
-                    $"{preview.SetupName} · classification only (no Playbook guidance)";
-                if (_dialogService?.Confirm(new("Confirm Trade association", target +
-                    "\n\nThis associates the Trade with a plan; it does not verify that conditions were followed. Earlier captures are retained.", "Confirm association")) != true) return;
-                if (!await new ConfirmTradePlaybookAssociation(_playbookAssociations).ExecuteAsync(preview, cancellationToken))
-                {
-                    TradingSetupSaveErrorMessage = "The Trade or Setup changed. Your selection is retained. Review the current records and confirm again; no association was saved.";
-                    return;
-                }
-            }
-            else
-                await _setTradeTradingSetupUseCase.ExecuteAsync(
+            await _setTradeTradingSetupUseCase.ExecuteAsync(
                     new SetTradeTradingSetupCommand(detail.Id, tradingSetupId), cancellationToken);
             TradeDataCommitted?.Invoke(this, EventArgs.Empty);
             TradingSetupSuccessMessage = TradingSetupSavedMessage;
@@ -3056,7 +3027,6 @@ public sealed partial class TradesViewModel : ObservableObject
             _ = await ReloadTradeDetailAfterTradingSetupAsync(
                 detail.Id,
                 CancellationToken.None);
-            await LoadPlaybookHistoryAsync(CancellationToken.None);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -3070,10 +3040,6 @@ public sealed partial class TradesViewModel : ObservableObject
             exception.Message == "The selected trading setup is inactive.")
         {
             TradingSetupSaveErrorMessage = InactiveTradingSetupErrorMessage;
-        }
-        catch (InvalidOperationException) when (_playbookAssociations is not null)
-        {
-            TradingSetupSaveErrorMessage = "The selected Setup is unavailable or archived. Your selection is retained; refresh the available Setups before confirming again.";
         }
         catch (Exception)
         {
@@ -3458,15 +3424,9 @@ public sealed partial class TradesViewModel : ObservableObject
 
     private bool CanShowAddScreenshot() =>
         !IsAddScreenshotVisible &&
-        IsTradeDetailVisible &&
-        SelectedTradeDetail is not null &&
-        !IsTradeDetailLoading &&
-        !IsTradeScreenshotsLoading &&
-        !IsAddingScreenshot &&
-        !IsSaving &&
-        !IsTradingSetupSaving &&
-        !IsDeletingScreenshot &&
-        !IsClosingTrade;
+        ((IsTradeDetailVisible && SelectedTradeDetail is not null) || IsManualEntryVisible) &&
+        !IsTradeDetailLoading && !IsTradeScreenshotsLoading && !IsAddingScreenshot && !IsSaving &&
+        !IsTradingSetupSaving && !IsDeletingScreenshot && !IsClosingTrade;
 
     private void CancelAddScreenshot()
     {
@@ -3485,8 +3445,7 @@ public sealed partial class TradesViewModel : ObservableObject
 
     private bool CanSaveScreenshot() =>
         IsAddScreenshotVisible &&
-        IsTradeDetailVisible &&
-        SelectedTradeDetail is not null &&
+        ((IsTradeDetailVisible && SelectedTradeDetail is not null) || IsManualEntryVisible) &&
         !IsTradeDetailLoading &&
         !IsTradeScreenshotsLoading &&
         !IsAddingScreenshot &&
@@ -3499,102 +3458,38 @@ public sealed partial class TradesViewModel : ObservableObject
     {
         ScreenshotValidationErrorMessage = null;
         ScreenshotSaveErrorMessage = null;
-        ScreenshotSuccessMessage = null;
-
-        if (SelectedTradeDetail is not { } detail)
+        if (SelectedScreenshotType is not { } type || !Enum.IsDefined(type))
+        { ScreenshotValidationErrorMessage = "Screenshot type is required."; return; }
+        if (_uploadedScreenshot is not { } upload)
+        { ScreenshotValidationErrorMessage = "Upload a screenshot before saving."; return; }
+        var draft = upload with { Type = type, Timeframe = ScreenshotTimeframeText };
+        if (IsManualEntryVisible)
         {
-            ScreenshotValidationErrorMessage =
-                "A selected trade is required.";
+            StagedScreenshots.Add(new(draft, UploadedScreenshotImage));
+            CancelAddScreenshot();
             return;
         }
-
-        if (SelectedScreenshotType is not { } screenshotType)
-        {
-            ScreenshotValidationErrorMessage = "Screenshot type is required.";
-            return;
-        }
-
-        if (!Enum.IsDefined(screenshotType))
-        {
-            ScreenshotValidationErrorMessage = "Screenshot type is invalid.";
-            return;
-        }
-
-        DateTimeOffset? capturedAtUtc = null;
-        if (!string.IsNullOrWhiteSpace(ScreenshotCapturedAtUtcText))
-        {
-            if (!TryParseUtcTimestamp(
-                    ScreenshotCapturedAtUtcText,
-                    out DateTimeOffset parsedCapturedAtUtc))
-            {
-                ScreenshotValidationErrorMessage =
-                    "Captured time must be a valid UTC timestamp.";
-                return;
-            }
-
-            capturedAtUtc = parsedCapturedAtUtc;
-        }
-
+        if (SelectedTradeDetail is not { } detail) return;
         IsAddingScreenshot = true;
-
         try
         {
-            TradeScreenshotFileSelection? selection =
-                _tradeScreenshotFilePicker.Pick();
-            if (selection is null)
-            {
-                return;
-            }
-
-            await using (selection)
-            {
-                var command = new AddTradeScreenshotCommand(
-                    detail.Id,
-                    screenshotType,
-                    selection.Content,
-                    selection.FileName,
-                    capturedAtUtc,
-                    ScreenshotTimeframeText,
-                    ScreenshotDescriptionText);
-
-                _ = await _addTradeScreenshotUseCase.ExecuteAsync(
-                    command,
-                    cancellationToken);
-            }
-
-            ResetScreenshotDraft();
-            IsAddScreenshotVisible = false;
+            using var content = new MemoryStream(draft.Content, writable: false);
+            await _addTradeScreenshotUseCase.ExecuteAsync(new(detail.Id, type, content, draft.FileName, null, draft.Timeframe, null), cancellationToken);
+            CancelAddScreenshot();
             ScreenshotSuccessMessage = ScreenshotSavedMessage;
-
-            // The file and metadata write is committed. The projection refresh is
-            // authoritative and best-effort, independent from command cancellation.
-            _ = await LoadTradeScreenshotsAsync(
-                detail.Id,
-                forceRefresh: true,
-                CancellationToken.None);
+            await LoadTradeScreenshotsAsync(detail.Id, true, CancellationToken.None);
         }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (KeyNotFoundException)
-        {
-            ScreenshotSaveErrorMessage = StaleTradeScreenshotErrorMessage;
-        }
-        catch (Exception)
-        {
-            ScreenshotSaveErrorMessage = ScreenshotSaveErrorMessageFallback;
-        }
-        finally
-        {
-            IsAddingScreenshot = false;
-        }
+        catch (OperationCanceledException) { throw; }
+        catch (KeyNotFoundException) { ScreenshotSaveErrorMessage = StaleTradeScreenshotErrorMessage; }
+        catch (Exception) { ScreenshotSaveErrorMessage = ScreenshotSaveErrorMessageFallback; }
+        finally { IsAddingScreenshot = false; }
     }
 
     private async Task SaveManualTradeAsync(CancellationToken cancellationToken)
     {
         SaveErrorMessage = null;
         SuccessMessage = null;
+        if (IsAddScreenshotVisible) { SaveErrorMessage = "Save or cancel the screenshot form before saving the Trade."; return; }
 
         if (!TryBuildManualTradeCommand(out CreateManualTradeCommand? command) ||
             command is null)
@@ -3625,8 +3520,7 @@ public sealed partial class TradesViewModel : ObservableObject
                     PageSize,
                     TradeListSortColumn.OpenedAtUtc,
                     TradeListSortDirection.Descending));
-            if (_playbookAssociations is not null)
-                await LoadTradeDetailByIdAsync(createdTradeId, CancellationToken.None);
+            await LoadTradeDetailByIdAsync(createdTradeId, CancellationToken.None);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -3869,6 +3763,10 @@ public sealed partial class TradesViewModel : ObservableObject
 
     private void ResetManualEntryForm()
     {
+        TradeDescriptionText = string.Empty;
+        StagedScreenshots.Clear();
+        CancelAddScreenshot();
+        CloseScreenshotPreview();
         SelectedAccount = null;
         SelectedInstrument = null;
         SelectedTradingSetup = null;
@@ -3938,6 +3836,9 @@ public sealed partial class TradesViewModel : ObservableObject
 
     private void ResetScreenshotDraft()
     {
+        _uploadedScreenshot = null;
+        UploadedScreenshotImage = null;
+        UploadedScreenshotFileName = null;
         SelectedScreenshotType = null;
         ScreenshotCapturedAtUtcText = string.Empty;
         ScreenshotTimeframeText = string.Empty;
@@ -3964,6 +3865,7 @@ public sealed partial class TradesViewModel : ObservableObject
     private void ClearTradeScreenshotState()
     {
         TradeScreenshots = [];
+        ScreenshotCards = [];
         TradeScreenshotsErrorMessage = null;
         _loadedTradeScreenshotsTradeId = null;
         ResetScreenshotDraft();
@@ -4078,6 +3980,7 @@ public sealed partial class TradesViewModel : ObservableObject
             if (SelectedTradeDetail?.Id == tradeId && IsTradeDetailVisible)
             {
                 TradeScreenshots = screenshots;
+                await LoadScreenshotCardsAsync(screenshots, tradeId, cancellationToken);
                 _loadedTradeScreenshotsTradeId = tradeId;
             }
 

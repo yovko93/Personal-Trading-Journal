@@ -10,7 +10,6 @@
     </UserControl.Resources>
     <StackPanel>
         <TextBlock Text="Trade Details" Style="{DynamicResource PtjSectionTitleTextStyle}" />
-        <Button Content="Assess Trading Rules…" Command="{Binding AssessRulesCommand}" HorizontalAlignment="Left" Margin="0,8" Style="{DynamicResource PtjSecondaryButtonStyle}" AutomationProperties.Name="Manual assessments and deterministic checks for this exact Trade and Account" />
         <TextBlock Text="Loading Trade details…" Visibility="{Binding IsTradeDetailLoading, Converter={StaticResource BoolVisibility}}"
                    Foreground="{DynamicResource PtjTextSecondaryBrush}" AutomationProperties.LiveSetting="Polite" />
         <TextBlock Text="Trade no longer available." Visibility="{Binding IsTradeDetailNotFound, Converter={StaticResource BoolVisibility}}"
@@ -24,7 +23,7 @@
             <TextBlock Text="{Binding SelectedTradeDetail.Direction}" Margin="0,0,16,0" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
             <TextBlock Text="{Binding SelectedTradeDetail.Status}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
         </WrapPanel>
-        <tradeViews:TradePlaybookAssociationView Margin="0,12" />
+        <tradeViews:TradeSetupClassificationView Margin="0,12" />
         <TextBlock Text="{Binding TradingSetupSaveErrorMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjWarningBrush}" AutomationProperties.LiveSetting="Assertive" />
         <TextBlock Text="Executions (New York)" FontWeight="SemiBold" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
         <ItemsControl ItemsSource="{Binding SelectedTradeDetail.Executions}">

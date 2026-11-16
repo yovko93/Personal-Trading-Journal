@@ -6,7 +6,7 @@ using PersonalTradingJournal.Infrastructure.Persistence.Mapping;
 
 namespace PersonalTradingJournal.Infrastructure.Trades;
 
-public sealed class TradeStore : ITradeStore
+public sealed class TradeStore : ITradeStore, IManualTradeScreenshotStore
 {
     private readonly IDbContextFactory<JournalDbContext> _contextFactory;
 
@@ -17,8 +17,12 @@ public sealed class TradeStore : ITradeStore
         _contextFactory = contextFactory;
     }
 
-    public async Task AddAsync(
+    public Task AddAsync(
         Trade trade,
+        CancellationToken cancellationToken = default) => AddAsync(trade, [], cancellationToken);
+
+    public async Task AddAsync(Trade trade,
+        IReadOnlyList<PersonalTradingJournal.Domain.Screenshots.TradeScreenshot> screenshots,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(trade);
@@ -30,6 +34,9 @@ public sealed class TradeStore : ITradeStore
         context.TradeExecutions.AddRange(
             trade.Executions.Select(TradeExecutionPersistenceMapper.ToRecord));
         context.TradeBrowse.Add(TradeBrowsePersistenceMapper.ToRecord(trade));
+        if (screenshots.Any(s => s.TradeId != trade.Id))
+            throw new ArgumentException("All screenshots must belong to the new Trade.", nameof(screenshots));
+        context.TradeScreenshots.AddRange(screenshots.Select(TradeScreenshotPersistenceMapper.ToRecord));
 
         await context.SaveChangesAsync(cancellationToken);
     }

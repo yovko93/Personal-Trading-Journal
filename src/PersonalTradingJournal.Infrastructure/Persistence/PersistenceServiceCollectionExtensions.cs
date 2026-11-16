@@ -110,9 +110,6 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<ITradingSetupPlaybookStore, TradingSetupPlaybookStore>();
         services.AddTransient<ITradingSetupPlaybookHistoryReader, TradingSetupPlaybookStore>();
         services.AddTransient<IPlaybookRevisionDeletion, PlaybookRevisionDeletion>();
-        services.AddTransient<ITradePlaybookContextStore, TradePlaybookContextStore>();
-        services.AddTransient<ITradePlaybookAssociationStore, TradePlaybookAssociationStore>();
-        services.AddTransient<ConfirmTradePlaybookAssociation>();
         services.AddTransient<SaveTradingSetupPlaybookUseCase>();
         services.AddTransient<IPlaybookImageStorage>(provider => new PlaybookImageStorage(applicationPaths,
             provider.GetRequiredService<ITradeScreenshotFileStorage>()));
@@ -131,6 +128,7 @@ public static class PersistenceServiceCollectionExtensions
             IManualTradeReferenceDataReader,
             ManualTradeReferenceDataReader>();
         services.AddTransient<ITradeStore, TradeStore>();
+        services.AddTransient<IManualTradeScreenshotStore, TradeStore>();
         services.AddTransient<ITradeMutationStore, TradeMutationStore>();
         services.AddTransient<ITradeDeletionStore, TradeDeletionStore>();
         services.AddTransient<IAccountTradeDeletionStore, AccountTradeDeletionStore>();

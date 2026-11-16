@@ -9,4 +9,6 @@ public sealed record CreateManualTradeCommand(
     TradeDirection Direction,
     decimal Quantity,
     ManualTradeExecutionInput Entry,
-    ManualTradeExecutionInput? Exit);
+    ManualTradeExecutionInput? Exit,
+    string? Description = null,
+    IReadOnlyList<ManualTradeScreenshot>? Screenshots = null);

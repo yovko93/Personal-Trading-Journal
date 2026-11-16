@@ -43,7 +43,7 @@ Accounts show cumulative payouts in the Account currency and deduct them from Cu
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | The latest complete local Release gate exited 0 with **5,601 passed, 0 failed, and 1 skipped**. See the [Tradovate source panel verification](docs/tradovate-csv-import.md#source-panel-verification). The sole skip is the existing [Rules-view quarantine](docs/rules-view-quarantine.md). Hosted confirmation and manual interaction checks are pending. |
+| Verification | Trades workspace Release build and complete local gate passed: **5,603 passed, 0 failed, 1 existing Rules-view quarantine skip**. See [results and limits](docs/trades-workspace.md#verification). Live acceptance and hosted timing remain pending. |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
@@ -53,7 +53,7 @@ The CI badge tracks `main`; it does not certify every development change. The [N
 
 | Workflow | What you can do |
 | --- | --- |
-| **Trade tracking** | Manage accounts and instruments; record entries, scale-ins, partial exits, and closures; attach screenshots and classify trades by setup and mistake. |
+| **Trade tracking** | Record executions and optional Trade descriptions; stage screenshots during manual creation and browse compact Type/Timeframe image cards. Classify Trades by Setup and mistake without a captured Playbook ledger. |
 | **CSV import** | Preview and confirm Tradovate matched fills and TopstepX Trades exports. Matching Tradovate Fills and Cash History verify costs and Net, including safe enrichment of unedited Performance imports. |
 | **Analytics** | Explore Dashboard metrics, Calendar results, and Breakdown groups with drill-down into the contributing trades. Calendar assigns Trades closed at or after 18:00 New York time to the next date. |
 | **Daily journal** | Capture reflections, save drafts and completed entries, and revisit revision history by date and account. |
@@ -65,6 +65,8 @@ The CI badge tracks `main`; it does not certify every development change. The [N
 | **Appearance** | Choose System, Light, or Dark themes, with the Bull and Bear Trading Journal artwork, a distinct emerald sidebar header, and matching Windows application icons. |
 
 Analytics preserve currency boundaries and expose missing costs or incomplete evidence. Each view documents its Gross/Net policy; unavailable values are not silently treated as zero.
+
+See the [Trades workspace guide](docs/trades-workspace.md) for screenshot staging, association retirement, migration and current verification. Saved immutable reviews and historical Rule assessments remain readable.
 
 See [Instruments and action-menu verification](docs/instruments-ui.md) for menu coverage, Light/Dark layout checks, and the distinction between automated native input, rendered previews and pending live visual inspection. The [Notebook post-close hover investigation](docs/ci-menu-readiness.md#post-close-hover-precondition--8-november-2026) records the controlled native reproduction and explicit pointer preconditions; the original unrequested cursor movement remains unattributed.
 

@@ -92,7 +92,7 @@
 
                 <TextBlock VerticalAlignment="Center"
                            Style="{StaticResource PtjSecondaryTextStyle}"
-                           Text="Record and manage trading activity." />
+                           TextWrapping="Wrap" Text="Record and manage trading activity." />
                 <Button x:Name="TradesRefreshButton" Grid.Column="1"
                         Margin="12,0,0,0"
                         Command="{Binding RefreshCommand}"
@@ -258,7 +258,6 @@
                         </Button>
                     </Grid>
 
-                    <Button Content="Assess Trading Rules…" Command="{Binding AssessRulesCommand}" HorizontalAlignment="Left" Margin="0,8" Style="{DynamicResource PtjSecondaryButtonStyle}" AutomationProperties.Name="Manual assessments and deterministic checks for this exact Trade and Account" />
                     <TextBlock Margin="0,16,0,0"
                                Text="Loading trade details...">
                         <TextBlock.Style>
@@ -353,7 +352,9 @@
 
                         <Separator Style="{StaticResource PtjSeparatorStyle}" />
 
-                        <tradeViews:TradePlaybookAssociationView />
+                        <TextBlock Text="Description" Style="{StaticResource PtjCaptionTextStyle}" />
+                        <TextBlock Text="{Binding SelectedTradeDetail.Description, TargetNullValue=—}" TextWrapping="Wrap" Margin="0,6,0,16" Style="{StaticResource PtjBodyTextStyle}" />
+                        <tradeViews:TradeSetupClassificationView />
 
                         <TextBlock Margin="0,10,0,0"
                                    Text="{Binding TradingSetupSaveErrorMessage}">
@@ -989,566 +990,7 @@
 
                         <Separator Style="{StaticResource PtjSeparatorStyle}" />
 
-                        <Grid Margin="0,8,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <TextBlock VerticalAlignment="Center"
-                                       Style="{StaticResource PtjSectionTitleTextStyle}"
-                                       Text="Screenshots" />
-                            <Button Grid.Column="1"
-                                    Margin="12,0,0,0"
-                                    Padding="12,4"
-                                    MinHeight="28"
-                                    Command="{Binding ShowAddScreenshotCommand}"
-                                    Content="Add Screenshot"
-                                    Style="{StaticResource PtjButtonStyle}" />
-                        </Grid>
-
-                        <TextBlock Margin="0,12,0,0"
-                                   Text="Loading screenshots...">
-                            <TextBlock.Style>
-                                <Style TargetType="{x:Type TextBlock}"
-                                       BasedOn="{StaticResource PtjCaptionTextStyle}">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsTradeScreenshotsLoading}" Value="True">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-
-                        <TextBlock Margin="0,12,0,0"
-                                   Text="{Binding TradeScreenshotsErrorMessage}"
-                                   TextWrapping="Wrap">
-                            <TextBlock.Style>
-                                <Style TargetType="{x:Type TextBlock}"
-                                       BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                    <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding HasTradeScreenshotsError}" Value="True">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-
-                        <TextBlock Margin="0,16,0,0"
-                                   HorizontalAlignment="Center"
-                                   Text="No screenshots have been added to this trade.">
-                            <TextBlock.Style>
-                                <Style TargetType="{x:Type TextBlock}"
-                                       BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <MultiDataTrigger>
-                                            <MultiDataTrigger.Conditions>
-                                                <Condition Binding="{Binding IsTradeScreenshotsLoading}" Value="False" />
-                                                <Condition Binding="{Binding HasTradeScreenshots}" Value="False" />
-                                                <Condition Binding="{Binding HasTradeScreenshotsError}" Value="False" />
-                                            </MultiDataTrigger.Conditions>
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </MultiDataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-
-                        <ItemsControl Margin="0,12,0,0"
-                                      ItemsSource="{Binding TradeScreenshots}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Margin="0,0,0,10"
-                                            Padding="12"
-                                            BorderBrush="{DynamicResource PtjBorderBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="6">
-                                        <StackPanel>
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-
-                                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                                    <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
-                                                               Text="Type" />
-                                                    <TextBlock Margin="0,4,0,0"
-                                                               FontWeight="SemiBold"
-                                                               Style="{StaticResource PtjBodyTextStyle}"
-                                                               Text="{Binding Type}" />
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                                    <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
-                                                               Text="File" />
-                                                    <TextBlock Margin="0,4,0,0"
-                                                               Style="{StaticResource PtjBodyTextStyle}"
-                                                               Text="{Binding FileName}"
-                                                               TextWrapping="Wrap" />
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="2"
-                                                            Margin="12,0,0,0"
-                                                            VerticalAlignment="Center"
-                                                            Orientation="Horizontal">
-                                                    <Button Padding="10,4"
-                                                            MinHeight="28"
-                                                            Command="{Binding DataContext.OpenScreenshotPreviewCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                                            CommandParameter="{Binding}"
-                                                            Content="View"
-                                                            Style="{StaticResource PtjButtonStyle}" />
-                                                    <Button Margin="8,0,0,0"
-                                                            Padding="10,4"
-                                                            MinHeight="28"
-                                                            Command="{Binding DataContext.DeleteScreenshotCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                                            CommandParameter="{Binding}"
-                                                            Content="Delete"
-                                                            Style="{StaticResource PtjButtonStyle}" />
-                                                </StackPanel>
-                                            </Grid>
-
-                                            <Grid Margin="0,12,0,0">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-
-                                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                                    <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
-                                                               Text="Captured (UTC)" />
-                                                    <Grid Margin="0,4,0,0">
-                                                        <TextBlock Text="—">
-                                                            <TextBlock.Style>
-                                                                <Style TargetType="{x:Type TextBlock}"
-                                                                       BasedOn="{StaticResource PtjBodyTextStyle}">
-                                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding CapturedAtUtc}" Value="{x:Null}">
-                                                                            <Setter Property="Visibility" Value="Visible" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </TextBlock.Style>
-                                                        </TextBlock>
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <StackPanel.Style>
-                                                                <Style TargetType="{x:Type StackPanel}">
-                                                                    <Setter Property="Visibility" Value="Visible" />
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding CapturedAtUtc}" Value="{x:Null}">
-                                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </StackPanel.Style>
-                                                            <TextBlock Style="{StaticResource PtjBodyTextStyle}"
-                                                                       Text="{Binding CapturedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" />
-                                                            <TextBlock Margin="4,0,0,0"
-                                                                       Style="{StaticResource PtjCaptionTextStyle}"
-                                                                       Text="UTC" />
-                                                        </StackPanel>
-                                                    </Grid>
-                                                </StackPanel>
-
-                                                <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                                    <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
-                                                               Text="Timeframe" />
-                                                    <Grid Margin="0,4,0,0">
-                                                        <TextBlock Text="—">
-                                                            <TextBlock.Style>
-                                                                <Style TargetType="{x:Type TextBlock}"
-                                                                       BasedOn="{StaticResource PtjBodyTextStyle}">
-                                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding Timeframe}" Value="{x:Null}">
-                                                                            <Setter Property="Visibility" Value="Visible" />
-                                                                        </DataTrigger>
-                                                                        <DataTrigger Binding="{Binding Timeframe}" Value="">
-                                                                            <Setter Property="Visibility" Value="Visible" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </TextBlock.Style>
-                                                        </TextBlock>
-                                                        <TextBlock Text="{Binding Timeframe}"
-                                                                   TextWrapping="Wrap">
-                                                            <TextBlock.Style>
-                                                                <Style TargetType="{x:Type TextBlock}"
-                                                                       BasedOn="{StaticResource PtjBodyTextStyle}">
-                                                                    <Setter Property="Visibility" Value="Visible" />
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding Timeframe}" Value="{x:Null}">
-                                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                                        </DataTrigger>
-                                                                        <DataTrigger Binding="{Binding Timeframe}" Value="">
-                                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </TextBlock.Style>
-                                                        </TextBlock>
-                                                    </Grid>
-                                                </StackPanel>
-                                            </Grid>
-
-                                            <StackPanel Margin="0,12,0,0">
-                                                <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
-                                                           Text="Description" />
-                                                <Grid Margin="0,4,0,0">
-                                                    <TextBlock Text="—">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="{x:Type TextBlock}"
-                                                                   BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding Description}" Value="{x:Null}">
-                                                                        <Setter Property="Visibility" Value="Visible" />
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding Description}" Value="">
-                                                                        <Setter Property="Visibility" Value="Visible" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
-                                                    <TextBlock Text="{Binding Description}"
-                                                               TextWrapping="Wrap">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="{x:Type TextBlock}"
-                                                                   BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                                                <Setter Property="Visibility" Value="Visible" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding Description}" Value="{x:Null}">
-                                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding Description}" Value="">
-                                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
-                                                </Grid>
-                                            </StackPanel>
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-
-                        <Border Margin="0,4,0,8"
-                                Padding="16"
-                                Background="{DynamicResource PtjBackgroundBrush}"
-                                BorderBrush="{DynamicResource PtjBorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="6">
-                            <Border.Style>
-                                <Style TargetType="{x:Type Border}">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsScreenshotPreviewVisible}" Value="True">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding IsScreenshotPreviewLoading}" Value="True">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding HasScreenshotPreviewError}" Value="True">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-
-                            <StackPanel>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
-                                        <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
-                                                   Text="Screenshot Preview" />
-                                        <TextBlock Margin="0,4,0,0"
-                                                   FontWeight="SemiBold"
-                                                   Style="{StaticResource PtjBodyTextStyle}"
-                                                   Text="{Binding PreviewScreenshotFileName}"
-                                                   TextWrapping="Wrap" />
-                                    </StackPanel>
-                                    <Button Grid.Column="1"
-                                            Padding="10,4"
-                                            MinHeight="28"
-                                            VerticalAlignment="Top"
-                                            Command="{Binding CloseScreenshotPreviewCommand}"
-                                            Content="Close"
-                                            Style="{StaticResource PtjButtonStyle}" />
-                                </Grid>
-
-                                <TextBlock Margin="0,12,0,0"
-                                           Text="Loading screenshot...">
-                                    <TextBlock.Style>
-                                        <Style TargetType="{x:Type TextBlock}"
-                                               BasedOn="{StaticResource PtjCaptionTextStyle}">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsScreenshotPreviewLoading}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-
-                                <TextBlock Margin="0,12,0,0"
-                                           Text="{Binding ScreenshotPreviewErrorMessage}"
-                                           TextWrapping="Wrap">
-                                    <TextBlock.Style>
-                                        <Style TargetType="{x:Type TextBlock}"
-                                               BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                            <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding HasScreenshotPreviewError}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-
-                                <Image Margin="0,14,0,0"
-                                       MaxHeight="600"
-                                       HorizontalAlignment="Center"
-                                       Source="{Binding PreviewScreenshotImage}"
-                                       Stretch="Uniform">
-                                    <Image.Style>
-                                        <Style TargetType="{x:Type Image}">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsScreenshotPreviewVisible}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Image.Style>
-                                </Image>
-                            </StackPanel>
-                        </Border>
-
-                        <StackPanel Margin="0,4,0,0">
-                            <TextBlock Text="Deleting screenshot...">
-                                <TextBlock.Style>
-                                    <Style TargetType="{x:Type TextBlock}"
-                                           BasedOn="{StaticResource PtjCaptionTextStyle}">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsDeletingScreenshot}" Value="True">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                            <TextBlock Text="{Binding ScreenshotDeleteErrorMessage}"
-                                       TextWrapping="Wrap">
-                                <TextBlock.Style>
-                                    <Style TargetType="{x:Type TextBlock}"
-                                           BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                        <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasScreenshotDeleteError}" Value="True">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                            <TextBlock Text="{Binding ScreenshotDeleteWarningMessage}"
-                                       TextWrapping="Wrap">
-                                <TextBlock.Style>
-                                    <Style TargetType="{x:Type TextBlock}"
-                                           BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                        <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasScreenshotDeleteWarning}" Value="True">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                            <TextBlock Text="{Binding ScreenshotDeleteSuccessMessage}"
-                                       TextWrapping="Wrap">
-                                <TextBlock.Style>
-                                    <Style TargetType="{x:Type TextBlock}"
-                                           BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                        <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasScreenshotDeleteSuccess}" Value="True">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </StackPanel>
-
-                        <StackPanel Margin="0,4,0,0">
-                            <TextBlock Text="{Binding ScreenshotValidationErrorMessage}"
-                                       TextWrapping="Wrap">
-                                <TextBlock.Style>
-                                    <Style TargetType="{x:Type TextBlock}"
-                                           BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                        <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasScreenshotValidationError}" Value="True">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                            <TextBlock Text="{Binding ScreenshotSaveErrorMessage}"
-                                       TextWrapping="Wrap">
-                                <TextBlock.Style>
-                                    <Style TargetType="{x:Type TextBlock}"
-                                           BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                        <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasScreenshotSaveError}" Value="True">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                            <TextBlock Text="{Binding ScreenshotSuccessMessage}"
-                                       TextWrapping="Wrap">
-                                <TextBlock.Style>
-                                    <Style TargetType="{x:Type TextBlock}"
-                                           BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                        <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasScreenshotSuccessMessage}" Value="True">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </StackPanel>
-
-                        <Border Margin="0,12,0,0" Padding="16">
-                            <Border.Style>
-                                <Style TargetType="{x:Type Border}"
-                                       BasedOn="{StaticResource PtjCardStyle}">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsAddScreenshotVisible}" Value="True">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-
-                            <StackPanel>
-                                <TextBlock FontWeight="SemiBold"
-                                           Style="{StaticResource PtjBodyTextStyle}"
-                                           Text="Add Screenshot" />
-
-                                <Grid Margin="0,14,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                        <TextBlock Margin="0,0,0,6"
-                                                   Style="{StaticResource PtjCaptionTextStyle}"
-                                                   Text="Type" />
-                                        <ComboBox ItemsSource="{Binding ScreenshotTypeOptions}"
-                                                  SelectedItem="{Binding SelectedScreenshotType}"
-                                                  Style="{StaticResource PtjComboBoxStyle}" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                        <TextBlock Margin="0,0,0,6"
-                                                   Style="{StaticResource PtjCaptionTextStyle}"
-                                                   Text="Captured at (UTC)" />
-                                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
-                                                 Text="{Binding ScreenshotCapturedAtUtcText, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBlock Margin="0,6,0,0"
-                                                   Style="{StaticResource PtjCaptionTextStyle}"
-                                                   Text="Optional, e.g. 2026-09-13 13:30:00" />
-                                    </StackPanel>
-                                </Grid>
-
-                                <StackPanel Margin="0,14,0,0">
-                                    <TextBlock Margin="0,0,0,6"
-                                               Style="{StaticResource PtjCaptionTextStyle}"
-                                               Text="Timeframe" />
-                                    <TextBox Style="{StaticResource PtjTextBoxStyle}"
-                                             Text="{Binding ScreenshotTimeframeText, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Margin="0,6,0,0"
-                                               Style="{StaticResource PtjCaptionTextStyle}"
-                                               Text="Optional, e.g. 5m, 15m, or 1h" />
-                                </StackPanel>
-
-                                <StackPanel Margin="0,14,0,0">
-                                    <TextBlock Margin="0,0,0,6"
-                                               Style="{StaticResource PtjCaptionTextStyle}"
-                                               Text="Description" />
-                                    <TextBox MinHeight="80"
-                                             AcceptsReturn="True"
-                                             Style="{StaticResource PtjTextBoxStyle}"
-                                             Text="{Binding ScreenshotDescriptionText, UpdateSourceTrigger=PropertyChanged}"
-                                             TextWrapping="Wrap" />
-                                </StackPanel>
-
-                                <TextBlock Margin="0,12,0,0"
-                                           Style="{StaticResource PtjCaptionTextStyle}"
-                                           Text="The image file will be selected when you save."
-                                           TextWrapping="Wrap" />
-
-                                <TextBlock Margin="0,8,0,0"
-                                           Text="Adding screenshot...">
-                                    <TextBlock.Style>
-                                        <Style TargetType="{x:Type TextBlock}"
-                                               BasedOn="{StaticResource PtjCaptionTextStyle}">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsAddingScreenshot}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-
-                                <StackPanel Margin="0,16,0,0"
-                                            HorizontalAlignment="Right"
-                                            Orientation="Horizontal">
-                                    <Button Command="{Binding CancelAddScreenshotCommand}"
-                                            Content="Cancel"
-                                            Style="{StaticResource PtjButtonStyle}" />
-                                    <Button Margin="8,0,0,0"
-                                            Command="{Binding SaveScreenshotCommand}"
-                                            Content="Save Screenshot"
-                                            Style="{StaticResource PtjPrimaryButtonStyle}" />
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
+                        <tradeViews:TradeScreenshotWorkspace><tradeViews:TradeScreenshotWorkspace.Style><Style TargetType="tradeViews:TradeScreenshotWorkspace"><Style.Triggers><DataTrigger Binding="{Binding IsManualEntryVisible}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></tradeViews:TradeScreenshotWorkspace.Style></tradeViews:TradeScreenshotWorkspace>
 
                         <Separator Style="{StaticResource PtjSeparatorStyle}" />
 
@@ -1565,8 +1007,8 @@
                                             BorderBrush="{DynamicResource PtjBorderBrush}"
                                             BorderThickness="1"
                                             CornerRadius="6">
-                                        <StackPanel>
-                                            <Grid>
+                                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"><StackPanel MinWidth="680">
+                                            <Grid Background="{DynamicResource PtjTradeExecutionFactsBrush}">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="58" />
                                                     <ColumnDefinition Width="1.6*" />
@@ -1636,7 +1078,7 @@
                                                 </StackPanel>
                                             </Grid>
 
-                                            <Grid Margin="0,12,0,0">
+                                            <Grid Margin="0,12,0,0" Background="{DynamicResource PtjTradeExecutionSourceBrush}">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="*" />
@@ -1668,7 +1110,7 @@
                                                                TextWrapping="Wrap" />
                                                 </StackPanel>
                                             </Grid>
-                                        </StackPanel>
+                                        </StackPanel></ScrollViewer>
                                     </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -1681,10 +1123,7 @@
                     Padding="24"
                     Style="{StaticResource PtjCardStyle}">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"
-                               Text="Trades" />
-
-                    <TextBlock Margin="0,12,0,0"
+<TextBlock Margin="0,12,0,0"
                                Text="Loading trades...">
                         <TextBlock.Style>
                             <Style TargetType="{x:Type TextBlock}"
@@ -2100,7 +1539,7 @@
                                                 <Button Command="{Binding DataContext.ShowTradeDetailCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                                                         CommandParameter="{Binding}"
                                                         AutomationProperties.Name="{Binding InstrumentSymbol, StringFormat=View {0} Trade details}" AutomationProperties.HelpText="{Binding TradingAccountName}"
-                                                        Style="{StaticResource PtjEntityActionButtonStyle}"
+                                                        Style="{StaticResource PtjTradeViewButtonStyle}"
                                                         ToolTip="View trade details">
                                                     <StackPanel Orientation="Horizontal">
                                                         <Viewbox Width="14" Height="14">

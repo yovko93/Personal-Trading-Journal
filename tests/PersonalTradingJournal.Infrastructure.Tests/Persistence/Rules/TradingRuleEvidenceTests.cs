@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using PersonalTradingJournal.Application.Journals;
 using PersonalTradingJournal.Application.Rules;
 using PersonalTradingJournal.Application.Setups;
@@ -10,6 +12,30 @@ namespace PersonalTradingJournal.Infrastructure.Tests.Persistence.Rules;
 
 public sealed partial class TradingRulePersistenceTests
 {
+    [Fact]
+    public async Task OptionalDescriptionMigrationPreservesEstablishedTradeEvidenceFingerprint()
+    {
+        await using var f = await Fixture.Create(); var trade = await f.Seed();
+        var rule = await f.Rule(Definition());
+        var assessment = Assess(rule, TradingRuleAssessmentTarget.ForTrade(trade.Id, trade.TradingAccountId), null,
+            new TradingRuleEvidenceReference(TradingRuleEvidenceKind.Trade, trade.Id));
+        Assert.True(await f.Assessments.TryAppendAsync(assessment, 1, null));
+        await using var db = f.Context();
+        var row = await db.Trades.SingleAsync(t => t.Id == trade.Id);
+        var executions = await db.TradeExecutions.Where(e => e.TradeId == trade.Id)
+            .OrderBy(e => e.Sequence).ThenBy(e => e.Id).ToArrayAsync();
+        // Independently reconstruct the persisted pre-Description JSON shape and ordering.
+        var bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            Trade = new { row.Id, row.TradingAccountId, row.InstrumentId, row.PricingPointValue,
+                row.PricingCurrency, row.TradingSetupId, row.CreatedAtUtc, row.UpdatedAtUtc },
+            Executions = executions
+        }, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        var previousFingerprint = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes));
+        Assert.Equal(previousFingerprint, (await db.TradingRuleAssessments.SingleAsync()).TargetFingerprint);
+        Assert.Equal(TradingRuleSourceState.Available, (await f.Reader.ReadAssessmentAsync(assessment.Id))!.TargetState);
+    }
+
     [Fact]
     public async Task RecordedPassSurvivesRestartAndAutomaticSourceRequiresExplicitEligibility()
     {
@@ -113,7 +139,9 @@ public sealed partial class TradingRulePersistenceTests
         var setup = new TradingSetup("Synthetic plan", null, Now);
         await f.Get<ITradingSetupStore>().AddAsync(setup);
         await f.Get<SaveTradingSetupPlaybookUseCase>().ExecuteAsync(new(setup.Id, 0, new("context", "entry", "confirm", "invalidate", "execute")));
-        var associations = f.Get<ITradePlaybookAssociationStore>();
+        await using var legacyDb = f.Context();
+        await LegacyTradeCaptureFixture.EnableAsync(legacyDb);
+        var associations = new PersonalTradingJournal.Infrastructure.Trades.TradePlaybookAssociationStore(f.Get<Microsoft.EntityFrameworkCore.IDbContextFactory<PersonalTradingJournal.Infrastructure.Persistence.JournalDbContext>>(), TimeProvider.System);
         Assert.True(await associations.TryApplyAsync(await associations.PreviewAsync(trade.Id, setup.Id)));
         var rule = await f.Rule(Definition());
         var assessment = Assess(rule, TradingRuleAssessmentTarget.ForTrade(trade.Id, trade.TradingAccountId), null,
@@ -126,5 +154,12 @@ public sealed partial class TradingRulePersistenceTests
         Assert.Equal(TradingRuleAssessmentOutcome.CannotEvaluate, read.Assessment.Outcome);
         Assert.False(await f.Assessments.TryAppendAsync(Assess(rule, assessment.Target, assessment.Id,
             new TradingRuleEvidenceReference(TradingRuleEvidenceKind.PlaybookCapture, trade.Id, 2)), 1, assessment.Id)); // Removal is not a capture.
+        var migrations = (await legacyDb.Database.GetAppliedMigrationsAsync()).ToArray();
+        await legacyDb.GetService<IMigrator>().MigrateAsync(migrations[^2]);
+        await legacyDb.GetService<IMigrator>().MigrateAsync();
+        var retired = (await f.Reader.ReadAssessmentAsync(assessment.Id))!;
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(read.Assessment), System.Text.Json.JsonSerializer.Serialize(retired.Assessment));
+        Assert.Equal(TradingRuleSourceState.Unavailable, Assert.Single(retired.Evidence).State);
+        Assert.Equal(read.Evidence[0].Reference, retired.Evidence[0].Reference);
     }
 }

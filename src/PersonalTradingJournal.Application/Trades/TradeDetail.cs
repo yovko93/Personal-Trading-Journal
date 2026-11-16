@@ -37,7 +37,8 @@ public sealed record TradeDetail(
     decimal? NetPnL,
     decimal PricingPointValue,
     string Currency,
-    IReadOnlyList<TradeExecutionDetailItem> Executions)
+    IReadOnlyList<TradeExecutionDetailItem> Executions,
+    string? Description = null)
 {
     public EffectiveNetPnL EffectiveNet => EffectiveNetPnL.Resolve(Status, GrossPnL, NetPnL);
 }

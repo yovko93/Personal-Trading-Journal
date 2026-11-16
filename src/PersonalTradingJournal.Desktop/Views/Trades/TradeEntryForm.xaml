@@ -1,6 +1,7 @@
 <ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:trades="clr-namespace:PersonalTradingJournal.Desktop.Views.Trades"
     xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation">
     <DataTemplate x:Key="TradeEntryFormTemplate">
             <Border Margin="0,16,0,0">
@@ -17,9 +18,9 @@
                 </Border.Style>
 
                 <StackPanel>
-                    <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}"
+                    <TextBlock TextWrapping="Wrap" Style="{StaticResource PtjFormSectionTitleTextStyle}"
                                Text="{Binding TradeFormTitle}" />
-                    <TextBlock Margin="0,6,0,0"
+                    <TextBlock TextWrapping="Wrap" Margin="0,6,0,0"
                                Style="{StaticResource PtjSecondaryTextStyle}"
                                Text="{Binding TradeFormDescription}" />
 
@@ -41,9 +42,9 @@
                             </Style>
                         </StackPanel.Style>
 
-                        <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}"
+                        <TextBlock TextWrapping="Wrap" Style="{StaticResource PtjFormSectionTitleTextStyle}"
                                    Text="Trade Details" />
-                        <TextBlock Margin="0,4,0,0"
+                        <TextBlock TextWrapping="Wrap" Margin="0,4,0,0"
                                    Style="{StaticResource PtjFormHelperTextStyle}"
                                    Text="Choose the authoritative account and instrument references." />
                         <Grid Margin="0,10,0,0">
@@ -53,7 +54,7 @@
                             </Grid.ColumnDefinitions>
 
                             <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                <TextBlock Margin="0,0,0,6"
+                                <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                            Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Trading Account" />
                                 <ComboBox validation:FormValidation.IsInvalid="{Binding IsTradingAccountInvalid}"
@@ -63,17 +64,17 @@
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate>
                                             <StackPanel>
-                                                <TextBlock FontWeight="SemiBold"
+                                                <TextBlock TextWrapping="Wrap" FontWeight="SemiBold"
                                                            Foreground="{DynamicResource PtjTextPrimaryBrush}"
                                                            Text="{Binding Name}" />
-                                                <TextBlock FontSize="12"
+                                                <TextBlock TextWrapping="Wrap" FontSize="12"
                                                            Foreground="{DynamicResource PtjTextMutedBrush}"
                                                            Text="{Binding ProviderName}" />
                                             </StackPanel>
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
-                                <TextBlock Margin="0,8,0,0"
+                                <TextBlock TextWrapping="Wrap" Margin="0,8,0,0"
                                            Text="No active trading accounts are available.">
                                     <TextBlock.Style>
                                         <Style TargetType="{x:Type TextBlock}"
@@ -90,7 +91,7 @@
                             </StackPanel>
 
                             <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                <TextBlock Margin="0,0,0,6"
+                                <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                            Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Instrument" />
                                 <ComboBox validation:FormValidation.IsInvalid="{Binding IsInstrumentInvalid}"
@@ -100,17 +101,17 @@
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate>
                                             <StackPanel>
-                                                <TextBlock FontWeight="SemiBold"
+                                                <TextBlock TextWrapping="Wrap" FontWeight="SemiBold"
                                                            Foreground="{DynamicResource PtjTextPrimaryBrush}"
                                                            Text="{Binding Symbol}" />
-                                                <TextBlock FontSize="12"
+                                                <TextBlock TextWrapping="Wrap" FontSize="12"
                                                            Foreground="{DynamicResource PtjTextMutedBrush}"
                                                            Text="{Binding DisplayName}" />
                                             </StackPanel>
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
-                                <TextBlock Margin="0,8,0,0"
+                                <TextBlock TextWrapping="Wrap" Margin="0,8,0,0"
                                            Text="No active instruments are available.">
                                     <TextBlock.Style>
                                         <Style TargetType="{x:Type TextBlock}"
@@ -129,18 +130,12 @@
 
                         <Separator Style="{StaticResource PtjSeparatorStyle}" />
 
-                        <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}"
+                        <TextBlock TextWrapping="Wrap" Style="{StaticResource PtjFormSectionTitleTextStyle}"
                                    Text="Position" />
-                        <Grid Margin="0,10,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
+                        <WrapPanel Margin="0,10,0,0">
 
-                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                <TextBlock Margin="0,0,0,6"
+                            <StackPanel Width="190" Margin="0,0,12,12">
+                                <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                            Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Direction" />
                                 <ComboBox validation:FormValidation.IsInvalid="{Binding IsDirectionInvalid}"
@@ -149,8 +144,8 @@
                                           Style="{StaticResource PtjComboBoxStyle}" />
                             </StackPanel>
 
-                            <StackPanel Grid.Column="1" Margin="8,0,8,0">
-                                <TextBlock Margin="0,0,0,6"
+                            <StackPanel Width="190" Margin="0,0,12,12">
+                                <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                            Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="{Binding QuantityLabel}" />
                                 <TextBox validation:FormValidation.IsInvalid="{Binding IsQuantityInvalid}"
@@ -164,11 +159,11 @@
                                            TextWrapping="Wrap" />
                             </StackPanel>
 
-                            <StackPanel Grid.Column="2" Margin="8,0,8,0">
+                            <StackPanel Width="190" Margin="0,0,12,12">
                                 <StackPanel Margin="0,0,0,6" Orientation="Horizontal">
-                                    <TextBlock Style="{StaticResource PtjFormLabelTextStyle}"
+                                    <TextBlock TextWrapping="Wrap" Style="{StaticResource PtjFormLabelTextStyle}"
                                                Text="Trading Setup" />
-                                    <TextBlock Margin="4,0,0,0"
+                                    <TextBlock TextWrapping="Wrap" Margin="4,0,0,0"
                                                Style="{StaticResource PtjFormOptionalTextStyle}"
                                                Text="(Optional)" />
                                 </StackPanel>
@@ -176,12 +171,12 @@
                                           SelectedItem="{Binding SelectedTradingSetup}"
                                           DisplayMemberPath="Name"
                                           Style="{StaticResource PtjComboBoxStyle}" />
-                                <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
-                                            Text="Active Setups only. After creating the Trade, confirm its exact Playbook revision in Details. Classification alone is not a captured plan." />
+                                <TextBlock TextWrapping="Wrap" Style="{StaticResource PtjFormHelperTextStyle}"
+                                            Text="Optional classification using an active Setup." />
                             </StackPanel>
 
-                            <StackPanel Grid.Column="3" Margin="8,0,0,0">
-                                <TextBlock Margin="0,0,0,6"
+                            <StackPanel Width="190" Margin="0,0,12,12">
+                                <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                            Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Completion" />
                                 <CheckBox MinHeight="36"
@@ -191,36 +186,31 @@
                                           Foreground="{DynamicResource PtjTextPrimaryBrush}"
                                           IsChecked="{Binding HasExit, Mode=TwoWay}" />
                             </StackPanel>
-                        </Grid>
+                        </WrapPanel>
 
                         <Separator Style="{StaticResource PtjSeparatorStyle}" />
 
-                        <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}"
+                        <TextBlock TextWrapping="Wrap" Style="{StaticResource PtjFormSectionTitleTextStyle}"
                                    Text="Entry Execution" />
-                        <TextBlock Margin="0,4,0,0"
+                        <TextBlock TextWrapping="Wrap" Margin="0,4,0,0"
                                    Style="{StaticResource PtjFormHelperTextStyle}"
                                    Text="Record the opening execution and its direct costs." />
-                        <Grid Margin="0,10,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="1.75*" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
+                        <WrapPanel Margin="0,10,0,0">
 
-                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                <TextBlock Margin="0,0,0,6"
+
+                            <StackPanel Width="190" Margin="0,0,12,12">
+                                <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                            Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Entry time (New York)" />
                                 <TextBox validation:FormValidation.IsInvalid="{Binding IsEntryExecutedAtNewYorkInvalid}"
                                          Style="{StaticResource PtjTextBoxStyle}"
                                          Text="{Binding EntryExecutedAtNewYorkText, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
+                                <TextBlock TextWrapping="Wrap" Style="{StaticResource PtjFormHelperTextStyle}"
                                            Text="New York, e.g. 2026-09-10 09:30:00" />
                             </StackPanel>
 
-                            <StackPanel Grid.Column="1" Margin="8,0,8,0">
-                                <TextBlock Margin="0,0,0,6"
+                            <StackPanel Width="190" Margin="0,0,12,12">
+                                <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                            Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Entry price" />
                                 <TextBox validation:FormValidation.IsInvalid="{Binding IsEntryPriceInvalid}"
@@ -228,8 +218,8 @@
                                          Text="{Binding EntryPriceText, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
 
-                            <StackPanel Grid.Column="2" Margin="8,0,8,0">
-                                <TextBlock Margin="0,0,0,6"
+                            <StackPanel Width="190" Margin="0,0,12,12">
+                                <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                            Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Commission" />
                                 <TextBox validation:FormValidation.IsInvalid="{Binding IsEntryCommissionInvalid}"
@@ -237,15 +227,15 @@
                                          Text="{Binding EntryCommissionText, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
 
-                            <StackPanel Grid.Column="3" Margin="8,0,0,0">
-                                <TextBlock Margin="0,0,0,6"
+                            <StackPanel Width="190" Margin="0,0,12,12">
+                                <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                            Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Fees" />
                                 <TextBox validation:FormValidation.IsInvalid="{Binding IsEntryFeesInvalid}"
                                          Style="{StaticResource PtjTextBoxStyle}"
                                          Text="{Binding EntryFeesText, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
-                        </Grid>
+                        </WrapPanel>
 
                         <StackPanel>
                             <StackPanel.Style>
@@ -261,32 +251,27 @@
 
                             <Separator Style="{StaticResource PtjSeparatorStyle}" />
 
-                            <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}"
+                            <TextBlock TextWrapping="Wrap" Style="{StaticResource PtjFormSectionTitleTextStyle}"
                                        Text="Exit Execution" />
-                            <TextBlock Margin="0,4,0,0"
+                            <TextBlock TextWrapping="Wrap" Margin="0,4,0,0"
                                        Style="{StaticResource PtjFormHelperTextStyle}"
                                        Text="Optional full closing execution and its direct costs." />
-                            <Grid Margin="0,10,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="1.75*" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
+                            <WrapPanel Margin="0,10,0,0">
 
-                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                    <TextBlock Margin="0,0,0,6"
+
+                                <StackPanel Width="190" Margin="0,0,12,12">
+                                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                                Style="{StaticResource PtjFormLabelTextStyle}"
                                                Text="Exit time (New York)" />
                                     <TextBox validation:FormValidation.IsInvalid="{Binding IsExitExecutedAtNewYorkInvalid}"
                                              Style="{StaticResource PtjTextBoxStyle}"
                                              Text="{Binding ExitExecutedAtNewYorkText, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
+                                    <TextBlock TextWrapping="Wrap" Style="{StaticResource PtjFormHelperTextStyle}"
                                                Text="New York, e.g. 2026-09-10 10:30:00" />
                                 </StackPanel>
 
-                                <StackPanel Grid.Column="1" Margin="8,0,8,0">
-                                    <TextBlock Margin="0,0,0,6"
+                                <StackPanel Width="190" Margin="0,0,12,12">
+                                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                                Style="{StaticResource PtjFormLabelTextStyle}"
                                                Text="Exit price" />
                                     <TextBox validation:FormValidation.IsInvalid="{Binding IsExitPriceInvalid}"
@@ -294,8 +279,8 @@
                                              Text="{Binding ExitPriceText, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
 
-                                <StackPanel Grid.Column="2" Margin="8,0,8,0">
-                                    <TextBlock Margin="0,0,0,6"
+                                <StackPanel Width="190" Margin="0,0,12,12">
+                                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                                Style="{StaticResource PtjFormLabelTextStyle}"
                                                Text="Commission" />
                                     <TextBox validation:FormValidation.IsInvalid="{Binding IsExitCommissionInvalid}"
@@ -303,15 +288,15 @@
                                              Text="{Binding ExitCommissionText, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
 
-                                <StackPanel Grid.Column="3" Margin="8,0,0,0">
-                                    <TextBlock Margin="0,0,0,6"
+                                <StackPanel Width="190" Margin="0,0,12,12">
+                                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                                Style="{StaticResource PtjFormLabelTextStyle}"
                                                Text="Fees" />
                                     <TextBox validation:FormValidation.IsInvalid="{Binding IsExitFeesInvalid}"
                                              Style="{StaticResource PtjTextBoxStyle}"
                                              Text="{Binding ExitFeesText, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
-                            </Grid>
+                            </WrapPanel>
                         </StackPanel>
                     </StackPanel>
 
@@ -347,7 +332,7 @@
                         </TextBlock.Style>
                     </TextBlock>
 
-                    <TextBlock Margin="0,8,0,0"
+                    <TextBlock TextWrapping="Wrap" Margin="0,8,0,0"
                                Text="Saving trade...">
                         <TextBlock.Style>
                             <Style TargetType="{x:Type TextBlock}"
@@ -379,7 +364,7 @@
                         </TextBlock.Style>
                     </TextBlock>
 
-                    <TextBlock Margin="0,8,0,0" Text="Saving changes...">
+                    <TextBlock TextWrapping="Wrap" Margin="0,8,0,0" Text="Saving changes...">
                         <TextBlock.Style>
                             <Style TargetType="{x:Type TextBlock}"
                                    BasedOn="{StaticResource PtjCaptionTextStyle}">
@@ -393,6 +378,9 @@
                         </TextBlock.Style>
                     </TextBlock>
 
+                    <TextBlock TextWrapping="Wrap" Text="Description (optional)" Style="{StaticResource PtjFormLabelTextStyle}" Margin="0,16,0,6" />
+                    <TextBox Text="{Binding TradeDescriptionText, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="72" MaxLength="10000" Style="{StaticResource PtjTextBoxStyle}" AutomationProperties.Name="Trade description" />
+                    <trades:TradeScreenshotWorkspace Margin="0,16,0,0"><trades:TradeScreenshotWorkspace.Style><Style TargetType="trades:TradeScreenshotWorkspace"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding IsManualEntryVisible}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></trades:TradeScreenshotWorkspace.Style></trades:TradeScreenshotWorkspace>
                     <StackPanel Margin="0,20,0,0"
                                 HorizontalAlignment="Right"
                                 Orientation="Horizontal">

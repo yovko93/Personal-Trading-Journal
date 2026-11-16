@@ -109,7 +109,7 @@ public sealed partial class TradingRuleRepository : IAutomaticRuleChecks
             query = query.Where(t => !db.TradeExecutions.Any(e => e.TradeId == t.Id) ||
                 db.TradeExecutions.Any(e => e.TradeId == t.Id && e.ExecutedAtUtc >= day.ClosedFromUtc && e.ExecutedAtUtc < day.ClosedBeforeUtc));
         }
-        var trades = await query.OrderBy(t => t.Id).Take(1001).ToArrayAsync(token);
+        var trades = await query.OrderBy(t => t.Id).Take(1001).Select(RuleEvidenceSnapshots.TradeFacts).ToArrayAsync(token);
         if (trades.Length > 1000) throw new CheckLimitException();
         if (target.TradeId.HasValue && trades.Length != 1) return null;
         Guid[] ids = trades.Select(t => t.Id).ToArray();

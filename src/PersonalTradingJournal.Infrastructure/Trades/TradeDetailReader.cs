@@ -107,6 +107,7 @@ public sealed class TradeDetailReader : ITradeDetailReader
             trade.NetPnL,
             trade.Pricing.PointValue,
             trade.Pricing.Currency,
-            executions);
+            executions,
+            trade.Description);
     }
 }

@@ -21,7 +21,7 @@ public sealed class NotebookMigrationTests
                 StorageKey = "synthetic.png", FileName = "synthetic.png", Description = "Synthetic chart metadata only", CreatedAtUtc = f.Now, UpdatedAtUtc = f.Now });
             db.DailyJournals.Add(new DailyJournalRecord { Id = journalId, TradingAccountId = f.Account.Id, TradingDate = new(2026, 10, 20),
                 Text = "Synthetic journal", WentWell = "Recorded", IsDraft = true, Revision = 1, CreatedAtUtc = f.Now, UpdatedAtUtc = f.Now });
-            await db.SaveChangesAsync();
+            PersonalTradingJournal.Infrastructure.Tests.Persistence.LegacyTradeSchemaFixture.SaveBeforeDescription(db);
             await db.Database.MigrateAsync();
             Assert.Empty(await db.NotebookNotes.ToArrayAsync());
             Assert.Empty(await db.NotebookFolders.ToArrayAsync());

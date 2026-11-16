@@ -108,7 +108,7 @@ public sealed partial class PlaybookPersistenceTests
     }
 
     [Fact]
-    public async Task ClassificationOnlyEditRecordsRemovalWithoutRevivingEarlierCapture()
+    public async Task ClassificationEditDoesNotAppendToRetiredLedger()
     {
         await using var f = await Fixture.Create(); var g = await f.Seed(); await f.Save(g);
         var store = f.Get<ITradePlaybookAssociationStore>();
@@ -117,6 +117,6 @@ public sealed partial class PlaybookPersistenceTests
         trade.SetTradingSetup(null, trade.UpdatedAtUtc.AddSeconds(1)); await mutations.SaveAsync(trade);
         trade.SetTradingSetup(g.Setup.Id, trade.UpdatedAtUtc.AddSeconds(1)); await mutations.SaveAsync(trade);
         var history = await store.ReadHistoryAsync(trade.Id);
-        Assert.Equal(new[] {3,2,1},history.Select(a=>a.Sequence)); Assert.Null(history[0].Definition); Assert.NotNull(history[2].Definition);
+        Assert.Single(history); Assert.Equal(1, history[0].Sequence); Assert.NotNull(history[0].Definition);
     }
 }

@@ -839,7 +839,8 @@ public sealed class CalendarViewLayoutTests
         foreach (var declaration in declarations) combined.Add(declaration.Elements());
         combined.Add(System.Xml.Linq.XDocument.Load(Path.Combine(resourcePath, "../Views/Trades/TradeEntryForm.xaml")).Root!.Elements());
         combined.SetAttributeValue(System.Xml.Linq.XNamespace.Xmlns + "system", "clr-namespace:System;assembly=System.Runtime");
-        foreach (string prefix in new[] { "converters", "validation" })
+        combined.SetAttributeValue(System.Xml.Linq.XNamespace.Xmlns + "trades", "clr-namespace:PersonalTradingJournal.Desktop.Views.Trades");
+        foreach (string prefix in new[] { "converters", "validation", "trades" })
         {
             var attribute = combined.Attribute(System.Xml.Linq.XNamespace.Xmlns + prefix)!;
             string oldNamespace = attribute.Value;

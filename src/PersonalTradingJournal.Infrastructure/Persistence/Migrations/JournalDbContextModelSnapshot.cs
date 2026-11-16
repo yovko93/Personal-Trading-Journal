@@ -1179,6 +1179,9 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("InstrumentId")
                         .HasColumnType("TEXT");
 

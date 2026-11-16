@@ -1,5 +1,9 @@
 # Backup and restore
 
+## Trades workspace — current extension
+
+Portable export **v20** adds the optional Trade `description` to JSON and `trades.csv`. Screenshot capture time and descriptions already stored remain in exports even though Trades no longer edits or displays them. The current database migration removes Trade association/capture rows; empty compatibility tables remain in the export contract and reject new inserts. Whole-database archive v1 retains descriptions, screenshots, shared Playbook images and immutable review JSON. Existing exact-schema restore checks remain: older archives are not silently rewritten or accepted. See [Trades workspace](trades-workspace.md) for migration, isolated round-trip tests and actual verification.
+
 ## Account payouts — current extension
 
 Portable export **v19** includes payout ID, Account ID, amount, currency and UTC creation time in `accountPayouts` JSON and `accountPayouts.csv` (five CSVs total). JSON/CSV exports remain non-restorable. Whole-database archive v1, preflight and offline restore include the additive AccountPayouts table and foreign key. No historical payouts are inferred; existing accounts are untouched. Older archives retain the established schema compatibility checks.

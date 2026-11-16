@@ -22,6 +22,13 @@ internal sealed record RuleEvidenceSnapshot(TradingRuleEvidenceKind Kind, Guid S
 
 internal sealed class RuleEvidenceSnapshots
 {
+    // Rule evaluation consumes identity/economics, not optional Trade prose.
+    internal static readonly Expression<Func<TradeRecord, TradeRecord>> TradeFacts = t => new TradeRecord
+    {
+        Id = t.Id, TradingAccountId = t.TradingAccountId, InstrumentId = t.InstrumentId,
+        PricingPointValue = t.PricingPointValue, PricingCurrency = t.PricingCurrency,
+        TradingSetupId = t.TradingSetupId, CreatedAtUtc = t.CreatedAtUtc, UpdatedAtUtc = t.UpdatedAtUtc
+    };
     internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     internal Dictionary<TradingRuleEvidenceReference, RuleEvidenceSnapshot> Items { get; } = [];
     private readonly Dictionary<Guid, DateTimeOffset[]> activity = [];
@@ -54,7 +61,8 @@ internal sealed class RuleEvidenceSnapshots
             var selectedExecutions = await db.TradeExecutions.AsNoTracking().Where(e => executionIds.Contains(e.Id)).ToArrayAsync(token);
             Guid[] tradeIds = chunk.Where(r => r.Kind is TradingRuleEvidenceKind.Trade or TradingRuleEvidenceKind.PlaybookCapture)
                 .Select(r => r.SourceId).Concat(selectedExecutions.Select(e => e.TradeId)).Distinct().ToArray();
-            var trades = await db.Trades.AsNoTracking().Where(t => tradeIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, token);
+            var trades = await db.Trades.AsNoTracking().Where(t => tradeIds.Contains(t.Id))
+                .Select(TradeFacts).ToDictionaryAsync(t => t.Id, token);
             var executions = await db.TradeExecutions.AsNoTracking().Where(e => tradeIds.Contains(e.TradeId))
                 .OrderBy(e => e.TradeId).ThenBy(e => e.Sequence).ThenBy(e => e.Id).ToArrayAsync(token);
             var byTrade = executions.ToLookup(e => e.TradeId);
@@ -83,7 +91,11 @@ internal sealed class RuleEvidenceSnapshots
                 result.activity[trade.Id] = rows.Select(e => e.ExecutedAtUtc).ToArray();
                 tradeSnapshots[trade.Id] = new(TradingRuleEvidenceKind.Trade, trade.Id, null, trade.TradingAccountId,
                     accounts.GetValueOrDefault(trade.TradingAccountId), trade.Id, day, trade.PricingCurrency,
-                    Hash(new { Trade = trade, Executions = rows }));
+                    // Keep the established fingerprint shape when adding optional prose.
+                    // A null Description introduced by migration must not invalidate history.
+                    Hash(new { Trade = new { trade.Id, trade.TradingAccountId, trade.InstrumentId,
+                        trade.PricingPointValue, trade.PricingCurrency, trade.TradingSetupId,
+                        trade.CreatedAtUtc, trade.UpdatedAtUtc }, Executions = rows }));
             }
             foreach (var reference in chunk)
             {

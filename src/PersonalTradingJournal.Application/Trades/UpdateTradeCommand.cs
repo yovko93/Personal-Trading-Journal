@@ -10,4 +10,5 @@ public sealed record UpdateTradeCommand(
     TradeDirection Direction,
     decimal Quantity,
     UpdateTradeExecutionInput Entry,
-    UpdateTradeExecutionInput? Exit);
+    UpdateTradeExecutionInput? Exit,
+    string? Description = null);

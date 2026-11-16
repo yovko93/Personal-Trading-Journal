@@ -125,7 +125,7 @@ public sealed partial class InitialMigrationTests
             ["Trades"] =
             [
                 "Id", "CreatedAtUtc", "InstrumentId", "PricingCurrency",
-                "PricingPointValue", "TradingAccountId", "TradingSetupId", "UpdatedAtUtc",
+                "PricingPointValue", "TradingAccountId", "TradingSetupId", "UpdatedAtUtc", "Description",
             ],
             ["TradeBrowse"] =
             [
@@ -172,7 +172,7 @@ public sealed partial class InitialMigrationTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations", "20261011220636_AllowUnreferencedPlaybookRevisionDeletion", "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion", "20261013102243_AddTradingRuleOrder", PeriodReviewsMigrationId, "20261017152354_AddTradingPlans", "20261019080838_SharedTradingPlansAndScreenshots", "20261019100107_DirectPlaybookDefinitions", "20261019160256_TombstoneTradingPlans", "20261019171746_AddDailyTradingPrinciples", NotebookMigrationId, "20261020130020_AddNotebookRecovery", "20261020180223_AddNotebookOwnedImageFiles", "20261021121554_AddNotebookDeletionCleanup", "20261108232624_AddAccountPayouts"],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations", "20261011220636_AllowUnreferencedPlaybookRevisionDeletion", "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion", "20261013102243_AddTradingRuleOrder", PeriodReviewsMigrationId, "20261017152354_AddTradingPlans", "20261019080838_SharedTradingPlansAndScreenshots", "20261019100107_DirectPlaybookDefinitions", "20261019160256_TombstoneTradingPlans", "20261019171746_AddDailyTradingPrinciples", NotebookMigrationId, "20261020130020_AddNotebookRecovery", "20261020180223_AddNotebookOwnedImageFiles", "20261021121554_AddNotebookDeletionCleanup", "20261108232624_AddAccountPayouts", "20261114204255_SimplifyTradeWorkspace"],
                 context.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)context.Database.GetDbConnection();
@@ -184,7 +184,7 @@ public sealed partial class InitialMigrationTests
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray();
             Assert.Equal(expectedTables, ReadTableNames(connection));
-            Assert.Equal(30L, ReadRowCount(connection, "__EFMigrationsHistory"));
+            Assert.Equal(31L, ReadRowCount(connection, "__EFMigrationsHistory"));
             Assert.Equal(0L, ReadRowCount(connection, "__EFMigrationsLock"));
 
             foreach ((string tableName, string[] expectedColumns) in ExpectedApplicationColumns)
@@ -251,11 +251,11 @@ public sealed partial class InitialMigrationTests
                 execution.Commission = null;
                 execution.Fees = 0.0000000001m;
                 seedContext.TradeExecutions.Add(execution);
-                seedContext.SaveChanges();
+                LegacyTradeSchemaFixture.SaveBeforeDescription(seedContext);
             }
 
             using var context = new JournalDbContext(options);
-            TradeRecord expectedTrade = context.Trades.AsNoTracking().Single();
+            TradeRecord expectedTrade = context.Trades.AsNoTracking().Select(LegacyTradeSchemaFixture.TradeColumns).Single();
             TradeExecutionRecord expectedExecution = context.TradeExecutions.AsNoTracking().Single();
             TradingAccountRecord expectedAccount = context.TradingAccounts.AsNoTracking().Single();
             InstrumentRecord expectedInstrument = context.Instruments.AsNoTracking().Single();
@@ -304,7 +304,7 @@ public sealed partial class InitialMigrationTests
             void AssertExistingTradeData()
             {
                 using var verification = new JournalDbContext(options);
-                Assert.Equivalent(expectedTrade, verification.Trades.AsNoTracking().Single(), strict: true);
+                Assert.Equivalent(expectedTrade, verification.Trades.AsNoTracking().Select(LegacyTradeSchemaFixture.TradeColumns).Single(), strict: true);
                 Assert.Equivalent(expectedExecution, verification.TradeExecutions.AsNoTracking().Single(), strict: true);
                 Assert.Equivalent(expectedAccount, verification.TradingAccounts.AsNoTracking().Single(), strict: true);
                 Assert.Equivalent(expectedInstrument, verification.Instruments.AsNoTracking().Single(), strict: true);
@@ -492,8 +492,8 @@ public sealed partial class InitialMigrationTests
             using (var context = new JournalDbContext(options))
             {
                 AddTradeGraph(context, tradeId);
-                context.SaveChanges();
-                Guid accountId = context.Trades.Single().TradingAccountId;
+                LegacyTradeSchemaFixture.SaveBeforeDescription(context);
+                Guid accountId = context.Trades.Select(t => t.TradingAccountId).Single();
                 // Old ledger identities survive even when subsequent edits replaced executions.
                 context.Database.ExecuteSqlInterpolated($"""
                     INSERT INTO TradovateImportedExecutions
@@ -578,7 +578,7 @@ public sealed partial class InitialMigrationTests
                     CreatedAtUtc = CreatedAtUtc,
                     UpdatedAtUtc = CreatedAtUtc,
                 });
-                writeContext.SaveChanges();
+                LegacyTradeSchemaFixture.SaveBeforeDescription(writeContext);
                 writeContext.Database.Migrate();
             }
 
@@ -586,7 +586,7 @@ public sealed partial class InitialMigrationTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations", "20261011220636_AllowUnreferencedPlaybookRevisionDeletion", "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion", "20261013102243_AddTradingRuleOrder", PeriodReviewsMigrationId, "20261017152354_AddTradingPlans", "20261019080838_SharedTradingPlansAndScreenshots", "20261019100107_DirectPlaybookDefinitions", "20261019160256_TombstoneTradingPlans", "20261019171746_AddDailyTradingPrinciples", NotebookMigrationId, "20261020130020_AddNotebookRecovery", "20261020180223_AddNotebookOwnedImageFiles", "20261021121554_AddNotebookDeletionCleanup", "20261108232624_AddAccountPayouts"],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations", "20261011220636_AllowUnreferencedPlaybookRevisionDeletion", "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion", "20261013102243_AddTradingRuleOrder", PeriodReviewsMigrationId, "20261017152354_AddTradingPlans", "20261019080838_SharedTradingPlansAndScreenshots", "20261019100107_DirectPlaybookDefinitions", "20261019160256_TombstoneTradingPlans", "20261019171746_AddDailyTradingPrinciples", NotebookMigrationId, "20261020130020_AddNotebookRecovery", "20261020180223_AddNotebookOwnedImageFiles", "20261021121554_AddNotebookDeletionCleanup", "20261108232624_AddAccountPayouts", "20261114204255_SimplifyTradeWorkspace"],
                 readContext.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)readContext.Database.GetDbConnection();

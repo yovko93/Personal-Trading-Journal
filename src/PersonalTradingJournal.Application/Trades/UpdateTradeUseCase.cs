@@ -157,6 +157,7 @@ public sealed class UpdateTradeUseCase
             executions,
             _timeProvider.GetUtcNow());
 
+        wasChanged |= trade.SetDescription(command.Description, _timeProvider.GetUtcNow());
         if (wasChanged)
         {
             await _tradeStore.SaveAsync(trade, cancellationToken);
