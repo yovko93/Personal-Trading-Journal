@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -104,6 +105,14 @@ public sealed class TradeWorkspaceViewTests
                 Assert.DoesNotContain(Descendants(page).OfType<TextBlock>(), t => t.Text == "Legacy metadata preserved, not displayed");
                 Render(page, theme, width, dpi, "details");
                 var pageScroll = Descendants(page).OfType<ScrollViewer>().First();
+                var summary = (Grid)page.FindName("TradeEconomicsSummary");
+                AssertEconomicsSummary(page, summary, width == 360);
+                var setupStatus = (TextBlock)page.FindName("SetupSuccessStatus");
+                Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(setupStatus));
+                Assert.Equal(Visibility.Collapsed, setupStatus.Visibility);
+                pageScroll.ScrollToVerticalOffset(summary.TranslatePoint(new Point(), pageScroll).Y + pageScroll.VerticalOffset - 20);
+                page.UpdateLayout();
+                Render(page, theme, width, dpi, "economics");
                 var facts = Descendants(page).OfType<Grid>().First(g => ReferenceEquals(g.Background, app.Resources["PtjTradeExecutionFactsBrush"]));
                 Assert.Contains(Descendants(page).OfType<Grid>(), g => ReferenceEquals(g.Background, app.Resources["PtjTradeExecutionSourceBrush"]));
                 pageScroll.ScrollToVerticalOffset(facts.TranslatePoint(new Point(), pageScroll).Y + pageScroll.VerticalOffset);
@@ -181,6 +190,43 @@ public sealed class TradeWorkspaceViewTests
             }
             app.Shutdown();
         });
+    }
+
+    private static void AssertEconomicsSummary(TradesView page, Grid summary, bool narrow)
+    {
+        Assert.Equal(narrow ? 2 : 1, Grid.GetColumnSpan(summary.Children[0]));
+        Assert.Equal(narrow ? 1 : 0, Grid.GetRow(summary.Children[2]));
+        Assert.Equal(narrow ? 2 : 1, Grid.GetRow(summary.Children[4]));
+        if (narrow)
+        {
+            foreach (int index in new[] { 2, 4, 6 })
+                Assert.Equal(0, ((FrameworkElement)summary.Children[index]).TranslatePoint(new Point(), summary).X, 1);
+        }
+        foreach ((string name, string caption, string timestamp) in new[]
+        {
+            ("TradeOpenedTimestamp", "Opened (New York)", "2026-09-10 09:30:00"),
+            ("TradeClosedTimestamp", "Closed (New York)", "2026-09-10 10:30:00")
+        })
+        {
+            var value = (TextBlock)page.FindName(name);
+            var label = Assert.IsType<TextBlock>(((StackPanel)value.Parent).Children[0]);
+            Assert.Equal(caption, label.Text);
+            Assert.Equal(timestamp, value.Text);
+            AssertFits(summary, label);
+            AssertFits(summary, value);
+        }
+
+        static void AssertFits(Grid summary, TextBlock text)
+        {
+            var formatted = new FormattedText(text.Text, CultureInfo.InvariantCulture, text.FlowDirection,
+                new Typeface(text.FontFamily, text.FontStyle, text.FontWeight, text.FontStretch), text.FontSize,
+                text.Foreground, VisualTreeHelper.GetDpi(text).PixelsPerDip);
+            Assert.True(text.ActualWidth >= formatted.Width,
+                $"'{text.Text}' has {text.ActualWidth:F1} DIP, needs {formatted.Width:F1} DIP.");
+            Assert.True(text.ActualHeight >= formatted.Height - 1);
+            var trailingEdge = text.TranslatePoint(new Point(formatted.Width, 0), summary).X;
+            Assert.InRange(trailingEdge, 0, summary.ActualWidth);
+        }
     }
 
     private static void AssertRightAligned(TextBlock heading, Button action)

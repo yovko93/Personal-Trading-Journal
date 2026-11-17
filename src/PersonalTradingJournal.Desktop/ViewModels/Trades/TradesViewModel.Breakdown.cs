@@ -60,6 +60,7 @@ public sealed partial class TradesViewModel
     {
         if (_browseDisposed) return;
         _browseActive = false; InvalidateBrowse(IsTradeListLoading || HasBreakdownScope);
+        ClearTradingSetupSuccess();
         ShowTradeDetailCommand.Cancel(); ShowTradeEditCommand.Cancel(); ShowSelectedTradeEditCommand.Cancel();
         IsTradeDetailLoading = false;
     }

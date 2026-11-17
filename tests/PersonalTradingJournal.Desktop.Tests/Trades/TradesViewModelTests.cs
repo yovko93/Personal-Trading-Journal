@@ -3297,7 +3297,8 @@ public sealed partial class TradesViewModelTests
             new DeleteTradeUseCase(
                 tradeDeletionStore,
                 tradeScreenshotFileStorage),
-            dialogService);
+            dialogService,
+            timeProvider);
     }
 
     private static ManualTradeSaveFixture CreateSaveFixture(

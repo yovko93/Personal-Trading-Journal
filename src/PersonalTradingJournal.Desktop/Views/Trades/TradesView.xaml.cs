@@ -29,6 +29,42 @@ public partial class TradesView : UserControl
         PreviewMouseDown += (_, _) => _removedDetailFocus = null;
         PreviewMouseWheel += (_, _) => _removedDetailFocus = null;
     }
+    private void OnEconomicsSummarySizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (!e.WidthChanged || sender is not Grid summary) return;
+
+        // Four columns need room for the timestamp and the per-cell margins.
+        int columns = e.NewSize.Width < 560 ? 2 : 4;
+        int span = 4 / columns;
+        for (int index = 0; index < summary.Children.Count; index++)
+        {
+            var cell = (FrameworkElement)summary.Children[index];
+            int row = index / columns;
+            int column = index % columns;
+            Grid.SetRow(cell, row);
+            Grid.SetColumn(cell, column * span);
+            Grid.SetColumnSpan(cell, span);
+            cell.Margin = new Thickness(column == 0 ? 0 : 8, 0, column == columns - 1 ? 0 : 8,
+                row == (summary.Children.Count - 1) / columns ? 0 : 16);
+        }
+    }
+
+    private void OnSetupSuccessVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        // Announce once the status is visible. Binding order can collapse or reveal it
+        // before the Text binding itself has processed the same change.
+        var status = (TextBlock)sender;
+        if (e.NewValue is true && DataContext is TradesViewModel vm)
+        {
+            LiveAnnouncement.SetText(status, vm.TradingSetupSuccessMessage);
+        }
+        else
+        {
+            LiveAnnouncement.SetText(status, null);
+            status.ClearValue(System.Windows.Automation.AutomationProperties.NameProperty);
+        }
+    }
+
     private void OnExecutionScrollKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Handled || Keyboard.Modifiers != ModifierKeys.None) return;

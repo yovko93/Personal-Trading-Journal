@@ -6,6 +6,46 @@ Trades focuses on execution facts, optional Trade Description, Setup/mistake cla
 
 Trade Details no longer starts Rule assessment or opens captured Playbook context. The Rules catalog, Calendar day assessment and historical assessment readers remain available. Basic Setup classification does not capture guidance or append history. The Calendar's shared inline Trade details also loses the retired entry points.
 
+## Timestamp and Setup feedback
+
+The Trade Details economics summary uses two columns when its available width falls below 560 DIP, with Opened and Closed beside each other. The wider layout keeps its four columns. The complete New York labels, date, and time keep the same conversion and format. A Trade without a close time still shows the existing dash.
+
+The “Trading setup updated successfully.” message disappears five seconds after publication. A later successful save or clear starts a fresh five seconds. Changing the selected Trade, leaving Trades, closing the shared inline detail, or disposing the page cancels the pending dismissal. The visible message is a polite live region. Errors and validation messages follow their existing resolution paths.
+
+### Verification
+
+The final Release build passed with zero warnings and errors. All 365 focused Desktop cases passed. The controlled-clock cases cover expiry, a replacement with its own five seconds, existing error and validation behavior, navigation, inline reset, disposal, and a save completing after navigation.
+
+Inspected all four compiled economics summary renders in Light and Dark at 960 DIP / 96 DPI and 360 DIP / 240 DPI. Bound WPF checks compare the full timestamp and New York label with the allocated width and confirm the wide and narrow column arrangements. The status region is configured for polite announcement. Live resizing and a screen-reader walkthrough remain pending.
+
+The complete local gate (`pwsh -File scripts/Test-Release.ps1`) finished in about 14 minutes 18 seconds on 17 November 2026 with exit 1.
+
+| Stage/project | Passed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| Exclusive WPF Desktop | 151 | 0 | 0 |
+| Parallel Domain | 602 | 0 | 0 |
+| Parallel Application | 1,052 | 0 | 0 |
+| Parallel Infrastructure | 1,652 | 0 | 0 |
+| Parallel Desktop | 2,152 | 1 | 1 |
+| **Total** | **5,609** | **1** | **1** |
+
+JournalHistorySqliteTests.AllScopesHistoryOpensEditsAndDeletesOriginalAccountWithoutChangingOtherEntries failed at JournalHistorySqliteTests.cs:38. The assertion expected three History rows after activation and observed zero. The case passed in the preceding complete gate and in a single unchanged isolated rerun on the current build. Its cause remains unresolved. The sole skip is the existing [Rules-view quarantine](rules-view-quarantine.md).
+
+The gate summary and TRX files are under `TestResults/release-20261117-124842-e27c4cdf27fe4a1ea97ff1535caab4f2`. The focused TRX files, inspected PNGs and isolated Journal rerun are under `TestResults/TradesTimestampFeedback/`. Hosted timing under the 20-minute workflow limit is unverified. The prior layout refinement and its verification follow below.
+
+### Changed files for this correction
+
+- `docs/trades-workspace.md`
+- `README.md`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Trades/TradesViewModel.Breakdown.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Trades/TradesViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Trades/TradesViewModel.SetupFeedback.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Trades/TradesView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Trades/TradesView.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradeSetupFeedbackTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradesViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradeWorkspaceViewTests.cs`
+
 ## Trades layout refinement
 
 Trade Details shows the saved Setup and assigned Mistakes with their notes. **Add Setup** or **Change Setup** opens the inline Setup selector. For a saved Setup, **Clear Setup** removes the classification. **Add Mistake** opens its selector and optional note. Use **Remove** on a saved Mistake to remove that assignment. **Cancel** discards the current draft and preserves saved values. A failed write keeps the editor open. Save or cancel the draft before switching Trades, leaving the page, or closing the Calendar Trade panel.
@@ -18,7 +58,7 @@ Execution columns keep their horizontal scrollbar. Ordinary vertical wheel event
 
 The Release build passed with zero warnings and errors. The focused Desktop run passed 366 cases. After widening the Actions column to eliminate clipping found in the renders, the repeated compiled view and table geometry checks passed 12 cases. The two focused counts overlap.
 
-Inspected compiled WPF renders in Light and Dark at 960 DIP / 96 DPI and 360 DIP / 240 DPI. The section actions fit beside their headings, the forms collapse after Cancel, and both row controls are fully visible after scrolling right. The older Trade Details economics summary still truncates some timestamps at 360 DIP. That summary is outside the execution scroller.
+Inspected compiled WPF renders in Light and Dark at 960 DIP / 96 DPI and 360 DIP / 240 DPI. The section actions fit beside their headings, the forms collapse after Cancel, and both row controls are fully visible after scrolling right. That run found some timestamps truncated at 360 DIP. See the later [timestamp correction](#timestamp-and-setup-feedback) above.
 
 Automated input covers a routed full wheel notch, a smaller wheel delta, both vertical directions, the inner horizontal boundary and a routed Page Down key. These were WPF events, with no live mouse, touchpad or keyboard walkthrough on the Trades page. Real touchpad gestures, physical keyboard focus traversal, screen reader checks and manual UI inspection remain pending.
 

@@ -371,7 +371,9 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
-                        <TextBlock Margin="0,10,0,0"
+                        <TextBlock x:Name="SetupSuccessStatus" Margin="0,10,0,0" TextWrapping="Wrap"
+                                   AutomationProperties.LiveSetting="Polite"
+                                   IsVisibleChanged="OnSetupSuccessVisibilityChanged"
                                    Text="{Binding TradingSetupSuccessMessage}">
                             <TextBlock.Style>
                                 <Style TargetType="{x:Type TextBlock}"
@@ -389,7 +391,7 @@
 
                         <Separator Style="{StaticResource PtjSeparatorStyle}" />
 
-                        <Grid Margin="0,8,0,0">
+                        <Grid x:Name="TradeEconomicsSummary" Margin="0,8,0,0" SizeChanged="OnEconomicsSummarySizeChanged">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
@@ -399,20 +401,24 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
                             <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,16">
-                                <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
+                                <TextBlock TextWrapping="Wrap" Style="{StaticResource PtjCaptionTextStyle}"
                                            Text="Opened (New York)" />
                                 <TextBlock Margin="0,4,0,0"
                                            Style="{StaticResource PtjBodyTextStyle}"
+                                           x:Name="TradeOpenedTimestamp" TextWrapping="Wrap"
                                            Text="{Binding SelectedTradeDetail.OpenedAtUtc, Converter={StaticResource UtcToTradingTimeConverter}, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" />
                             </StackPanel>
                             <StackPanel Grid.Row="0" Grid.Column="1" Margin="8,0,8,16">
-                                <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
+                                <TextBlock TextWrapping="Wrap" Style="{StaticResource PtjCaptionTextStyle}"
                                            Text="Closed (New York)" />
                                 <TextBlock Margin="0,4,0,0"
                                            Style="{StaticResource PtjBodyTextStyle}"
+                                           x:Name="TradeClosedTimestamp" TextWrapping="Wrap"
                                            Text="{Binding SelectedTradeDetail.ClosedAtUtc, Converter={StaticResource UtcToTradingTimeConverter}, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}, TargetNullValue=—}" />
                             </StackPanel>
                             <StackPanel Grid.Row="0" Grid.Column="2" Margin="8,0,8,16">

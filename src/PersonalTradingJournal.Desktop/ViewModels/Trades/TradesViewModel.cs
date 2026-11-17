@@ -289,7 +289,8 @@ public sealed partial class TradesViewModel : ObservableObject
         ITradeScreenshotDeleteConfirmation tradeScreenshotDeleteConfirmation,
         UpdateTradeUseCase? updateTradeUseCase = null,
         DeleteTradeUseCase? deleteTradeUseCase = null,
-        IDialogService? dialogService = null)
+        IDialogService? dialogService = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(referenceDataReader);
         ArgumentNullException.ThrowIfNull(tradingSetupReader);
@@ -318,6 +319,7 @@ public sealed partial class TradesViewModel : ObservableObject
         _tradeDetailReader = tradeDetailReader;
         _createManualTradeUseCase = createManualTradeUseCase;
         _setTradeTradingSetupUseCase = setTradeTradingSetupUseCase;
+        _setupFeedbackClock = timeProvider ?? TimeProvider.System;
         _assignTradeMistakeUseCase = assignTradeMistakeUseCase;
         _removeTradeMistakeUseCase = removeTradeMistakeUseCase;
         _closeManualTradeUseCase = closeManualTradeUseCase;
@@ -652,7 +654,10 @@ public sealed partial class TradesViewModel : ObservableObject
             if (SetProperty(ref _selectedTradeDetail, value))
             {
                 if (previousTradeId != value?.Id)
+                {
+                    ClearTradingSetupSuccess();
                     SetClassificationEditor(ClassificationEditor.None);
+                }
                 OnPropertyChanged(nameof(HasSavedTradeSetup));
                 OnPropertyChanged(nameof(TradeSetupEditorLabel));
                 OnPropertyChanged(nameof(IsSelectedTradeOpen));
@@ -2152,7 +2157,7 @@ public sealed partial class TradesViewModel : ObservableObject
 
         CloseTradeDetail();
         TradingSetupSaveErrorMessage = null;
-        TradingSetupSuccessMessage = null;
+        ClearTradingSetupSuccess();
         TradeDeleteErrorMessage = null;
         TradeDeleteWarningMessage = null;
     }
@@ -2764,7 +2769,7 @@ public sealed partial class TradesViewModel : ObservableObject
         TradeDetailErrorMessage = null;
         IsTradeDetailNotFound = false;
         TradingSetupSaveErrorMessage = null;
-        TradingSetupSuccessMessage = null;
+        ClearTradingSetupSuccess();
         ClearCloseTradeState();
         ClearTradeScreenshotState();
         ClearTradeMistakeState();
@@ -3031,7 +3036,8 @@ public sealed partial class TradesViewModel : ObservableObject
         }
 
         TradingSetupSaveErrorMessage = null;
-        TradingSetupSuccessMessage = null;
+        ClearTradingSetupSuccess();
+        long epoch = _browseEpoch;
         IsTradingSetupSaving = true;
 
         try
@@ -3039,7 +3045,8 @@ public sealed partial class TradesViewModel : ObservableObject
             await _setTradeTradingSetupUseCase.ExecuteAsync(
                     new SetTradeTradingSetupCommand(detail.Id, tradingSetupId), cancellationToken);
             TradeDataCommitted?.Invoke(this, EventArgs.Empty);
-            TradingSetupSuccessMessage = TradingSetupSavedMessage;
+            if (!_browseActive || epoch != _browseEpoch || SelectedTradeDetail?.Id != detail.Id) return;
+            ShowTradingSetupSuccess();
 
             _ = await ReloadTradeDetailAfterTradingSetupAsync(
                 detail.Id,
