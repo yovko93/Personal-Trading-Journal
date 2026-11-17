@@ -61,7 +61,7 @@
         </Style>
     </UserControl.Resources>
 
-    <ScrollViewer HorizontalContentAlignment="Stretch"
+    <ScrollViewer x:Name="TradesPageScroll" HorizontalContentAlignment="Stretch"
                   HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto"
                   PanningMode="VerticalOnly">
@@ -770,28 +770,17 @@
 
                         <Separator Style="{StaticResource PtjSeparatorStyle}" />
 
-                        <TextBlock Margin="0,8,0,0"
-                                   FontWeight="SemiBold"
-                                   Style="{StaticResource PtjCaptionTextStyle}"
-                                   Text="PRICING SNAPSHOT" />
-                        <TextBlock Margin="0,4,0,0"
-                                   Style="{StaticResource PtjCaptionTextStyle}"
-                                   Text="Captured when the Trade was created." />
-                        <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
-                            <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
-                                       Text="Point Value  " />
-                            <TextBlock Style="{StaticResource PtjBodyTextStyle}"
-                                       Text="{Binding SelectedTradeDetail.PricingPointValue}" />
-                            <TextBlock Margin="4,0,0,0"
-                                       Style="{StaticResource PtjCaptionTextStyle}"
-                                       Text="{Binding SelectedTradeDetail.Currency}" />
-                        </StackPanel>
-
-                        <Separator Style="{StaticResource PtjSeparatorStyle}" />
-
-                        <TextBlock Margin="0,8,0,0"
-                                   Style="{StaticResource PtjSectionTitleTextStyle}"
-                                   Text="Trading Mistakes" />
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0"
+                                       Style="{StaticResource PtjSectionTitleTextStyle}" Text="Trading Mistakes" />
+                            <Button x:Name="OpenMistakeEditor" Grid.Column="1" Content="Add Mistake"
+                                    Command="{Binding OpenMistakeEditorCommand}"
+                                    Style="{StaticResource PtjSecondaryButtonStyle}" />
+                        </Grid>
 
                         <TextBlock Margin="0,12,0,0"
                                    Text="Loading trading mistakes...">
@@ -826,7 +815,7 @@
                         </TextBlock>
 
                         <TextBlock Margin="0,16,0,0"
-                                   HorizontalAlignment="Center"
+                                   TextWrapping="Wrap"
                                    Text="No trading mistakes are assigned to this trade.">
                             <TextBlock.Style>
                                 <Style TargetType="{x:Type TextBlock}"
@@ -861,12 +850,11 @@
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel>
-                                                <StackPanel Orientation="Horizontal">
+                                                <StackPanel>
                                                     <TextBlock FontWeight="SemiBold"
                                                                Style="{StaticResource PtjBodyTextStyle}"
-                                                               Text="{Binding TradingMistakeName}" />
-                                                    <TextBlock Margin="6,0,0,0"
-                                                               Text="(Inactive)">
+                                                               TextWrapping="Wrap" Text="{Binding TradingMistakeName}" />
+                                                    <TextBlock Text="(Inactive)">
                                                         <TextBlock.Style>
                                                             <Style TargetType="{x:Type TextBlock}"
                                                                    BasedOn="{StaticResource PtjCaptionTextStyle}">
@@ -909,7 +897,8 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <Border Margin="0,8,0,0"
+                        <Border x:Name="MistakeEditor" Margin="0,8,0,0"
+                                Visibility="{Binding IsMistakeEditorOpen, Converter={StaticResource CohortVisible}}"
                                 Padding="16"
                                 BorderBrush="{DynamicResource PtjBorderBrush}"
                                 BorderThickness="1"
@@ -917,13 +906,14 @@
                             <StackPanel>
                                 <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
                                            Text="Trading Mistake" />
-                                <ComboBox Margin="0,6,0,0"
+                                <ComboBox x:Name="MistakeSelector" Margin="0,6,0,0"
+                                          AutomationProperties.Name="Trading mistake"
                                           ItemsSource="{Binding AvailableTradingMistakes}"
                                           SelectedItem="{Binding SelectedTradingMistake}"
                                           DisplayMemberPath="Name"
                                           Style="{StaticResource PtjComboBoxStyle}" />
                                 <TextBlock Margin="0,8,0,0"
-                                           Text="No active unassigned trading mistakes are available.">
+                                           TextWrapping="Wrap" Text="No active unassigned trading mistakes are available.">
                                     <TextBlock.Style>
                                         <Style TargetType="{x:Type TextBlock}"
                                                BasedOn="{StaticResource PtjCaptionTextStyle}">
@@ -941,7 +931,7 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
-                                <TextBlock Margin="0,8,0,0"
+                                <TextBlock Visibility="{Binding HasTradingMistakeOptionsError, Converter={StaticResource CohortVisible}}" Margin="0,8,0,0"
                                            Style="{StaticResource PtjSecondaryTextStyle}"
                                            Foreground="{DynamicResource PtjWarningBrush}"
                                            Text="{Binding TradingMistakeOptionsErrorMessage}"
@@ -949,7 +939,7 @@
                                 <TextBlock Margin="0,14,0,6"
                                            Style="{StaticResource PtjCaptionTextStyle}"
                                            Text="Note" />
-                                <TextBox MinHeight="64"
+                                <TextBox AutomationProperties.Name="Mistake note" MinHeight="64"
                                          MaxLength="2000"
                                          AcceptsReturn="True"
                                          TextWrapping="Wrap"
@@ -959,30 +949,31 @@
                                 <TextBlock Margin="0,6,0,0"
                                            Style="{StaticResource PtjCaptionTextStyle}"
                                            Text="Optional context about what happened." />
-                                <Button Margin="0,14,0,0"
-                                        HorizontalAlignment="Right"
-                                        Command="{Binding AssignMistakeCommand}"
-                                        Content="Add Mistake"
-                                        Style="{StaticResource PtjPrimaryButtonStyle}" />
+                                <WrapPanel HorizontalAlignment="Right" Margin="0,14,0,0">
+                                    <Button Content="Cancel" Command="{Binding CancelMistakeEditorCommand}"
+                                            Style="{StaticResource PtjSecondaryButtonStyle}" Margin="0,0,8,0" />
+                                    <Button Command="{Binding AssignMistakeCommand}" Content="Save Mistake"
+                                            Style="{StaticResource PtjPrimaryButtonStyle}" />
+                                </WrapPanel>
                             </StackPanel>
                         </Border>
 
-                        <TextBlock Margin="0,10,0,0"
+                        <TextBlock Visibility="{Binding HasAssignMistakeError, Converter={StaticResource CohortVisible}}" Margin="0,10,0,0"
                                    Foreground="{DynamicResource PtjWarningBrush}"
                                    Style="{StaticResource PtjSecondaryTextStyle}"
                                    Text="{Binding AssignMistakeErrorMessage}"
                                    TextWrapping="Wrap" />
-                        <TextBlock Margin="0,10,0,0"
+                        <TextBlock Visibility="{Binding HasAssignMistakeSuccess, Converter={StaticResource CohortVisible}}" Margin="0,10,0,0"
                                    Foreground="{DynamicResource PtjSuccessBrush}"
                                    Style="{StaticResource PtjSecondaryTextStyle}"
                                    Text="{Binding AssignMistakeSuccessMessage}"
                                    TextWrapping="Wrap" />
-                        <TextBlock Margin="0,10,0,0"
+                        <TextBlock Visibility="{Binding HasRemoveMistakeError, Converter={StaticResource CohortVisible}}" Margin="0,10,0,0"
                                    Foreground="{DynamicResource PtjWarningBrush}"
                                    Style="{StaticResource PtjSecondaryTextStyle}"
                                    Text="{Binding RemoveMistakeErrorMessage}"
                                    TextWrapping="Wrap" />
-                        <TextBlock Margin="0,10,0,0"
+                        <TextBlock Visibility="{Binding HasRemoveMistakeSuccess, Converter={StaticResource CohortVisible}}" Margin="0,10,0,0"
                                    Foreground="{DynamicResource PtjSuccessBrush}"
                                    Style="{StaticResource PtjSecondaryTextStyle}"
                                    Text="{Binding RemoveMistakeSuccessMessage}"
@@ -1007,7 +998,11 @@
                                             BorderBrush="{DynamicResource PtjBorderBrush}"
                                             BorderThickness="1"
                                             CornerRadius="6">
-                                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"><StackPanel MinWidth="680">
+                                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                                                      interactions:NestedTableWheelRouting.ForwardVerticalWheel="True"
+                                                      PreviewKeyDown="OnExecutionScrollKeyDown"
+                                                      AutomationProperties.Name="Trade execution columns">
+                                            <StackPanel MinWidth="680">
                                             <Grid Background="{DynamicResource PtjTradeExecutionFactsBrush}">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="58" />
@@ -1110,7 +1105,8 @@
                                                                TextWrapping="Wrap" />
                                                 </StackPanel>
                                             </Grid>
-                                        </StackPanel></ScrollViewer>
+                                        </StackPanel>
+                                        </ScrollViewer>
                                     </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -1193,7 +1189,7 @@
                                       VerticalScrollBarVisibility="Disabled"
                                        interactions:NestedTableWheelRouting.ForwardVerticalWheel="True"
                                       PanningMode="HorizontalOnly">
-                            <StackPanel MinWidth="884"
+                            <StackPanel MinWidth="898"
                                         Width="{Binding ViewportWidth, ElementName=TradeListScrollViewer}">
                         <Grid Margin="13,0,13,8">
                             <Grid.ColumnDefinitions>
@@ -1203,7 +1199,7 @@
                                 <ColumnDefinition Width="1.2*" MinWidth="155" />
                                 <ColumnDefinition Width="56" />
                                 <ColumnDefinition Width="180" />
-                                <ColumnDefinition Width="122" />
+                                <ColumnDefinition Width="136" />
                             </Grid.ColumnDefinitions>
 
                             <Button Grid.Column="0"
@@ -1358,7 +1354,7 @@
                                                 <ColumnDefinition Width="1.2*" MinWidth="155" />
                                                 <ColumnDefinition Width="56" />
                                                 <ColumnDefinition Width="180" />
-                                                <ColumnDefinition Width="122" />
+                                                <ColumnDefinition Width="136" />
                                             </Grid.ColumnDefinitions>
 
                                             <StackPanel Grid.Column="0">
@@ -1540,6 +1536,7 @@
                                                         CommandParameter="{Binding}"
                                                         AutomationProperties.Name="{Binding InstrumentSymbol, StringFormat=View {0} Trade details}" AutomationProperties.HelpText="{Binding TradingAccountName}"
                                                         Style="{StaticResource PtjTradeViewButtonStyle}"
+                                                        Height="36" VerticalAlignment="Center"
                                                         ToolTip="View trade details">
                                                     <StackPanel Orientation="Horizontal">
                                                         <Viewbox Width="14" Height="14">
@@ -1554,6 +1551,7 @@
                                                 </Button>
                                                 <Button Margin="4,0,0,0"
                                                         AutomationProperties.Name="More trade actions"
+                                                        Height="36" VerticalAlignment="Center"
                                                         interactions:EntityActionMenu.OpensContextMenu="True"
                                                         Style="{StaticResource PtjIconButtonStyle}"
                                                         Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"

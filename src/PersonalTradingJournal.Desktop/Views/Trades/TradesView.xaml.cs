@@ -29,6 +29,21 @@ public partial class TradesView : UserControl
         PreviewMouseDown += (_, _) => _removedDetailFocus = null;
         PreviewMouseWheel += (_, _) => _removedDetailFocus = null;
     }
+    private void OnExecutionScrollKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Handled || Keyboard.Modifiers != ModifierKeys.None) return;
+        switch (e.Key)
+        {
+            case Key.Up: TradesPageScroll.LineUp(); break;
+            case Key.Down: TradesPageScroll.LineDown(); break;
+            case Key.PageUp: TradesPageScroll.PageUp(); break;
+            case Key.PageDown: TradesPageScroll.PageDown(); break;
+            default: return;
+        }
+
+        e.Handled = true;
+    }
+
     private void Observe()
     {
         if (DataContext is not TradesViewModel vm || ReferenceEquals(vm, _observed)) return;

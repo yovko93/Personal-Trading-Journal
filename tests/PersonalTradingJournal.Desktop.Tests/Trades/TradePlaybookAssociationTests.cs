@@ -7,6 +7,11 @@ public sealed partial class TradesViewModelTests
     {
         var setup = CreateTradingSetup("Synthetic NQ range retest"); var item = CreateTradeListItem();
         var reader = new FakeTradeDetailReader(); reader.EnqueueResult(CreateTradeDetail(item));
+        var list = new FakeTradeListReader();
+        list.EnqueueResult([item with { TradingAccountName = "A long synthetic account name for the responsive Trade row" }]);
+        var mistake = CreateTradingMistake("Missed entry confirmation");
+        var mistakes = new FakeTradingMistakeReader();
+        mistakes.EnqueueResult([CreateTradingMistakeListItem(mistake)]);
         var setups = new FakeTradingSetupReader(); setups.EnqueueResult([CreateTradingSetupListItem(setup)]);
         var screenshots = new FakeTradeScreenshotReader(); var content = new FakeTradeScreenshotContentReader();
         if (image is not null)
@@ -16,10 +21,9 @@ public sealed partial class TradesViewModelTests
             screenshots.EnqueueResult([screenshot]);
             content.EnqueueResult(new(screenshot.Id, item.Id, screenshot.FileName, new System.IO.MemoryStream([1, 2, 3])));
         }
-        var vm = CreateViewModel(tradeDetailReader: reader, tradingSetupReader: setups, tradeScreenshotReader: screenshots,
+        var vm = CreateViewModel(tradeDetailReader: reader, tradeListReader: list, tradingSetupReader: setups, tradingMistakeReader: mistakes, tradeScreenshotReader: screenshots,
             tradeScreenshotContentReader: content, tradeScreenshotImageDecoder: new FakeTradeScreenshotImageDecoder { ImageToReturn = image ?? new System.Windows.Media.DrawingImage() });
         await vm.EnsureLoadedAsync(); await vm.ShowTradeDetailCommand.ExecuteAsync(item);
-        vm.SelectedTradeDetailTradingSetup = vm.TradeDetailTradingSetupOptions.Single();
         return vm;
     }
     [Fact]

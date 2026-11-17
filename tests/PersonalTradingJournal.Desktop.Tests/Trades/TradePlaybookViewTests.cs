@@ -35,7 +35,16 @@ public sealed class TradePlaybookViewTests
                 void Layout() { scroll.Measure(new Size(width, 650)); scroll.Arrange(new Rect(0,0,width,650)); scroll.UpdateLayout(); }
                 Layout();
                 var selector = (ComboBox)view.FindName("ClassificationSetup");
-                Assert.Same(vm.SelectedTradeDetailTradingSetup, selector.SelectedItem);
+                var editor = (FrameworkElement)view.FindName("SetupEditor");
+                Assert.Equal(Visibility.Collapsed, editor.Visibility);
+                var add = (Button)view.FindName("OpenSetupEditor");
+                Assert.Equal("Add Setup", add.Content);
+                Assert.True(add.IsEnabled);
+                add.Command.Execute(null);
+                Layout();
+                Assert.Equal(Visibility.Visible, editor.Visibility);
+                Assert.True(selector.ActualHeight > 0);
+                selector.SelectedItem = Assert.Single(vm.TradeDetailTradingSetupOptions);
                 Assert.True(selector.Focusable); Assert.Contains("Trading Setup", AutomationProperties.GetName(selector));
                 var confirm = (Button)view.FindName("SaveClassification");
                 Assert.Same(vm.SaveTradingSetupCommand, confirm.Command); Assert.True(confirm.IsEnabled && confirm.Focusable);

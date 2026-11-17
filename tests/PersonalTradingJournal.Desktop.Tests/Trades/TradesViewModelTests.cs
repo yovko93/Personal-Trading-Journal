@@ -2397,6 +2397,9 @@ public sealed partial class TradesViewModelTests
             tradingSetupStore: setupStore);
         await viewModel.EnsureLoadedAsync();
         await viewModel.ShowTradeDetailCommand.ExecuteAsync(listItem);
+        Assert.False(viewModel.IsSetupEditorOpen);
+        viewModel.OpenSetupEditorCommand.Execute(null);
+        Assert.True(viewModel.IsSetupEditorOpen);
         viewModel.SelectedTradeDetailTradingSetup =
             Assert.Single(viewModel.TradeDetailTradingSetupOptions);
 
@@ -2406,6 +2409,8 @@ public sealed partial class TradesViewModelTests
         Assert.Equal(1, mutationStore.SaveCallCount);
         Assert.Equal(2, detailReader.CallCount);
         Assert.Same(authoritative, viewModel.SelectedTradeDetail);
+        Assert.False(viewModel.IsSetupEditorOpen);
+        Assert.Equal("Change Setup", viewModel.TradeSetupEditorLabel);
         Assert.Equal("Trading setup updated successfully.", viewModel.TradingSetupSuccessMessage);
         Assert.Null(viewModel.TradingSetupSaveErrorMessage);
     }

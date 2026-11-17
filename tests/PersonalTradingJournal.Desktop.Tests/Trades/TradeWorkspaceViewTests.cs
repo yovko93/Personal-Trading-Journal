@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using PersonalTradingJournal.Desktop.Tests.CalendarPage;
@@ -47,6 +49,8 @@ public sealed class TradeWorkspaceViewTests
                 Layout(); VisualTreeHelper.SetRootDpi(scroll, new DpiScale(dpi / 96d, dpi / 96d)); Layout();
                 Assert.Equal(dpi / 96d, VisualTreeHelper.GetDpi(scroll).DpiScaleX);
                 var add = (Button)view.FindName("AddScreenshot"); Assert.True(add.IsEnabled);
+                var heading = (TextBlock)view.FindName("ScreenshotsHeading");
+                AssertRightAligned(heading, add);
                 add.Command.Execute(null); Layout(); Assert.Equal(0, picker.CallCount);
                 Assert.True(vm.IsAddScreenshotVisible);
                 var type = (ComboBox)view.FindName("ScreenshotType"); type.SelectedItem = TradeScreenshotType.Entry;
@@ -93,7 +97,7 @@ public sealed class TradeWorkspaceViewTests
                 page.Measure(new Size(width, 800)); page.Arrange(new Rect(0, 0, width, 800)); page.UpdateLayout();
                 VisualTreeHelper.SetRootDpi(page, new DpiScale(dpi / 96d, dpi / 96d));
                 page.Measure(new Size(width, 800)); page.Arrange(new Rect(0, 0, width, 800)); page.UpdateLayout();
-                Assert.DoesNotContain(Descendants(page).OfType<TextBlock>(), t => t.Text == "Trades");
+                Assert.DoesNotContain(Descendants(page).OfType<TextBlock>(), t => t.Text is "Trades" or "PRICING SNAPSHOT");
                 Assert.DoesNotContain(Descendants(page).OfType<Button>(), b => b.Content?.ToString()?.Contains("captured context") == true || b.Content?.ToString()?.Contains("Assess Trading Rules") == true);
                 Assert.Contains(Descendants(page).OfType<TextBlock>(), t => t.Text == "Description");
                 Assert.Contains(Descendants(page).OfType<Image>(), i => ReferenceEquals(i.Source, image));
@@ -105,7 +109,66 @@ public sealed class TradeWorkspaceViewTests
                 pageScroll.ScrollToVerticalOffset(facts.TranslatePoint(new Point(), pageScroll).Y + pageScroll.VerticalOffset);
                 page.UpdateLayout();
                 Render(page, theme, width, dpi, "executions");
-                pageScroll.ScrollToTop(); page.UpdateLayout();
+                var executions = Assert.Single(Descendants(page).OfType<ScrollViewer>(),
+                    viewer => AutomationProperties.GetName(viewer) == "Trade execution columns");
+                AssertExecutionScrolling(page, pageScroll, executions, facts, width == 360);
+
+                var rowButtons = Descendants(page).OfType<Button>().ToArray();
+                var rowView = Assert.Single(rowButtons, b => ReferenceEquals(b.Command, details.ShowTradeDetailCommand));
+                var rowMenu = Assert.Single(rowButtons, b => ReferenceEquals(b.DataContext, rowView.DataContext) &&
+                    AutomationProperties.GetName(b) == "More trade actions");
+                Assert.Equal(36d, rowView.ActualHeight);
+                Assert.Equal(rowView.ActualHeight, rowMenu.ActualHeight);
+                Assert.Equal(rowView.TranslatePoint(new Point(), page).Y, rowMenu.TranslatePoint(new Point(), page).Y, 6);
+                Assert.True(PersonalTradingJournal.Desktop.Interactions.EntityActionMenu.GetOpensContextMenu(rowMenu));
+                Assert.NotNull(rowMenu.ContextMenu);
+                var listScroll = (ScrollViewer)page.FindName("TradeListScrollViewer");
+                listScroll.ScrollToRightEnd();
+                pageScroll.ScrollToVerticalOffset(rowView.TranslatePoint(new Point(), pageScroll).Y + pageScroll.VerticalOffset - 20);
+                page.UpdateLayout();
+                var listViewport = Assert.IsType<ScrollContentPresenter>(listScroll.Template.FindName("PART_ScrollContentPresenter", listScroll));
+                Assert.InRange(rowView.TranslatePoint(new Point(), listViewport).X, 0, listViewport.ActualWidth);
+                Assert.InRange(rowMenu.TranslatePoint(new Point(rowMenu.ActualWidth, 0), listViewport).X, 0, listViewport.ActualWidth);
+                Render(page, theme, width, dpi, "row-actions");
+
+                var setup = Assert.Single(Descendants(page).OfType<TradeSetupClassificationView>());
+                var setupEdit = (FrameworkElement)setup.FindName("SetupEditor");
+                var setupAdd = (Button)setup.FindName("OpenSetupEditor");
+                AssertRightAligned((TextBlock)setup.FindName("SetupHeading"), setupAdd);
+                Assert.Equal(Visibility.Collapsed, setupEdit.Visibility);
+                setupAdd.Command.Execute(null);
+                page.UpdateLayout();
+                Assert.Equal(Visibility.Visible, setupEdit.Visibility);
+                var setupChoice = (ComboBox)setup.FindName("ClassificationSetup");
+                setupChoice.SelectedItem = Assert.Single(details.TradeDetailTradingSetupOptions);
+                Assert.True(((Button)setup.FindName("SaveClassification")).IsEnabled);
+                pageScroll.ScrollToVerticalOffset(setup.TranslatePoint(new Point(), pageScroll).Y + pageScroll.VerticalOffset - 20);
+                page.UpdateLayout();
+                Render(page, theme, width, dpi, "setup-open");
+                details.CancelSetupEditorCommand.Execute(null);
+                page.UpdateLayout();
+                Assert.Equal(Visibility.Collapsed, setupEdit.Visibility);
+
+                var mistakeAdd = (Button)page.FindName("OpenMistakeEditor");
+                var mistakeEdit = (Border)page.FindName("MistakeEditor");
+                Assert.Equal(Visibility.Collapsed, mistakeEdit.Visibility);
+                var mistakeHeading = Assert.Single(Descendants(page).OfType<TextBlock>(), t => t.Text == "Trading Mistakes");
+                AssertRightAligned(mistakeHeading, mistakeAdd);
+                mistakeAdd.Command.Execute(null);
+                page.UpdateLayout();
+                Assert.Equal(Visibility.Visible, mistakeEdit.Visibility);
+                var mistakeChoice = (ComboBox)page.FindName("MistakeSelector");
+                mistakeChoice.SelectedItem = Assert.Single(details.AvailableTradingMistakes);
+                Assert.True(details.AssignMistakeCommand.CanExecute(null));
+                pageScroll.ScrollToVerticalOffset(mistakeHeading.TranslatePoint(new Point(), pageScroll).Y + pageScroll.VerticalOffset - 20);
+                page.UpdateLayout();
+                Render(page, theme, width, dpi, "mistake-open");
+                details.CancelMistakeEditorCommand.Execute(null);
+                page.UpdateLayout();
+                Assert.Equal(Visibility.Collapsed, mistakeEdit.Visibility);
+                Render(page, theme, width, dpi, "mistake-closed");
+                pageScroll.ScrollToTop();
+                page.UpdateLayout();
                 details.ShowManualEntryCommand.Execute(null);
                 details.TradeDescriptionText = "Optional Trade description, kept separate from screenshots and Journal text.";
                 page.UpdateLayout();
@@ -118,6 +181,64 @@ public sealed class TradeWorkspaceViewTests
             }
             app.Shutdown();
         });
+    }
+
+    private static void AssertRightAligned(TextBlock heading, Button action)
+    {
+        var grid = (Grid)VisualTreeHelper.GetParent(action);
+        Point buttonStart = action.TranslatePoint(new Point(), grid);
+        Point titleEnd = heading.TranslatePoint(new Point(heading.ActualWidth, 0), grid);
+        Assert.True(heading.ActualWidth > 0 && heading.ActualHeight > 0);
+        Assert.True(action.ActualWidth > 0 && action.ActualHeight > 0);
+        Assert.True(titleEnd.X <= buttonStart.X);
+        Assert.Equal(grid.ActualWidth, buttonStart.X + action.ActualWidth + action.Margin.Right, 1);
+    }
+
+    private static void AssertExecutionScrolling(TradesView page, ScrollViewer outer, ScrollViewer inner, Grid source, bool narrow)
+    {
+        Assert.Equal(PanningMode.VerticalOnly, outer.PanningMode);
+        Assert.Equal(0, inner.ScrollableHeight);
+        if (narrow)
+        {
+            Assert.True(inner.ScrollableWidth > 0);
+            inner.ScrollToRightEnd();
+            page.UpdateLayout();
+            Assert.InRange(inner.ScrollableWidth - inner.HorizontalOffset, 0, 1);
+        }
+
+        double horizontalOffset = inner.HorizontalOffset;
+        outer.ScrollToTop();
+        page.UpdateLayout();
+        RaiseVerticalWheel(-120);
+        Assert.True(outer.VerticalOffset > 0);
+        double afterNotch = outer.VerticalOffset;
+        RaiseVerticalWheel(-30);
+        Assert.True(outer.VerticalOffset > afterNotch);
+        RaiseVerticalWheel(120);
+        Assert.True(outer.VerticalOffset < afterNotch + 1);
+        Assert.Equal(horizontalOffset, inner.HorizontalOffset);
+
+        using var inputSource = new HwndSource(new HwndSourceParameters("Trade execution routed key test"));
+        double beforeKey = outer.VerticalOffset;
+        var key = new KeyEventArgs(Keyboard.PrimaryDevice, inputSource, 0, Key.PageDown)
+        {
+            RoutedEvent = Keyboard.PreviewKeyDownEvent
+        };
+        source.RaiseEvent(key);
+        page.UpdateLayout();
+        Assert.True(key.Handled);
+        Assert.True(outer.VerticalOffset > beforeKey);
+
+        void RaiseVerticalWheel(int delta)
+        {
+            var wheel = new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, delta)
+            {
+                RoutedEvent = Mouse.PreviewMouseWheelEvent
+            };
+            source.RaiseEvent(wheel);
+            page.UpdateLayout();
+            Assert.True(wheel.Handled);
+        }
     }
 
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
@@ -133,7 +254,8 @@ public sealed class TradeWorkspaceViewTests
     {
         string directory = Path.Combine(Environment.GetEnvironmentVariable("PTJ_TEST_RESULTS_DIRECTORY") ?? "TestResults", "trade-workspace-renders");
         Directory.CreateDirectory(directory);
-        var bitmap = new RenderTargetBitmap(width * dpi / 96, 650 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
+        int pixelHeight = (int)Math.Ceiling(view.ActualHeight * dpi / 96);
+        var bitmap = new RenderTargetBitmap(width * dpi / 96, pixelHeight, dpi, dpi, PixelFormats.Pbgra32);
         bitmap.Render(view); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using var output = File.Create(Path.Combine(directory, $"{theme}-{width}-{dpi}-{state}.png")); encoder.Save(output);
     }

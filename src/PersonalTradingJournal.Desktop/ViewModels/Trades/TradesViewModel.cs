@@ -423,6 +423,7 @@ public sealed partial class TradesViewModel : ObservableObject
         SortTradesCommand = new AsyncRelayCommand<TradeListSortColumn>(
             SortTradesAsync,
             CanSortTrades);
+        InitializeClassificationCommands();
     }
 
     public IReadOnlyList<ManualTradeAccountOption> AccountOptions
@@ -647,8 +648,13 @@ public sealed partial class TradesViewModel : ObservableObject
         get => _selectedTradeDetail;
         private set
         {
+            Guid? previousTradeId = _selectedTradeDetail?.Id;
             if (SetProperty(ref _selectedTradeDetail, value))
             {
+                if (previousTradeId != value?.Id)
+                    SetClassificationEditor(ClassificationEditor.None);
+                OnPropertyChanged(nameof(HasSavedTradeSetup));
+                OnPropertyChanged(nameof(TradeSetupEditorLabel));
                 OnPropertyChanged(nameof(IsSelectedTradeOpen));
                 ShowCloseTradeCommand.NotifyCanExecuteChanged();
                 SaveCloseTradeCommand.NotifyCanExecuteChanged();
@@ -2203,6 +2209,7 @@ public sealed partial class TradesViewModel : ObservableObject
 
     private async Task RefreshAsync(CancellationToken cancellationToken)
     {
+        if (HasTradeClassificationDraft) return;
         long epoch = _browseEpoch;
         _ = await LoadReferenceDataAsync(forceRefresh: true, cancellationToken);
         _ = await LoadTradingMistakeOptionsAsync(
@@ -2230,6 +2237,7 @@ public sealed partial class TradesViewModel : ObservableObject
     }
 
     private bool CanRefresh() =>
+        !HasTradeClassificationDraft &&
         !IsLoading &&
         !IsTradeListLoading &&
         !IsTradeDetailLoading &&
@@ -2253,6 +2261,7 @@ public sealed partial class TradesViewModel : ObservableObject
     }
 
     private bool CanShowManualEntry() =>
+        !HasTradeClassificationDraft &&
         !IsManualEntryVisible &&
         !IsAddingScreenshot &&
         !IsAddScreenshotVisible &&
@@ -2283,6 +2292,7 @@ public sealed partial class TradesViewModel : ObservableObject
         !IsClosingTrade;
 
     private bool CanShowTradeEdit(TradeListItem? item) =>
+        !HasTradeClassificationDraft &&
         item is not null &&
         _updateTradeUseCase is not null &&
         !IsTradeEditVisible &&
@@ -2314,6 +2324,7 @@ public sealed partial class TradesViewModel : ObservableObject
     }
 
     private bool CanShowSelectedTradeEdit() =>
+        !HasTradeClassificationDraft &&
         SelectedTradeDetail is not null &&
         _updateTradeUseCase is not null &&
         !IsTradeEditVisible &&
@@ -2568,6 +2579,7 @@ public sealed partial class TradesViewModel : ObservableObject
     }
 
     private bool CanDeleteTrade(TradeListItem? item) =>
+        !HasTradeClassificationDraft &&
         item is not null &&
         _deleteTradeUseCase is not null &&
         _dialogService is not null &&
@@ -2596,6 +2608,7 @@ public sealed partial class TradesViewModel : ObservableObject
                 cancellationToken);
 
     private bool CanDeleteSelectedTrade() =>
+        !HasTradeClassificationDraft &&
         SelectedTradeDetail is not null &&
         _deleteTradeUseCase is not null &&
         _dialogService is not null &&
@@ -2706,6 +2719,7 @@ public sealed partial class TradesViewModel : ObservableObject
         item is not null && CanLoadTradeDetail;
 
     private bool CanLoadTradeDetail =>
+        !HasTradeClassificationDraft &&
         !IsTradeDetailLoading &&
         !IsTradeScreenshotsLoading &&
         !IsTradeMistakesLoading &&
@@ -2743,6 +2757,7 @@ public sealed partial class TradesViewModel : ObservableObject
         long epoch = _browseEpoch;
         if (!_browseActive) return;
 
+        if (HasTradeClassificationDraft) return;
         OpenScreenshotPreviewCommand.Cancel();
         IsTradeDetailVisible = true;
         SelectedTradeDetail = null;
@@ -2813,6 +2828,7 @@ public sealed partial class TradesViewModel : ObservableObject
     }
 
     private bool CanCloseTradeDetail() =>
+        !HasTradeClassificationDraft &&
         IsTradeDetailVisible &&
         !IsTradeDetailLoading &&
         !IsTradingSetupSaving &&
@@ -2839,6 +2855,7 @@ public sealed partial class TradesViewModel : ObservableObject
     }
 
     private bool CanShowCloseTrade() =>
+        !HasTradeClassificationDraft &&
         !IsCloseTradeVisible &&
         IsTradeDetailVisible &&
         IsSelectedTradeOpen &&
@@ -3027,6 +3044,8 @@ public sealed partial class TradesViewModel : ObservableObject
             _ = await ReloadTradeDetailAfterTradingSetupAsync(
                 detail.Id,
                 CancellationToken.None);
+            SetClassificationEditor(ClassificationEditor.None);
+            SynchronizeTradeDetailTradingSetupOptions();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -3126,6 +3145,7 @@ public sealed partial class TradesViewModel : ObservableObject
                 detail.Id,
                 forceRefresh: true,
                 CancellationToken.None);
+            SetClassificationEditor(ClassificationEditor.None);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -3423,6 +3443,7 @@ public sealed partial class TradesViewModel : ObservableObject
     }
 
     private bool CanShowAddScreenshot() =>
+        !HasTradeClassificationDraft &&
         !IsAddScreenshotVisible &&
         ((IsTradeDetailVisible && SelectedTradeDetail is not null) || IsManualEntryVisible) &&
         !IsTradeDetailLoading && !IsTradeScreenshotsLoading && !IsAddingScreenshot && !IsSaving &&
@@ -4126,12 +4147,13 @@ public sealed partial class TradesViewModel : ObservableObject
     private void SynchronizeTradeDetailTradingSetupOptions()
     {
         Guid? currentSetupId = SelectedTradeDetail?.TradingSetupId;
+        Guid? selectionId = IsSetupEditorOpen ? SelectedTradeDetailTradingSetup?.Id : currentSetupId;
         TradeDetailTradingSetupOptions = _allTradingSetups
             .Where(setup => setup.IsActive || setup.Id == currentSetupId)
             .ToList();
-        SelectedTradeDetailTradingSetup = currentSetupId.HasValue
+        SelectedTradeDetailTradingSetup = selectionId.HasValue
             ? TradeDetailTradingSetupOptions.SingleOrDefault(
-                setup => setup.Id == currentSetupId.Value)
+                setup => setup.Id == selectionId.Value)
             : null;
     }
 

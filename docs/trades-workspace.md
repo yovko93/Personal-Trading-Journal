@@ -6,6 +6,58 @@ Trades focuses on execution facts, optional Trade Description, Setup/mistake cla
 
 Trade Details no longer starts Rule assessment or opens captured Playbook context. The Rules catalog, Calendar day assessment and historical assessment readers remain available. Basic Setup classification does not capture guidance or append history. The Calendar's shared inline Trade details also loses the retired entry points.
 
+## Trades layout refinement
+
+Trade Details shows the saved Setup and assigned Mistakes with their notes. **Add Setup** or **Change Setup** opens the inline Setup selector. For a saved Setup, **Clear Setup** removes the classification. **Add Mistake** opens its selector and optional note. Use **Remove** on a saved Mistake to remove that assignment. **Cancel** discards the current draft and preserves saved values. A failed write keeps the editor open. Save or cancel the draft before switching Trades, leaving the page, or closing the Calendar Trade panel.
+
+The View and overflow buttons in each list row share a fixed 36 DIP height and are centered together. **Add Screenshot** sits at the right of the heading, including the shared manual entry form. Setup and Mistake headings use the same right-aligned layout. Trade Details omits the Pricing Snapshot section. The captured pricing facts still serve calculations, imports and export.
+
+Execution columns keep their horizontal scrollbar. Ordinary vertical wheel events over an execution go to the nearest vertically scrollable parent that can move in the requested direction, even at the horizontal boundary. This includes small wheel deltas of the kind a touchpad can emit. The page retains vertical panning. Up, Down, Page Up and Page Down over a focused execution scroller go to the Trades page. Horizontal navigation remains with the inner controls.
+
+### Refinement verification
+
+The Release build passed with zero warnings and errors. The focused Desktop run passed 366 cases. After widening the Actions column to eliminate clipping found in the renders, the repeated compiled view and table geometry checks passed 12 cases. The two focused counts overlap.
+
+Inspected compiled WPF renders in Light and Dark at 960 DIP / 96 DPI and 360 DIP / 240 DPI. The section actions fit beside their headings, the forms collapse after Cancel, and both row controls are fully visible after scrolling right. The older Trade Details economics summary still truncates some timestamps at 360 DIP. That summary is outside the execution scroller.
+
+Automated input covers a routed full wheel notch, a smaller wheel delta, both vertical directions, the inner horizontal boundary and a routed Page Down key. These were WPF events, with no live mouse, touchpad or keyboard walkthrough on the Trades page. Real touchpad gestures, physical keyboard focus traversal, screen reader checks and manual UI inspection remain pending.
+
+The complete local gate, `pwsh -File scripts/Test-Release.ps1`, finished with exit 0 in 14 minutes 8 seconds on 17 November 2026.
+
+| Stage/project | Passed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| Exclusive WPF Desktop | 151 | 0 | 0 |
+| Parallel Domain | 602 | 0 | 0 |
+| Parallel Application | 1,052 | 0 | 0 |
+| Parallel Infrastructure | 1,652 | 0 | 0 |
+| Parallel Desktop | 2,147 | 0 | 1 |
+| **Total** | **5,604** | **0** | **1** |
+
+The sole skip is the existing [Rules-view quarantine](rules-view-quarantine.md). The added classification draft regression accounts for the extra test relative to the preceding complete gate. Totals count top-level cases only.
+
+Local evidence is under `TestResults/release-20261117-120020-e5075a1ae37743919805618160000503` and the focused TRX files and render PNGs are under `TestResults/TradesRefinement/`. Hosted CI has a 20-minute limit and its runtime for this change is unverified. The earlier Trades workspace results below describe the original simplification.
+
+### Refinement changed files
+
+- `docs/trades-workspace.md`
+- `README.md`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarViewModel.InlineTrade.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Trades/TradesViewModel.Breakdown.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Trades/TradesViewModel.Classification.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Trades/TradesViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Trades/TradeScreenshotWorkspace.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Trades/TradeSetupClassificationView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Trades/TradesView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Trades/TradesView.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Interactions/NestedTableWheelRoutingTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradeClassificationDraftTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradeMistakeAssignmentViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradePlaybookAssociationTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradePlaybookViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradesViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradesViewPagingXamlTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradeWorkspaceViewTests.cs`
+
 ## Screenshots and manual creation
 
 **Add Screenshot** opens an inline form, without opening the file picker. Choose Type and optional Timeframe, then **Upload Screenshot**. Save adds the selected image; Cancel discards the draft. Compact image cards provide View and the existing confirmed, ownership-checked Remove action.
@@ -136,6 +188,7 @@ Exact worktree paths (including removals and test-only relocations):
 - `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradeScreenshotPreviewTests.cs`
 - `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradeScreenshotWorkflowTests.cs`
 - `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradesViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradesViewPagingXamlTests.cs`
 - `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradeWorkspaceDraftTests.cs`
 - `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradeWorkspaceViewTests.cs`
 - `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/NotebookImagePortabilityTests.cs`

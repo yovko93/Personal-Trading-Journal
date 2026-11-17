@@ -139,11 +139,15 @@ public sealed partial class TradesViewModelTests
             tradeMistakeStore: assignmentStore);
         await viewModel.EnsureLoadedAsync();
         await viewModel.ShowTradeDetailCommand.ExecuteAsync(listItem);
+        Assert.False(viewModel.HasTradeClassificationDraft);
+        Assert.True(viewModel.OpenMistakeEditorCommand.CanExecute(null));
+        viewModel.OpenMistakeEditorCommand.Execute(null);
         viewModel.SelectedTradingMistake = Assert.Single(
             viewModel.AvailableTradingMistakes);
         viewModel.TradeMistakeNoteText = note;
 
         await viewModel.AssignMistakeCommand.ExecuteAsync(null);
+        Assert.False(viewModel.HasTradeClassificationDraft);
 
         TradeMistake added = Assert.IsType<TradeMistake>(
             assignmentStore.AddedTradeMistake);
@@ -201,12 +205,16 @@ public sealed partial class TradesViewModelTests
             tradeMistakeStore: associationStore);
         await viewModel.EnsureLoadedAsync();
         await viewModel.ShowTradeDetailCommand.ExecuteAsync(listItem);
+        Assert.False(viewModel.HasTradeClassificationDraft);
+        Assert.True(viewModel.OpenMistakeEditorCommand.CanExecute(null));
+        viewModel.OpenMistakeEditorCommand.Execute(null);
         viewModel.SelectedTradingMistake = Assert.Single(
             viewModel.AvailableTradingMistakes);
 
         await viewModel.AssignMistakeCommand.ExecuteAsync(null);
 
         Assert.Equal(expectedMessage, viewModel.AssignMistakeErrorMessage);
+        Assert.True(viewModel.IsMistakeEditorOpen);
         Assert.Null(viewModel.AssignMistakeSuccessMessage);
         Assert.Equal(1, associationReader.CallCount);
     }

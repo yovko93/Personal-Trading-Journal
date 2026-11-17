@@ -43,7 +43,7 @@ Accounts show cumulative payouts in the Account currency and deduct them from Cu
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Trades workspace Release build and complete local gate passed: **5,603 passed, 0 failed, 1 existing Rules-view quarantine skip**. See [results and limits](docs/trades-workspace.md#verification). Live acceptance and hosted timing remain pending. |
+| Verification | Latest local Release gate: **5,604 passed, 0 failed, 1 existing Rules-view quarantine skip**. Hosted timing and live Trades input checks are pending. See [Trades verification](docs/trades-workspace.md#refinement-verification). |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
@@ -53,7 +53,7 @@ The CI badge tracks `main`; it does not certify every development change. The [N
 
 | Workflow | What you can do |
 | --- | --- |
-| **Trade tracking** | Record executions and optional Trade descriptions; stage screenshots during manual creation and browse compact Type/Timeframe image cards. Classify Trades by Setup and mistake without a captured Playbook ledger. |
+| **Trade tracking** | Record executions and optional Trade descriptions, stage screenshots during manual creation, and browse compact image cards. Open Setup and Mistake editors only when needed. Scroll the page over execution data and use horizontal scrolling for extra columns on narrow windows. |
 | **CSV import** | Preview and confirm Tradovate matched fills and TopstepX Trades exports. Matching Tradovate Fills and Cash History verify costs and Net, including safe enrichment of unedited Performance imports. |
 | **Analytics** | Explore Dashboard metrics, Calendar results, and Breakdown groups with drill-down into the contributing trades. Calendar assigns Trades closed at or after 18:00 New York time to the next date. |
 | **Daily journal** | Capture reflections, save drafts and completed entries, and revisit revision history by date and account. |

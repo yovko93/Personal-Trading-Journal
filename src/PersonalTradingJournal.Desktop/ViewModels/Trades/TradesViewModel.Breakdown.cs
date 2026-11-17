@@ -32,6 +32,14 @@ public sealed partial class TradesViewModel
     }
     public bool TryLeaveBreakdownScope()
     {
+        if (HasTradeClassificationDraft)
+        {
+            const string message = "Save or cancel the open form before leaving Trades.";
+            if (IsSetupEditorOpen) TradingSetupSaveErrorMessage = message;
+            else AssignMistakeErrorMessage = message;
+            return false;
+        }
+
         if (!HasBreakdownScope) return true;
         if (IsTradeFormVisible || IsCloseTradeVisible || IsAddScreenshotVisible || IsSaving || IsUpdatingTrade || IsDeletingTrade || IsTradingSetupSaving || IsAddingScreenshot || IsDeletingScreenshot || IsClosingTrade || IsTradeDetailLoading || IsTradeScreenshotsLoading || IsTradeMistakesLoading || IsScreenshotPreviewLoading)
         {

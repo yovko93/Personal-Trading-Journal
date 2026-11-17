@@ -127,7 +127,7 @@ public sealed class NestedTableWheelRoutingTests
     }
 
     [Fact]
-    public void OnlyTheTwoHorizontalTradeTablesOptIntoWheelRouting()
+    public void HorizontalTradeTablesAndExecutionColumnsOptIntoWheelRouting()
     {
         string root = Root();
         XNamespace p = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
@@ -141,13 +141,15 @@ public sealed class NestedTableWheelRoutingTests
             element => element.Attribute(interactions + "NestedTableWheelRouting.ForwardVerticalWheel") is not null &&
                 element.Descendants(p + "ItemsControl").Any(item =>
                 (string?)item.Attribute("ItemsSource") == "{Binding RecentTrades}"));
-        foreach (XElement table in new[] { tradeTable, recentTable })
+        XElement executions = Assert.Single(trades.Descendants(p + "ScrollViewer"),
+            element => (string?)element.Attribute("AutomationProperties.Name") == "Trade execution columns");
+        foreach (XElement table in new[] { tradeTable, executions, recentTable })
         {
             Assert.Equal("True", (string?)table.Attribute(interactions + "NestedTableWheelRouting.ForwardVerticalWheel"));
             Assert.Equal("Auto", (string?)table.Attribute("HorizontalScrollBarVisibility"));
             Assert.Equal("Disabled", (string?)table.Attribute("VerticalScrollBarVisibility"));
         }
-        Assert.Equal(1, trades.Descendants().Count(element =>
+        Assert.Equal(2, trades.Descendants().Count(element =>
             element.Attribute(interactions + "NestedTableWheelRouting.ForwardVerticalWheel") is not null));
         Assert.Equal(1, dashboard.Descendants().Count(element =>
             element.Attribute(interactions + "NestedTableWheelRouting.ForwardVerticalWheel") is not null));

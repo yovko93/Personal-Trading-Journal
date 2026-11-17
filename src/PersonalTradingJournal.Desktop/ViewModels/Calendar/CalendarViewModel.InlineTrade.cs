@@ -11,7 +11,7 @@ public sealed partial class CalendarViewModel
     public TradesViewModel? TradeEditor { get; private set; }
     public event EventHandler? TradeDataCommitted;
     public IRelayCommand CloseInlineTradeCommand { get; private set; } = null!;
-    public bool HasInlineWork => _inlineLoading || TradeEditor is { IsTradeEditVisible: true } or { IsUpdatingTrade: true } or { IsTradeDetailLoading: true };
+    public bool HasInlineWork => _inlineLoading || TradeEditor is { IsTradeEditVisible: true } or { IsUpdatingTrade: true } or { IsTradeDetailLoading: true } or { HasTradeClassificationDraft: true } or { IsTradingSetupSaving: true };
 
     private void InitializeInlineEditor(TradesViewModel? editor)
     {
@@ -27,7 +27,7 @@ public sealed partial class CalendarViewModel
         };
         editor.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName is not (nameof(editor.IsTradeEditVisible) or nameof(editor.IsUpdatingTrade) or nameof(editor.IsTradeDetailLoading))) return;
+            if (args.PropertyName is not (nameof(editor.IsTradeEditVisible) or nameof(editor.IsUpdatingTrade) or nameof(editor.IsTradeDetailLoading) or nameof(editor.HasTradeClassificationDraft) or nameof(editor.IsTradingSetupSaving))) return;
             NotifyInlineState();
             FlushInlineRefresh();
         };

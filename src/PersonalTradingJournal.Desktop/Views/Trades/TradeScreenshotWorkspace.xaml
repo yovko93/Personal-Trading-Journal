@@ -3,10 +3,16 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
  <UserControl.Resources><BooleanToVisibilityConverter x:Key="VisibleIf" /></UserControl.Resources>
  <StackPanel>
-  <WrapPanel Margin="0,8">
-   <TextBlock Text="Screenshots" Style="{DynamicResource PtjSectionTitleTextStyle}" VerticalAlignment="Center" Margin="0,0,12,8" />
-   <Button x:Name="AddScreenshot" Content="Add Screenshot" Command="{Binding ShowAddScreenshotCommand}" Style="{DynamicResource PtjSecondaryButtonStyle}" Margin="0,0,0,8" />
-  </WrapPanel>
+  <Grid Margin="0,8,0,16">
+   <Grid.ColumnDefinitions>
+    <ColumnDefinition Width="*" />
+    <ColumnDefinition Width="Auto" />
+   </Grid.ColumnDefinitions>
+   <TextBlock x:Name="ScreenshotsHeading" Text="Screenshots" Style="{DynamicResource PtjSectionTitleTextStyle}"
+              VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0" />
+   <Button x:Name="AddScreenshot" Grid.Column="1" Content="Add Screenshot" Command="{Binding ShowAddScreenshotCommand}"
+           Style="{DynamicResource PtjSecondaryButtonStyle}" />
+  </Grid>
   <ItemsControl ItemsSource="{Binding ScreenshotCards}">
    <ItemsControl.Style><Style TargetType="ItemsControl"><Style.Triggers><DataTrigger Binding="{Binding IsManualEntryVisible}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></ItemsControl.Style>
    <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
