@@ -43,7 +43,7 @@ Accounts show cumulative payouts in the Account currency and deduct them from Cu
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Latest local Release gate recorded **5,609 passed, 1 Journal History failure, and 1 existing Rules-view quarantine skip**. The Journal History case passed in isolation. See [Trades verification](docs/trades-workspace.md#timestamp-and-setup-feedback). |
+| Verification | Latest local Release gate passed with **5,610 passed, 0 failed, and 1 existing Rules-view quarantine skip**. The prior Journal History failure did not recur with the added test diagnostics. Its cause remains unresolved. See [Journal History investigation](docs/ci-wpf-tests.md#journal-history-zero-row-assertion--17-november-2026). |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 

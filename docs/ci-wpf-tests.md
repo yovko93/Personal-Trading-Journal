@@ -1063,3 +1063,24 @@ Resource preparation fell from 4.915 to 0.731 seconds in the full runs; total ST
 - Changed files: `tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalViewTests.cs`, `README.md`, `docs/ci-wpf-tests.md`, `docs/backup-restore.md`. Branch/HEAD unchanged. No production data, provider calls, migrations or Git writes.
 
 **Local full-suite acceptance is green.** The original deadline failure's precise blocking instruction remains unverified; measurements demonstrate load sensitivity and remove a specific repeated-work cost. This is not proof that every runner has sufficient headroom. No live UI acceptance was performed or required by this harness correction. Uncommitted changes cannot have a matching GitHub Actions run; the existing workflow requires a push to `main` or a PR targeting `main`. The user must commit/push the change through their existing PR workflow and inspect the new run before claiming CI acceptance. No trigger changes or M16.7 implementation are included.
+
+## Journal History zero-row assertion — 17 November 2026
+
+The local Trades Release gate (`release-20261117-124842-e27c4cdf27fe4a1ea97ff1535caab4f2`) on the worktree that became `79ac02f` recorded 5,609 passed, one failure and the existing Rules quarantine skip. Parallel Desktop test `JournalHistorySqliteTests.AllScopesHistoryOpensEditsAndDeletesOriginalAccountWithoutChangingOtherEntries` failed at the original line 38 after awaiting activation. The ViewModel exposed zero History rows where the test expected three. The retained TRX has no History status, returned row count, or exception from the reader.
+
+The assertion reads the ViewModel directly without a bound WPF view. Fixture cleanup runs after the assertion, and each test owns a separate temporary SQLite database. The call to `JournalViewModel.ActivateAsync` awaits History along with the Journal and Trade context loads. History clears earlier rows on load start and maps reader exceptions to an error status. The original evidence does not distinguish a reader failure, a zero-row query, or a result that was rejected before publication. No shared-state fault or product defect was demonstrated. In the failing TRX, Infrastructure had already finished. The overlapping Desktop case was Notebook editor round-trip, Light at 1280 DIP / 96 DPI. Timing overlap alone does not identify a cause.
+
+The Journal SQLite test now verifies three distinct seeded entries and retains bounded evidence at the activation assertion. It reports scope, task status, ViewModel rows and status, fixture open-connection count, and the real History reader's entry and outcome. Reader faults retain up to three exception types with SQLite codes and six stack method names per exception. The probe records at most the first four page reads and omits journal text, SQL, identifiers and paths. It delegates every read. The original three-row assertion, fixture lifetime and Release scheduling remain in place.
+
+| Loaded check | Result |
+| --- | --- |
+| Gate-equivalent parallel partition under Desktop and Infrastructure load | 5,459 passed, zero failed, one existing Rules skip. Journal reader returned and published three rows with uncancelled All accounts scope and zero open fixture connections at assertion time. |
+| Exact Journal case plus the overlapping Notebook editor parameter | 2 passed, zero failed or skipped. TRX intervals overlapped for about 4.0 seconds. History returned three rows in about 120 ms and published all three before activation returned. |
+
+The original failure has not reproduced. The only test source change is `tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalHistorySqliteTests.cs`. The probe improves evidence for a recurrence. A behavior correction would require a captured failing reader/publication outcome.
+
+Logs, TRX, and build results for the loaded runs are in `TestResults/JournalHistoryInvestigation/`. The Release build passed with zero warnings or errors.
+
+The complete local `pwsh -File scripts/Test-Release.ps1` run (`TestResults/release-20261117-134715-54308f4c2d024a4b845b50184b8da24e/`) finished with **5,610 passed, zero failed, and one existing [Rules-view quarantine](rules-view-quarantine.md) skip**, exit 0. Exclusive WPF passed 151, Domain 602, Application 1,052, Infrastructure 1,652 and parallel Desktop 2,153. The Journal trace captured an uncancelled All accounts read returning three rows. Activation published all three and completed with zero open fixture connections. No production code, retry, skip, or deadline change was needed for this verification.
+
+The gate took **14 minutes 7 seconds** locally, about **5 minutes 53 seconds** below the hosted Test step's 20-minute limit. Hosted execution and timing remain unverified.
