@@ -183,6 +183,7 @@ public sealed class TradeWorkspaceViewTests
                 page.UpdateLayout();
                 var description = Assert.Single(Descendants(page).OfType<TextBox>(), t => AutomationProperties.GetName(t) == "Trade description");
                 Assert.Equal(details.TradeDescriptionText, description.Text); Assert.Equal(TextWrapping.Wrap, description.TextWrapping);
+                AssertEntryFieldNames(page, details.QuantityLabel);
                 Render(page, theme, width, dpi, "manual");
                 pageScroll.ScrollToVerticalOffset(description.TranslatePoint(new Point(), pageScroll).Y + pageScroll.VerticalOffset);
                 page.UpdateLayout();
@@ -190,6 +191,42 @@ public sealed class TradeWorkspaceViewTests
             }
             app.Shutdown();
         });
+    }
+
+    private static void AssertEntryFieldNames(TradesView page, string quantityLabel)
+    {
+        // Exercise the names exposed by UI Automation on the compiled entry template.
+        var expected = new Dictionary<string, string>
+        {
+            ["SelectedAccount"] = "Trading Account",
+            ["SelectedInstrument"] = "Instrument",
+            ["SelectedDirection"] = "Direction",
+            ["QuantityText"] = quantityLabel,
+            ["SelectedTradingSetup"] = "Trading Setup (optional)",
+            ["EntryExecutedAtNewYorkText"] = "Entry time (New York)",
+            ["EntryPriceText"] = "Entry price",
+            ["EntryCommissionText"] = "Entry commission",
+            ["EntryFeesText"] = "Entry fees",
+            ["ExitExecutedAtNewYorkText"] = "Exit time (New York)",
+            ["ExitPriceText"] = "Exit price",
+            ["ExitCommissionText"] = "Exit commission",
+            ["ExitFeesText"] = "Exit fees",
+        };
+        foreach (var control in Descendants(page).OfType<Control>())
+        {
+            var binding = control switch
+            {
+                ComboBox combo => combo.GetBindingExpression(ComboBox.SelectedItemProperty),
+                TextBox text => text.GetBindingExpression(TextBox.TextProperty),
+                _ => null
+            };
+            if (binding?.ParentBinding.Path.Path is { } path && expected.Remove(path, out var name))
+            {
+                var peer = System.Windows.Automation.Peers.UIElementAutomationPeer.CreatePeerForElement(control);
+                Assert.Equal(name, peer.GetName());
+            }
+        }
+        Assert.Empty(expected);
     }
 
     private static void AssertEconomicsSummary(TradesView page, Grid summary, bool narrow)

@@ -57,7 +57,8 @@
                                 <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                            Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Trading Account" />
-                                <ComboBox validation:FormValidation.IsInvalid="{Binding IsTradingAccountInvalid}"
+                                <ComboBox AutomationProperties.Name="Trading Account"
+                                         validation:FormValidation.IsInvalid="{Binding IsTradingAccountInvalid}"
                                           ItemsSource="{Binding AccountOptions}"
                                           SelectedItem="{Binding SelectedAccount}"
                                           Style="{StaticResource PtjComboBoxStyle}">
@@ -94,7 +95,8 @@
                                 <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                            Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Instrument" />
-                                <ComboBox validation:FormValidation.IsInvalid="{Binding IsInstrumentInvalid}"
+                                <ComboBox AutomationProperties.Name="Instrument"
+                                         validation:FormValidation.IsInvalid="{Binding IsInstrumentInvalid}"
                                           ItemsSource="{Binding InstrumentOptions}"
                                           SelectedItem="{Binding SelectedInstrument}"
                                           Style="{StaticResource PtjComboBoxStyle}">
@@ -138,7 +140,8 @@
                                 <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                            Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Direction" />
-                                <ComboBox validation:FormValidation.IsInvalid="{Binding IsDirectionInvalid}"
+                                <ComboBox AutomationProperties.Name="Direction"
+                                         validation:FormValidation.IsInvalid="{Binding IsDirectionInvalid}"
                                           ItemsSource="{Binding DirectionOptions}"
                                           SelectedItem="{Binding SelectedDirection}"
                                           Style="{StaticResource PtjComboBoxStyle}" />
@@ -148,7 +151,8 @@
                                 <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                            Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="{Binding QuantityLabel}" />
-                                <TextBox validation:FormValidation.IsInvalid="{Binding IsQuantityInvalid}"
+                                <TextBox AutomationProperties.Name="{Binding QuantityLabel}"
+                                         validation:FormValidation.IsInvalid="{Binding IsQuantityInvalid}"
                                           Style="{StaticResource PtjTextBoxStyle}"
                                           Text="{Binding QuantityText, UpdateSourceTrigger=PropertyChanged}" />
                                 <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
@@ -167,7 +171,8 @@
                                                Style="{StaticResource PtjFormOptionalTextStyle}"
                                                Text="(Optional)" />
                                 </StackPanel>
-                                <ComboBox ItemsSource="{Binding AvailableTradingSetups}"
+                                <ComboBox AutomationProperties.Name="Trading Setup (optional)"
+                                          ItemsSource="{Binding AvailableTradingSetups}"
                                           SelectedItem="{Binding SelectedTradingSetup}"
                                           DisplayMemberPath="Name"
                                           Style="{StaticResource PtjComboBoxStyle}" />
@@ -202,7 +207,8 @@
                                 <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                            Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Entry time (New York)" />
-                                <TextBox validation:FormValidation.IsInvalid="{Binding IsEntryExecutedAtNewYorkInvalid}"
+                                <TextBox AutomationProperties.Name="Entry time (New York)"
+                                         validation:FormValidation.IsInvalid="{Binding IsEntryExecutedAtNewYorkInvalid}"
                                          Style="{StaticResource PtjTextBoxStyle}"
                                          Text="{Binding EntryExecutedAtNewYorkText, UpdateSourceTrigger=PropertyChanged}" />
                                 <TextBlock TextWrapping="Wrap" Style="{StaticResource PtjFormHelperTextStyle}"
@@ -213,7 +219,8 @@
                                 <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                            Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Entry price" />
-                                <TextBox validation:FormValidation.IsInvalid="{Binding IsEntryPriceInvalid}"
+                                <TextBox AutomationProperties.Name="Entry price"
+                                         validation:FormValidation.IsInvalid="{Binding IsEntryPriceInvalid}"
                                          Style="{StaticResource PtjTextBoxStyle}"
                                          Text="{Binding EntryPriceText, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
@@ -222,7 +229,8 @@
                                 <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                            Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Commission" />
-                                <TextBox validation:FormValidation.IsInvalid="{Binding IsEntryCommissionInvalid}"
+                                <TextBox AutomationProperties.Name="Entry commission"
+                                         validation:FormValidation.IsInvalid="{Binding IsEntryCommissionInvalid}"
                                          Style="{StaticResource PtjTextBoxStyle}"
                                          Text="{Binding EntryCommissionText, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
@@ -231,7 +239,8 @@
                                 <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                            Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Fees" />
-                                <TextBox validation:FormValidation.IsInvalid="{Binding IsEntryFeesInvalid}"
+                                <TextBox AutomationProperties.Name="Entry fees"
+                                         validation:FormValidation.IsInvalid="{Binding IsEntryFeesInvalid}"
                                          Style="{StaticResource PtjTextBoxStyle}"
                                          Text="{Binding EntryFeesText, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
@@ -263,7 +272,8 @@
                                     <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                                Style="{StaticResource PtjFormLabelTextStyle}"
                                                Text="Exit time (New York)" />
-                                    <TextBox validation:FormValidation.IsInvalid="{Binding IsExitExecutedAtNewYorkInvalid}"
+                                    <TextBox AutomationProperties.Name="Exit time (New York)"
+                                             validation:FormValidation.IsInvalid="{Binding IsExitExecutedAtNewYorkInvalid}"
                                              Style="{StaticResource PtjTextBoxStyle}"
                                              Text="{Binding ExitExecutedAtNewYorkText, UpdateSourceTrigger=PropertyChanged}" />
                                     <TextBlock TextWrapping="Wrap" Style="{StaticResource PtjFormHelperTextStyle}"
@@ -274,7 +284,8 @@
                                     <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                                Style="{StaticResource PtjFormLabelTextStyle}"
                                                Text="Exit price" />
-                                    <TextBox validation:FormValidation.IsInvalid="{Binding IsExitPriceInvalid}"
+                                    <TextBox AutomationProperties.Name="Exit price"
+                                             validation:FormValidation.IsInvalid="{Binding IsExitPriceInvalid}"
                                              Style="{StaticResource PtjTextBoxStyle}"
                                              Text="{Binding ExitPriceText, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
@@ -283,7 +294,8 @@
                                     <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                                Style="{StaticResource PtjFormLabelTextStyle}"
                                                Text="Commission" />
-                                    <TextBox validation:FormValidation.IsInvalid="{Binding IsExitCommissionInvalid}"
+                                    <TextBox AutomationProperties.Name="Exit commission"
+                                             validation:FormValidation.IsInvalid="{Binding IsExitCommissionInvalid}"
                                              Style="{StaticResource PtjTextBoxStyle}"
                                              Text="{Binding ExitCommissionText, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
@@ -292,7 +304,8 @@
                                     <TextBlock TextWrapping="Wrap" Margin="0,0,0,6"
                                                Style="{StaticResource PtjFormLabelTextStyle}"
                                                Text="Fees" />
-                                    <TextBox validation:FormValidation.IsInvalid="{Binding IsExitFeesInvalid}"
+                                    <TextBox AutomationProperties.Name="Exit fees"
+                                             validation:FormValidation.IsInvalid="{Binding IsExitFeesInvalid}"
                                              Style="{StaticResource PtjTextBoxStyle}"
                                              Text="{Binding ExitFeesText, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>

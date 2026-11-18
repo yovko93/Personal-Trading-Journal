@@ -43,7 +43,7 @@ Accounts show cumulative payouts in the Account currency and deduct them from Cu
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Latest local Release gate passed with **5,610 passed, 0 failed, and 1 existing Rules-view quarantine skip**. The prior Journal History failure did not recur with the added test diagnostics. Its cause remains unresolved. See [Journal History investigation](docs/ci-wpf-tests.md#journal-history-zero-row-assertion--17-november-2026). |
+| Verification | Latest local Release gate passed with **5,610 passed, 0 failed, and 1 existing Rules-view quarantine skip**. The corrected Trades build took 23m 16s locally. Hosted timing for this worktree is pending. The prior Journal History failure did not recur with the added test diagnostics. Its cause remains unresolved. See [Journal History investigation](docs/ci-wpf-tests.md#journal-history-zero-row-assertion--17-november-2026). |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
@@ -65,6 +65,14 @@ The CI badge tracks `main`; it does not certify every development change. The [N
 | **Appearance** | Choose System, Light, or Dark themes, with the Bull and Bear Trading Journal artwork, a distinct emerald sidebar header, and matching Windows application icons. |
 
 Analytics preserve currency boundaries and expose missing costs or incomplete evidence. Each view documents its Gross/Net policy; unavailable values are not silently treated as zero.
+
+Manual Trade entry exposes named Account, Instrument, position and execution inputs to assistive technology.
+
+| Trades acceptance | Evidence |
+| --- | --- |
+| Live in a synthetic journal | Checked entry-field names, saved Description, snapshot-based P/L and Setup save/cancel feedback. |
+| Automated | Checked five-second feedback expiry, screenshot staging, execution scrolling, row alignment and Light/Dark narrow layouts. |
+| Pending | Native picker and card walkthrough, physical mouse and high-DPI inspection, full keyboard and screen-reader coverage, and matching hosted CI. See the [detailed acceptance matrix](docs/trades-workspace.md#acceptance-on-18-november-2026). |
 
 See the [Trades workspace guide](docs/trades-workspace.md) for screenshot staging, association retirement, migration and current verification. Saved immutable reviews and historical Rule assessments remain readable.
 
