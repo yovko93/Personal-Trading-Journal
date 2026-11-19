@@ -35,7 +35,7 @@ The guiding principle is simple: **process quality and financial outcome are sep
 
 ## Project Status
 
-Accounts show cumulative payouts in the Account currency and deduct them from Current Balance. View and overflow controls share the same height at the right edge of each row. The red Remove button in payout history asks for confirmation. See [Account payouts](docs/account-payouts.md) for persistence and verification.
+Accounts show cumulative payouts in the Account currency and deduct them from Current Balance. Status and Current Balance are vertically centered. The Actions heading is centered over the equal-height View and overflow controls at the right edge. The red Remove button in payout history asks for confirmation. See [Account payouts](docs/account-payouts.md) for persistence and verification.
 
 **In development.** The repository contains a working desktop application with the features below. Release acceptance is still in progress.
 
@@ -43,7 +43,7 @@ Accounts show cumulative payouts in the Account currency and deduct them from Cu
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Latest local Release gate passed with **5,610 passed, 0 failed, and 1 existing Rules-view quarantine skip**. The latest gate took 14m 22s locally. The prior 23m 16s run slowed across both test partitions. The host-level cause and matching hosted timing remain unverified. See the [Release gate timing comparison](docs/ci-wpf-tests.md#trades-release-gate-timing-on-19-november-2026). The prior Journal History failure did not recur with the added test diagnostics. Its cause remains unresolved. See [Journal History investigation](docs/ci-wpf-tests.md#journal-history-zero-row-assertion--17-november-2026). |
+| Verification | Latest local Release gate finished in 18m 03s with **5,599 passed, 11 failed and 1 existing Rules-view quarantine skip**. All 48 Accounts checks passed. The failures were Instruments and Notebook native-input cases. See the [Accounts alignment verification](docs/account-payouts.md#accounts-row-alignment). The earlier gate took 14m 22s after a 23m 16s run. The earlier slowdown’s cause and matching hosted timing remain unverified. See the [Release gate timing comparison](docs/ci-wpf-tests.md#trades-release-gate-timing-on-19-november-2026). The prior Journal History failure did not recur with the added test diagnostics. Its cause remains unresolved. See [Journal History investigation](docs/ci-wpf-tests.md#journal-history-zero-row-assertion--17-november-2026). |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 

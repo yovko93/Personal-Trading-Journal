@@ -658,7 +658,7 @@
                                Style="{StaticResource AccountColumnHeaderStyle}"
                                Text="Status" />
                     <TextBlock Grid.Column="8"
-                               HorizontalAlignment="Right"
+                               HorizontalAlignment="Center"
                                Style="{StaticResource AccountColumnHeaderStyle}"
                                Text="Actions" />
                 </Grid>
@@ -702,7 +702,8 @@
                                                    HorizontalAlignment="Left"
                                                    Style="{StaticResource AccountCellTextStyle}"
                                                    Text="{Binding StartingBalance, StringFormat={}{0:N2}, TargetNullValue=—}" />
-                                        <StackPanel Grid.Column="5" Margin="12,0,12,0" DataContext="{Binding Converter={StaticResource AccountBalanceDisplayConverter}}">
+                                        <StackPanel Grid.Column="5" Margin="12,0,12,0" VerticalAlignment="Center"
+                                                    DataContext="{Binding Converter={StaticResource AccountBalanceDisplayConverter}}">
                                             <TextBlock x:Name="CurrentBalanceValue" Text="{Binding ValueText}" TextWrapping="Wrap" TextAlignment="Left"
                                                        Focusable="True" AutomationProperties.Name="{Binding Description}"
                                                        ToolTip="{Binding Description}">
@@ -716,13 +717,24 @@
                                                     </Style>
                                                 </TextBlock.Style>
                                             </TextBlock>
-                                            <TextBlock x:Name="CurrentBalanceCoverage" Text="{Binding SupportingText}" TextWrapping="Wrap" TextAlignment="Left" Style="{StaticResource PtjCaptionTextStyle}" />
+                                            <TextBlock x:Name="CurrentBalanceCoverage" Text="{Binding SupportingText}" TextWrapping="Wrap" TextAlignment="Left">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource PtjCaptionTextStyle}">
+                                                        <Style.Triggers>
+                                                            <Trigger Property="Text" Value="">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
                                         </StackPanel>
                                         <TextBlock Grid.Column="6" Style="{StaticResource AccountCellTextStyle}" TextWrapping="Wrap">
                                             <TextBlock.Text><MultiBinding StringFormat="{}{0:N2} {1}"><Binding Path="PayoutTotal" /><Binding Path="Currency" /></MultiBinding></TextBlock.Text>
                                         </TextBlock>
                                         <TextBlock Grid.Column="7"
-                                                   HorizontalAlignment="Left">
+                                                   HorizontalAlignment="Left"
+                                                   VerticalAlignment="Center">
                                             <TextBlock.Style>
                                                 <Style TargetType="{x:Type TextBlock}"
                                                        BasedOn="{StaticResource PtjCaptionTextStyle}">

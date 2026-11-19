@@ -2,7 +2,7 @@
 
 Account details provides an optional, bordered theme-aware Payouts section. Record a positive withdrawal in that exact Account's currency, view each amount and UTC creation time, and remove an erroneous record only after confirmation. No historical withdrawals are inferred.
 
-The list places **Payout** immediately after **Current Balance** and before **Status**, including zero with no entries. Data headings and values align left. The Actions header and controls align to the right content edge. Horizontal scrolling retains access at narrow widths.
+The list places **Payout** immediately after **Current Balance** and before **Status**, including zero with no entries. Data headings and values align left. Status and Current Balance are vertically centered within each row. The Actions heading is centered above the View and overflow controls at the right content edge. Horizontal scrolling retains access at narrow widths.
 
 Current Balance deducts cumulative payouts from the existing closed-Trade calculation. Missing Starting Balance, incomplete economics, overflow, Estimated state and missing-cost explanations remain intact. Payouts do not mutate Trades, execution costs, P&L, win rate or analytics.
 
@@ -13,6 +13,26 @@ The additive `AddAccountPayouts` migration creates an Account-owned table with p
 An immediate SQLite write transaction validates the Account currency and inserts the payout together. Account updates use the same transaction discipline and reject currency changes while payouts exist; removing erroneous entries permits a later currency edit. Removal matches both payout ID and Account ID. Total overflow is rejected before insertion. No currency conversion is performed.
 
 [Backup and restore](backup-restore.md) use the existing whole-database archive. Portable export v19 includes `accountPayouts` in JSON plus a fifth CSV; portable exports are not restore inputs.
+
+## Accounts row alignment
+
+Status uses the same vertical center as the other data cells. Current Balance centers the amount and its explanation together. An empty explanation is collapsed so it takes up no space in a single-line balance. The Actions heading is centered in its shared column, and View and overflow remain at the right edge.
+
+The compiled Accounts table regression checks the actual header and cell centers, the single-line balance and wrapping for positive and negative estimated balances. It covers Active and Inactive rows and retains the existing checks for equal button heights, column boundaries and horizontal reachability. The new Actions assertion failed in all four parameters against the original template. The corrected Release build passed with zero warnings or errors. All 48 focused Accounts cases passed.
+
+Inspected all four final bound renders in Light and Dark at 1280 DIP / 96 DPI and 480 DIP / 240 DPI. At the narrow size the rendered viewport is scrolled to show Current Balance, and the compiled check separately scrolls to the far right to verify that overflow is reachable. The focused TRX files and renders are in `TestResults/AccountsTableAlignment/focused-final` and `TestResults/AccountsTableAlignment/renders-final`. In-app visual and physical monitor checks remain pending.
+
+The complete local gate finished in 18m 03s with exit 1, **5,599 passed, 11 failed**, and **one existing [Rules-view quarantine](rules-view-quarantine.md) skip**. All 48 Accounts cases passed again in the gate. Exclusive WPF recorded 140 passed and 11 failed. Parallel Domain, Application, Infrastructure and Desktop passed 602, 1,052, 1,652 and 2,153 respectively.
+
+The failures were all in Exclusive WPF native-input cases. Four Instruments parameters failed their window-at-point assertion before cursor movement. All four Notebook overflow parameters failed readiness at `NoteOverflow`, and their retained snapshots report the same unexpected HWND as the Instruments checks (`0x704C0`, PID 21476). Windows identified that HWND as belonging to ChatGPT. Two Notebook tag-menu parameters reported that the intended control did not own the native coordinates. The Notebook native-trash case reported the same HWND mismatch as Instruments. The run artifacts are in `TestResults/release-20261119-155502-4e776c50811441bf88fa0b6e4cd484e4`. An earlier attempt on the intermediate layout was stopped after render inspection exposed the empty-caption issue. Its partial output is in `TestResults/AccountsTableAlignment/superseded-gate.log`.
+
+Changed files
+
+- `src/PersonalTradingJournal.Desktop/Views/Accounts/AccountsView.xaml`
+- `tests/PersonalTradingJournal.Desktop.Tests/Accounts/AccountBalanceLayoutTests.cs`
+- `README.md`
+- `docs/account-payouts.md`
+- `docs/desktop-ui.md`
 
 ## Accounts action layout refinement
 

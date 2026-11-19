@@ -26,7 +26,9 @@ public sealed class AccountBalanceLayoutTests
         if (Environment.GetEnvironmentVariable("PTJ_ACCOUNT_BALANCE_HOST") != "1") { await Host.Value; return; }
         var reader = new AccountBalancePresentationTests.Balances();
         reader.Reads.Enqueue(_ => Task.FromResult<IReadOnlyList<AccountListItem>>([
-            AccountBalancePresentationTests.Item(1, true), AccountBalancePresentationTests.Item(-1, true), AccountBalancePresentationTests.Item(0, false)]));
+            AccountBalancePresentationTests.Item(1, true),
+            AccountBalancePresentationTests.Item(-1, true) with { IsActive = false },
+            AccountBalancePresentationTests.Item(0, false)]));
         var vm = AccountBalancePresentationTests.Create(reader); await vm.EnsureLoadedAsync();
         await CalendarStaTest.RunAsync(() =>
         {
@@ -51,8 +53,10 @@ public sealed class AccountBalanceLayoutTests
                 p => Assert.Equal(HorizontalAlignment.Right, p.HorizontalAlignment));
             var actionsHeader = elements.OfType<TextBlock>().Single(t => t.Text == "Actions");
             var headerGridForActions = (Grid)actionsHeader.Parent;
-            Assert.Equal(HorizontalAlignment.Right, actionsHeader.HorizontalAlignment);
-            Assert.True(headerGridForActions.ColumnDefinitions[8].Width.IsAuto);
+            var actionsColumn = headerGridForActions.ColumnDefinitions[Grid.GetColumn(actionsHeader)];
+            Assert.True(actionsColumn.Width.IsAuto);
+            double actionsCenter = actionsColumn.Offset + actionsColumn.ActualWidth / 2;
+            Assert.Equal(actionsCenter, actionsHeader.TranslatePoint(new(actionsHeader.ActualWidth / 2, 0), headerGridForActions).X, 2);
             var actionPanels = Descendants(scroll).OfType<StackPanel>().Where(p => p.Parent is Grid && Grid.GetColumn(p) == 8).ToArray();
             Assert.Equal(3, actionPanels.Length);
             foreach (var panel in actionPanels)
@@ -66,7 +70,7 @@ public sealed class AccountBalanceLayoutTests
                 Assert.Equal(buttons[0].TranslatePoint(new(), row).Y, buttons[1].TranslatePoint(new(), row).Y, 2);
                 Assert.Equal(row.ActualHeight / 2, panel.TranslatePoint(new(0, panel.ActualHeight / 2), row).Y, 2);
                 Assert.Equal(row.ActualWidth, panel.TranslatePoint(new(panel.ActualWidth, 0), row).X, 2);
-                Assert.Equal(actionsHeader.TranslatePoint(new(actionsHeader.ActualWidth, 0), scroll).X,
+                Assert.Equal(headerGridForActions.TranslatePoint(new(headerGridForActions.ActualWidth, 0), scroll).X,
                     buttons[1].TranslatePoint(new(buttons[1].ActualWidth, 0), scroll).X, 2);
                 Assert.Equal(panel.ActualWidth, row.ColumnDefinitions[8].ActualWidth, 2);
                 for (int column = 0; column < 9; column++)
@@ -95,13 +99,32 @@ public sealed class AccountBalanceLayoutTests
                 Assert.Equal(headerGrid.ColumnDefinitions[5].ActualWidth, rowGrid.ColumnDefinitions[5].ActualWidth, 2);
                 Assert.Equal(headerCenter, valueCenter, 2);
                 Assert.Equal(TextAlignment.Left, values[i].TextAlignment);
-                var coverage = ((StackPanel)values[i].Parent).Children.OfType<TextBlock>().Single(t => t.Name == "CurrentBalanceCoverage");
-                Assert.Equal(headerCenter, coverage.TranslatePoint(new(0, 0), scroll).X, 2);
+                var balanceCell = (StackPanel)values[i].Parent;
+                var status = rowGrid.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == Grid.GetColumn(statusHeader));
+                Assert.Equal(i == 1 ? "Inactive" : "Active", status.Text);
+                var rowName = rowGrid.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == 0);
+                double rowCenter = rowName.TranslatePoint(new(0, rowName.ActualHeight / 2), rowGrid).Y;
+                Assert.Equal(rowCenter, status.TranslatePoint(new(0, status.ActualHeight / 2), rowGrid).Y, 2);
+                Assert.Equal(rowCenter, balanceCell.TranslatePoint(new(0, balanceCell.ActualHeight / 2), rowGrid).Y, 2);
+                var coverage = balanceCell.Children.OfType<TextBlock>().Single(t => t.Name == "CurrentBalanceCoverage");
                 Assert.Equal(TextAlignment.Left, coverage.TextAlignment);
-                Assert.Equal(0, values[i].TranslatePoint(new(), (StackPanel)values[i].Parent).Y, 2);
-                double coverageTop = coverage.TranslatePoint(new(), (StackPanel)values[i].Parent).Y;
-                Assert.Equal(values[i].ActualHeight, coverageTop, 2); // TranslatePoint can differ by floating-point roundoff (18.62 vs 18.619999999999976).
-                Assert.Equal(i < 2, coverage.Text.Length > 0);
+                Assert.Equal(0, values[i].TranslatePoint(new(), balanceCell).Y, 2);
+                if (i < 2)
+                {
+                    Assert.NotEmpty(coverage.Text);
+                    Assert.Equal(Visibility.Visible, coverage.Visibility);
+                    Assert.True(coverage.ActualHeight > status.ActualHeight, "Estimated balance coverage must wrap.");
+                    Assert.Equal(headerCenter, coverage.TranslatePoint(new(), scroll).X, 2);
+                    double coverageTop = coverage.TranslatePoint(new(), balanceCell).Y;
+                    Assert.Equal(values[i].ActualHeight, coverageTop, 2);
+                }
+                else
+                {
+                    Assert.Empty(coverage.Text);
+                    Assert.Equal(Visibility.Collapsed, coverage.Visibility);
+                    double valueMidpoint = values[i].TranslatePoint(new(0, values[i].ActualHeight / 2), rowGrid).Y;
+                    Assert.Equal(rowCenter, valueMidpoint, 2);
+                }
             }
             Assert.Equal(width < 1120, scroll.ScrollableWidth > 0);
             scroll.ScrollToRightEnd(); root.UpdateLayout();

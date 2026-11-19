@@ -147,7 +147,7 @@ Blocked results retain the analysis and relevant recovery information but disabl
 
 ### Current Balance
 
-The table places Current Balance directly after Starting Balance, then Payout and Status. Data headings and values, including money, align left. The Actions header and equal-height View/overflow controls align to the right content edge in a shared column sized to fit the controls. The data columns share the remaining space. [Optional Account payouts](account-payouts.md) retain withdrawal history and support confirmed erroneous-entry removal. For each exact Account, across all recorded history, its formula is:
+The table places Current Balance directly after Starting Balance, then Payout and Status. Data headings and values, including money, align left. Status and Current Balance are vertically centered in each row. For estimated balances the amount and wrapped coverage are centered as a group. The Actions header is centered in the shared column over the equal-height View and overflow controls at the right content edge. The data columns share the remaining space. [Optional Account payouts](account-payouts.md) retain withdrawal history and support confirmed erroneous-entry removal. For each exact Account, across all recorded history, its formula is:
 
 `Starting Balance + sum(fully closed Trade Gross in Account currency) - sum(each recorded commission and fee component on those Trades) - sum(recorded Account payouts)`
 
