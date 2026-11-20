@@ -517,7 +517,7 @@
                                Style="{StaticResource InstrumentColumnHeaderStyle}"
                                Text="Status" />
                     <TextBlock Grid.Column="8"
-                               HorizontalAlignment="Left"
+                               HorizontalAlignment="Center"
                                Style="{StaticResource InstrumentColumnHeaderStyle}"
                                Text="Actions" />
                 </Grid>
@@ -593,7 +593,7 @@
                                             </TextBlock.Style>
                                         </TextBlock>
 
-                                        <StackPanel Grid.Column="8" HorizontalAlignment="Left" Orientation="Horizontal">
+                                        <StackPanel Grid.Column="8" HorizontalAlignment="Right" Orientation="Horizontal">
                                             <Button Command="{Binding DataContext.ViewInstrumentCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                                                     CommandParameter="{Binding Id}" Style="{StaticResource PtjEntityActionButtonStyle}" ToolTip="View instrument details">
                                                 <StackPanel Orientation="Horizontal">

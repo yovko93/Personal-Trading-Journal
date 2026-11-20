@@ -1,5 +1,23 @@
 # Instruments and action menus
 
+## Actions column alignment — 20 November 2026
+
+The Actions heading sits at the center of the existing 144-DIP column. Each row places View and the overflow trigger against the column’s right edge, inside the existing 16-DIP card padding. The eight data columns continue to align left. At narrow widths, scroll to the right to see the heading and both controls in full.
+
+The four existing compiled cases measure the heading midpoint against the actual column bounds, compare the header and row edges in common coordinates, and verify the right inset and viewport bounds for both buttons on both synthetic rows. The geometry comparisons allow one native pixel for WPF layout rounding. The focused run also exercised the existing native menu, Edit routing, keyboard and shared action checks.
+
+The Release build passed with zero warnings or errors in 10.55s. The focused run passed **43 top-level cases**, with zero failures or skips and exit 0, in 30.76s. All four Instruments child cases passed. Inspected the four `table-actions` renders in Light and Dark at 1280 DIP / 96 DPI and 480 DIP / 240 DPI. The narrow captures show the viewport scrolled to the right. The focused TRX and PNGs are under `TestResults/InstrumentActionsAlignment/focused-final/`. Live Instruments inspection at physical monitor settings remains pending.
+
+The complete Release gate finished in **14m 55s**, exit 0, with **5,612 passed and 0 failed**. The sole skip was the existing [Rules-view quarantine](rules-view-quarantine.md) for `RulesViewTests.CompiledThemesNarrowHighDpiBindingsValidationHistoryAndWindowClose`. Exclusive WPF passed 151, including all four Instruments cases. Parallel Desktop, Domain, Application and Infrastructure passed 2,155, 602, 1,052 and 1,652 respectively. Top-level TRX files and isolated child evidence are under `TestResults/release-20261120-115754-8363522880b34dddb3e18a5671ef3920/`.
+
+### Changed files
+
+- `src/PersonalTradingJournal.Desktop/Views/Instruments/InstrumentsView.xaml`
+- `tests/PersonalTradingJournal.Desktop.Tests/Instruments/InstrumentsViewTests.cs`
+- `README.md`
+- `docs/instruments-ui.md`
+- `docs/desktop-ui.md`
+
 ## Behavior — 8 November 2026
 
 The original menu/layout verification started on clean `develop`, `fb0a6157e499074e07cad04315bd8d7c9269b948`; its evidence is retained below. The currency refinement starts on clean `develop`, `dcccf2085865c540bdc4cc5b8c373345ab9ba208`. This follow-up remains local and uncommitted, with no production app startup, journal/database access, commit, push or merge.

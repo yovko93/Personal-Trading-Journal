@@ -79,6 +79,14 @@ public sealed class InstrumentsViewTests
                 Assert.Equal(new[] { "Symbol", "Display Name", "Asset Class", "Exchange", "Tick Size", "Tick Value", "Point Value", "Status", "Actions" },
                     headers.Children.OfType<TextBlock>().Select(h => h.Text));
                 Assert.Equal(9, headers.ColumnDefinitions.Count);
+                var actionsHeader = headers.Children.OfType<TextBlock>().Single(h => h.Text == "Actions");
+                int actionIndex = Grid.GetColumn(actionsHeader);
+                var actionColumn = headers.ColumnDefinitions[actionIndex];
+                Assert.Equal(8, actionIndex);
+                // WPF layout rounding can move an arranged edge by one native pixel.
+                double onePixel = 1 / VisualTreeHelper.GetDpi(view).DpiScaleX + 0.000001;
+                double headerCenter = actionsHeader.TranslatePoint(new(actionsHeader.ActualWidth / 2, 0), headers).X;
+                Assert.InRange(Math.Abs(actionColumn.Offset + actionColumn.ActualWidth / 2 - headerCenter), 0, onePixel);
                 foreach (var row in rows)
                 {
                     Assert.Equal(9, row.Children.Count);
@@ -87,9 +95,25 @@ public sealed class InstrumentsViewTests
                     {
                         int column = Grid.GetColumn(cell);
                         var header = headers.Children.Cast<FrameworkElement>().Single(h => Grid.GetColumn(h) == column);
-                        Assert.Equal(HorizontalAlignment.Left, cell.HorizontalAlignment);
-                        Assert.Equal(HorizontalAlignment.Left, header.HorizontalAlignment);
-                        Assert.InRange(Math.Abs(cell.TranslatePoint(new Point(), table).X - header.TranslatePoint(new Point(), table).X), 0, 1.1);
+                        if (column == actionIndex)
+                        {
+                            var rowColumn = row.ColumnDefinitions[column];
+                            Assert.Equal(actionColumn.ActualWidth, rowColumn.ActualWidth, 2);
+                            double headerRight = headers.TranslatePoint(new(actionColumn.Offset + actionColumn.ActualWidth, 0), table).X;
+                            double rowRight = row.TranslatePoint(new(rowColumn.Offset + rowColumn.ActualWidth, 0), table).X;
+                            Assert.InRange(Math.Abs(headerRight - rowRight), 0, onePixel);
+                            double controlsRight = cell.TranslatePoint(new(cell.ActualWidth, 0), row).X;
+                            Assert.InRange(Math.Abs(rowColumn.Offset + rowColumn.ActualWidth - controlsRight), 0, onePixel);
+                            var card = Assert.IsType<Border>(row.Parent);
+                            double rightInset = card.ActualWidth - cell.TranslatePoint(new(cell.ActualWidth, 0), card).X;
+                            Assert.InRange(Math.Abs(16 + card.BorderThickness.Right - rightInset), 0, onePixel);
+                        }
+                        else
+                        {
+                            Assert.Equal(HorizontalAlignment.Left, cell.HorizontalAlignment);
+                            Assert.Equal(HorizontalAlignment.Left, header.HorizontalAlignment);
+                            Assert.InRange(Math.Abs(cell.TranslatePoint(new Point(), table).X - header.TranslatePoint(new Point(), table).X), 0, 1.1);
+                        }
                         Assert.True(cell.ActualWidth <= row.ColumnDefinitions[column].ActualWidth + 1);
                     }
                     Assert.DoesNotContain(Descendants(row).OfType<Button>(), b => ReferenceEquals(b.Command, vm.EditInstrumentCommand));
@@ -112,7 +136,18 @@ public sealed class InstrumentsViewTests
                     Assert.InRange(left, 0, scroller.ViewportWidth - tickValue.ActualWidth);
                 }
                 Save(view, "table-pricing");
-                scroller.ScrollToRightEnd(); Layout(); Save(view, "table-actions");
+                scroller.ScrollToRightEnd(); Layout();
+                var viewport = Assert.IsType<ScrollContentPresenter>(scroller.Template.FindName("PART_ScrollContentPresenter", scroller));
+                var actionControls = rows.SelectMany(row => ((StackPanel)row.Children[actionIndex]).Children.OfType<Button>());
+                foreach (FrameworkElement control in actionControls.Prepend<FrameworkElement>(actionsHeader))
+                {
+                    var bounds = control.TransformToAncestor(viewport).TransformBounds(new Rect(control.RenderSize));
+                    Assert.InRange(bounds.Left, 0, viewport.ActualWidth);
+                    Assert.InRange(bounds.Right, 0, viewport.ActualWidth);
+                    Assert.InRange(bounds.Top, 0, viewport.ActualHeight);
+                    Assert.InRange(bounds.Bottom, 0, viewport.ActualHeight);
+                }
+                Save(view, "table-actions");
 
                 foreach (Button sample in samples.Children)
                 {
