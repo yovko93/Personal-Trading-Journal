@@ -7,6 +7,7 @@ using PersonalTradingJournal.Application.Analytics;
 using PersonalTradingJournal.Application.Common.Time;
 using PersonalTradingJournal.Application.Imports.Tradovate;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Infrastructure.Imports.Tradovate;
 using PersonalTradingJournal.Infrastructure.Persistence;
@@ -54,6 +55,18 @@ public sealed class TradovateVerifiedCostTests
             oldIds = await before.Trades.Select(t => t.Id).ToArrayAsync();
             executionIds = await before.TradeExecutions.Select(t => t.Id).ToArrayAsync();
             Assert.All(await before.TradeBrowse.ToArrayAsync(), t => Assert.Null(t.NetPnL));
+            var descriptions = db.ServiceProvider.GetRequiredService<IImportedTradeDescriptionStore>();
+            var details = db.ServiceProvider.GetRequiredService<ITradeDetailReader>();
+            foreach (Guid id in oldIds)
+            {
+                var original = (await details.GetByIdAsync(id))!;
+                Assert.True(original.IsImported);
+                Assert.Equal("Imported annotation", await descriptions.SaveDescriptionAsync(id, "  Imported annotation  "));
+                var annotated = (await details.GetByIdAsync(id))!;
+                Assert.Equal(original.Executions, annotated.Executions);
+                Assert.Equal(original with { Description = "Imported annotation", Executions = annotated.Executions }, annotated);
+            }
+            Assert.Equal(TradovateImportStatus.NoChanges, (await store.ImportAsync(request with { CostSources = null })).Status);
         }
         var result = await store.ImportAsync(request with { ImportedAtUtc = Now.AddMinutes(1) });
         Assert.Equal(TradovateImportStatus.Imported, result.Status);
@@ -81,6 +94,15 @@ public sealed class TradovateVerifiedCostTests
         Assert.False(balance.IsEstimated);
         Assert.Equal(TradovateImportStatus.NoChanges, (await store.ImportAsync(request)).Status);
         Assert.Equal(0, (await store.ImportAsync(request)).UpdatedCostTradeCount);
+        if (existing)
+        {
+            await using var context = await db.ContextFactory.CreateDbContextAsync();
+            Assert.All(await context.Trades.ToArrayAsync(), trade => Assert.Equal("Imported annotation", trade.Description));
+            var descriptions = db.ServiceProvider.GetRequiredService<IImportedTradeDescriptionStore>();
+            Assert.Null(await descriptions.SaveDescriptionAsync(oldIds![0], " "));
+            Assert.Equal(TradovateImportStatus.NoChanges, (await store.ImportAsync(request)).Status);
+            Assert.Null(await context.Trades.Where(t => t.Id == oldIds[0]).Select(t => t.Description).SingleAsync());
+        }
     }
 
     [Theory]

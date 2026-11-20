@@ -49,14 +49,22 @@ public sealed class Trade : AuditableEntity
 
     public string? Description { get; private set; }
 
+    public bool IsImported { get; private init; }
+
     public bool SetDescription(string? description, DateTimeOffset updatedAtUtc)
     {
-        description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
-        if (description?.Length > 10000) throw new ArgumentException("Trade description must not exceed 10,000 characters.", nameof(description));
+        description = NormalizeDescription(description);
         if (Description == description) return false;
         SetUpdatedAtUtc(updatedAtUtc);
         Description = description;
         return true;
+    }
+
+    public static string? NormalizeDescription(string? description)
+    {
+        description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        if (description?.Length > 10000) throw new ArgumentException("Trade description must not exceed 10,000 characters.", nameof(description));
+        return description;
     }
 
     public TradeDirection Direction =>
@@ -154,7 +162,8 @@ public sealed class Trade : AuditableEntity
         IEnumerable<TradeExecution> executions,
         DateTimeOffset createdAtUtc,
         DateTimeOffset updatedAtUtc,
-        string? description = null)
+        string? description = null,
+        bool isImported = false)
     {
         ArgumentNullException.ThrowIfNull(pricing);
         ArgumentNullException.ThrowIfNull(executions);
@@ -167,7 +176,7 @@ public sealed class Trade : AuditableEntity
             tradingSetupId,
             executions,
             createdAtUtc,
-            updatedAtUtc) { Description = description };
+            updatedAtUtc) { Description = description, IsImported = isImported };
     }
 
     public void SetTradingSetup(

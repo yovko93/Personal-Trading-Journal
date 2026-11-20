@@ -32,6 +32,7 @@ public sealed class TradeDetailReader : ITradeDetailReader
         await using JournalDbContext context =
             await _contextFactory.CreateDbContextAsync(cancellationToken);
 
+        var importedTrades = TradeMutationStore.ImportedTrades(context);
         var candidate = await (
                 from tradeRecord in context.Trades.AsNoTracking()
                 join accountRecord in context.TradingAccounts.AsNoTracking()
@@ -46,6 +47,7 @@ public sealed class TradeDetailReader : ITradeDetailReader
                 select new
                 {
                     TradeRecord = tradeRecord,
+                    IsImported = importedTrades.Any(imported => imported.Id == tradeRecord.Id),
                     TradingAccountName = accountRecord.Name,
                     InstrumentSymbol = instrumentRecord.Symbol,
                     InstrumentDisplayName = instrumentRecord.DisplayName,
@@ -108,6 +110,6 @@ public sealed class TradeDetailReader : ITradeDetailReader
             trade.Pricing.PointValue,
             trade.Pricing.Currency,
             executions,
-            trade.Description);
+            trade.Description) { IsImported = candidate.IsImported };
     }
 }

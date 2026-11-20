@@ -10,8 +10,8 @@
    </Grid.ColumnDefinitions>
    <TextBlock x:Name="ScreenshotsHeading" Text="Screenshots" Style="{DynamicResource PtjSectionTitleTextStyle}"
               VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0" />
-   <Button x:Name="AddScreenshot" Grid.Column="1" Content="Add Screenshot" Command="{Binding ShowAddScreenshotCommand}"
-           Style="{DynamicResource PtjSecondaryButtonStyle}" />
+   <Button x:Name="AddScreenshot" Grid.Column="1" Content="Add Screenshot" Command="{Binding ShowAddScreenshotCommand}" Margin="0"
+           Style="{DynamicResource PtjPlaybookViewButtonStyle}" />
   </Grid>
   <ItemsControl ItemsSource="{Binding ScreenshotCards}">
    <ItemsControl.Style><Style TargetType="ItemsControl"><Style.Triggers><DataTrigger Binding="{Binding IsManualEntryVisible}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></ItemsControl.Style>

@@ -130,6 +130,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<ITradeStore, TradeStore>();
         services.AddTransient<IManualTradeScreenshotStore, TradeStore>();
         services.AddTransient<ITradeMutationStore, TradeMutationStore>();
+        services.AddTransient<IImportedTradeDescriptionStore, TradeMutationStore>();
         services.AddTransient<ITradeDeletionStore, TradeDeletionStore>();
         services.AddTransient<IAccountTradeDeletionStore, AccountTradeDeletionStore>();
         services.AddTransient<ITradeListReader, TradeListReader>();

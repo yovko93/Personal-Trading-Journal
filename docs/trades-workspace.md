@@ -1,5 +1,49 @@
 # Trades workspace
 
+## Imported descriptions and Trades presentation
+
+Use **Edit Description** in Trade Details to annotate an imported Tradovate or Topstep Trade. **Save Description** stores the text. Save a blank value to clear it, or choose **Cancel** to leave the saved text in place. Finish the open editor before switching Trades or leaving the page. A rejected save keeps the draft available.
+
+Import provenance gates manual Trade edits. The Description operation updates only the Description field. It preserves the timestamp used to guard Tradovate cost enrichment and leaves existing import identities, executions, Account, quantities, prices, costs and P&L intact. Repeat imports and verified cost enrichment retain the saved annotation. Existing backup and portable export paths include the same Description field.
+
+Change Setup uses the lavender action style, Add Mistake uses amber, and Add Screenshot uses blue. Trading Mistakes Remove uses the red destructive style with its existing command. The Actions heading is centered within its column above the existing row controls. Gross P&L and Net P&L use two decimal places in the list and details. Zero displays as 0.00. Unavailable values retain the dash and estimated results retain their guidance.
+
+### Verification
+
+The Release build passed with zero warnings and errors. The focused selection passed **1,093 top-level cases** with exit 0 and zero skips (160 Domain, 259 Application, 394 Infrastructure and 280 Desktop). The synthesized broker fixtures cover description save, clearing, cancellation, permission to use the manual form, protection of existing Trade facts, repeat imports and Tradovate cost enrichment. The compiled layout checks resolved distinct button fills, readable normal and hover contrast and the focus indicator. They also checked Actions column geometry and the original 36-DIP row button heights.
+
+Inspected compiled WPF renders in Light and Dark at 960 DIP / 96 DPI and 360 DIP / 240 DPI, including the imported form, formatted P&L, colored actions and narrow scrolled row controls. Focused TRX and renders are under `TestResults/TradeImportedDescription/focused-final`. Live imported Description editing, native file selection, physical scrolling and monitor scaling, and screen-reader output remain pending.
+
+The complete local Release gate finished in **15m 04s**, exit 0, with **5,612 passed and 0 failed**. The sole skip was the existing Rules-view quarantine for `RulesViewTests.CompiledThemesNarrowHighDpiBindingsValidationHistoryAndWindowClose`. Exclusive WPF passed 151. Parallel Domain, Application, Infrastructure and Desktop passed 602, 1,052, 1,652 and 2,155 respectively. Child results are retained separately. The summary and TRX files are under `TestResults/release-20261120-102915-14d322c123cf4acf8c9c7bc9acc73f63`. Hosted verification for this worktree remains pending.
+
+### Changed files
+
+- `README.md`
+- `docs/trades-workspace.md`
+- `src/PersonalTradingJournal.Application/Trades/CloseManualTradeUseCase.cs`
+- `src/PersonalTradingJournal.Application/Trades/IImportedTradeDescriptionStore.cs`
+- `src/PersonalTradingJournal.Application/Trades/TradeDetail.cs`
+- `src/PersonalTradingJournal.Application/Trades/UpdateTradeUseCase.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Trades/TradesViewModel.Breakdown.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Trades/TradesViewModel.Classification.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Trades/TradesViewModel.Description.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Trades/TradesViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Trades/TradeScreenshotWorkspace.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Trades/TradeSetupClassificationView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Trades/TradesView.xaml`
+- `src/PersonalTradingJournal.Domain/Trades/Trade.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Mapping/TradePersistenceMapper.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs`
+- `src/PersonalTradingJournal.Infrastructure/Trades/TradeDetailReader.cs`
+- `src/PersonalTradingJournal.Infrastructure/Trades/TradeMutationStore.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradeDescriptionTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradePlaybookAssociationTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradeWorkspaceViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradesViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradesViewPagingXamlTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Imports/Topstep/TopstepImportStoreTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Imports/Tradovate/TradovateVerifiedCostTests.cs`
+
 ## Acceptance on 18 November 2026
 
 The live check used the Release executable at `src/PersonalTradingJournal.Desktop/bin/Release/net10.0-windows/PersonalTradingJournal.Desktop.exe`. The first launch used clean develop commit `67c318738541faff03b10917bbe2141c8ec02aca`, tree `f65e1fb7c18ca56e40930d2fdd32fecd6e0ee6d4`. All launches used `--isolated-data-root` with the disposable directory `TestResults/TradesLive-b85e956134904da48f2258f58c8e5582`. The account, instrument, classifications, executions and chart are synthetic. Provider-key overrides were empty.

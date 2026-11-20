@@ -79,11 +79,11 @@ public sealed class TradesViewPagingXamlTests
         Assert.Contains(list.Descendants(presentation + "TextBlock"), item =>
             (string?)item.Attribute("Text") == "Net P&L ");
         Assert.Contains(list.Descendants(presentation + "TextBlock"), item =>
-            (string?)item.Attribute("Text") == "{Binding GrossPnL, TargetNullValue=—}");
+            (string?)item.Attribute("Text") == "{Binding GrossPnL, StringFormat={}{0:N2}, TargetNullValue=—}");
         Assert.Contains(list.Descendants(presentation + "TextBlock"), item =>
-            (string?)item.Attribute("Text") == "{Binding EffectiveNet.Value}");
+            (string?)item.Attribute("Text") == "{Binding EffectiveNet.Value, StringFormat={}{0:N2}}");
         Assert.Contains(view.Descendants(presentation + "TextBlock"), item =>
-            (string?)item.Attribute("Text") == "{Binding SelectedTradeDetail.EffectiveNet.Value}");
+            (string?)item.Attribute("Text") == "{Binding SelectedTradeDetail.EffectiveNet.Value, StringFormat={}{0:N2}}");
 
         XElement[] explanations = view.Descendants(presentation + "TextBlock")
             .Where(item => (string?)item.Attribute("Text") ==
@@ -167,8 +167,8 @@ public sealed class TradesViewPagingXamlTests
         foreach (string path in amountPaths)
         {
             XElement amount = Assert.Single(view.Descendants(presentation + "TextBlock"), item =>
-                (string?)item.Attribute("Text") == $"{{Binding {path}}}" ||
-                (string?)item.Attribute("Text") == $"{{Binding {path}, TargetNullValue=—}}");
+                (string?)item.Attribute("Text") == $"{{Binding {path}, StringFormat={{}}{{0:N2}}}}" ||
+                (string?)item.Attribute("Text") == $"{{Binding {path}, StringFormat={{}}{{0:N2}}, TargetNullValue=—}}");
             XElement[] triggers = amount.Descendants(presentation + "DataTrigger")
                 .Where(trigger => (string?)trigger.Attribute("Binding") ==
                     $"{{Binding {path}, Converter={{StaticResource PnLOutcomeConverter}}}}")

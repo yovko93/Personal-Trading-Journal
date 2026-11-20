@@ -3220,7 +3220,8 @@ public sealed partial class TradesViewModelTests
         FakeTradeMistakeStore? tradeMistakeStore = null,
         FakeTradeDeletionStore? tradeDeletionStore = null,
         FakeDialogService? dialogService = null,
-        UpdateTradeUseCase? updateTradeUseCase = null)
+        UpdateTradeUseCase? updateTradeUseCase = null,
+        IImportedTradeDescriptionStore? importedDescriptionStore = null)
     {
         reader ??= new FakeManualTradeReferenceDataReader();
         tradeListReader ??= new FakeTradeListReader();
@@ -3298,7 +3299,8 @@ public sealed partial class TradesViewModelTests
                 tradeDeletionStore,
                 tradeScreenshotFileStorage),
             dialogService,
-            timeProvider);
+            timeProvider,
+            importedDescriptionStore);
     }
 
     private static ManualTradeSaveFixture CreateSaveFixture(

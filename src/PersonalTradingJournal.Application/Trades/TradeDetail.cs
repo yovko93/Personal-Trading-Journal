@@ -40,5 +40,7 @@ public sealed record TradeDetail(
     IReadOnlyList<TradeExecutionDetailItem> Executions,
     string? Description = null)
 {
+    public bool IsImported { get; init; }
+
     public EffectiveNetPnL EffectiveNet => EffectiveNetPnL.Resolve(Status, GrossPnL, NetPnL);
 }

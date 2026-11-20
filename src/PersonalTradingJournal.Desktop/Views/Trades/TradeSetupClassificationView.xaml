@@ -13,7 +13,7 @@
             <TextBlock x:Name="SetupHeading" Text="Trading Setup" Style="{DynamicResource PtjSectionTitleTextStyle}"
                        VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0" />
             <Button x:Name="OpenSetupEditor" Grid.Column="1" Command="{Binding OpenSetupEditorCommand}"
-                    Content="{Binding TradeSetupEditorLabel}" Style="{DynamicResource PtjSecondaryButtonStyle}" />
+                    Content="{Binding TradeSetupEditorLabel}" Style="{DynamicResource PtjJournalDraftButtonStyle}" />
         </Grid>
         <TextBlock Text="{Binding SelectedTradeDetail.TradingSetupName, TargetNullValue=No Setup}"
                    TextWrapping="Wrap" Style="{DynamicResource PtjBodyTextStyle}" Margin="0,4,0,0" />

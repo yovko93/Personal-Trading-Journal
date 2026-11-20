@@ -8,7 +8,7 @@ using PersonalTradingJournal.Infrastructure.Persistence.Records;
 
 namespace PersonalTradingJournal.Infrastructure.Trades;
 
-public sealed class TradeMutationStore : ITradeMutationStore
+public sealed class TradeMutationStore : ITradeMutationStore, IImportedTradeDescriptionStore
 {
     private readonly IDbContextFactory<JournalDbContext> _contextFactory;
 
@@ -49,7 +49,24 @@ public sealed class TradeMutationStore : ITradeMutationStore
                 .OrderBy(record => record.Sequence)
                 .ToListAsync(cancellationToken);
 
-        return TradePersistenceMapper.ToDomain(tradeRecord, executionRecords);
+        bool isImported = await ImportedTrades(context).AnyAsync(record => record.Id == tradeId, cancellationToken);
+        return TradePersistenceMapper.ToDomain(tradeRecord, executionRecords, isImported);
+    }
+
+    internal static IQueryable<TradeRecord> ImportedTrades(JournalDbContext context) =>
+        context.Trades.Where(trade =>
+            context.TradovateImportedExecutions.Any(source => source.TradeId == trade.Id) ||
+            context.TopstepImportedRows.Any(source => source.TradeId == trade.Id));
+
+    public async Task<string?> SaveDescriptionAsync(Guid tradeId, string? description, CancellationToken cancellationToken = default)
+    {
+        description = Trade.NormalizeDescription(description);
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+        // UpdatedAtUtc protects the importer's economics revision. An annotation does not change it.
+        int affected = await ImportedTrades(context).Where(trade => trade.Id == tradeId)
+            .ExecuteUpdateAsync(update => update.SetProperty(trade => trade.Description, description), cancellationToken);
+        if (affected == 0) throw new KeyNotFoundException("The imported Trade is no longer available.");
+        return description;
     }
 
     public async Task SaveAsync(

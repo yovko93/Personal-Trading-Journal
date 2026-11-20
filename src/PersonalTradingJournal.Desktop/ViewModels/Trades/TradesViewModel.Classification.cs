@@ -4,13 +4,14 @@ namespace PersonalTradingJournal.Desktop.ViewModels.Trades;
 
 public sealed partial class TradesViewModel
 {
-    private enum ClassificationEditor { None, Setup, Mistake }
+    private enum ClassificationEditor { None, Setup, Mistake, Description }
 
     private ClassificationEditor _classificationEditor;
 
     public bool IsSetupEditorOpen => _classificationEditor == ClassificationEditor.Setup;
     public bool IsMistakeEditorOpen => _classificationEditor == ClassificationEditor.Mistake;
-    public bool HasTradeClassificationDraft => _classificationEditor != ClassificationEditor.None;
+    public bool HasTradeClassificationDraft => IsSetupEditorOpen || IsMistakeEditorOpen;
+    public bool HasTradeDetailDraft => _classificationEditor != ClassificationEditor.None;
     public bool HasSavedTradeSetup => SelectedTradeDetail?.TradingSetupId is not null;
     public string TradeSetupEditorLabel => HasSavedTradeSetup ? "Change Setup" : "Add Setup";
 
@@ -62,8 +63,9 @@ public sealed partial class TradesViewModel
                 or nameof(IsTradeEditVisible) or nameof(IsManualEntryVisible) or nameof(IsSaving) or nameof(IsDeletingTrade)
                 or nameof(IsCloseTradeVisible) or nameof(IsClosingTrade) or nameof(IsAddScreenshotVisible)
                 or nameof(IsAddingScreenshot) or nameof(IsDeletingScreenshot) or nameof(IsTradingSetupSaving)
-                or nameof(IsAssigningMistake) or nameof(IsRemovingMistake) or nameof(HasTradeClassificationDraft))
+                or nameof(IsAssigningMistake) or nameof(IsRemovingMistake) or nameof(HasTradeDetailDraft) or nameof(IsUpdatingTrade))
             {
+                OpenDescriptionEditorCommand.NotifyCanExecuteChanged();
                 OpenSetupEditorCommand.NotifyCanExecuteChanged();
                 OpenMistakeEditorCommand.NotifyCanExecuteChanged();
                 CancelSetupEditorCommand.NotifyCanExecuteChanged();
@@ -73,9 +75,9 @@ public sealed partial class TradesViewModel
     }
 
     private bool CanOpenClassificationEditor() =>
-        IsTradeDetailVisible && SelectedTradeDetail is not null && !HasTradeClassificationDraft &&
+        IsTradeDetailVisible && SelectedTradeDetail is not null && !HasTradeDetailDraft &&
         !IsTradeDetailLoading && !IsTradeMistakesLoading && !IsTradeScreenshotsLoading &&
-        !IsTradeFormVisible && !IsSaving && !IsDeletingTrade &&
+        !IsTradeFormVisible && !IsSaving && !IsUpdatingTrade && !IsDeletingTrade &&
         !IsCloseTradeVisible && !IsClosingTrade && !IsAddScreenshotVisible &&
         !IsAddingScreenshot && !IsDeletingScreenshot && !IsTradingSetupSaving &&
         !IsAssigningMistake && !IsRemovingMistake;
@@ -83,10 +85,22 @@ public sealed partial class TradesViewModel
     private void SetClassificationEditor(ClassificationEditor editor)
     {
         if (_classificationEditor == editor) return;
+        bool closedDescription = IsDescriptionEditorOpen;
         _classificationEditor = editor;
+        if (closedDescription)
+        {
+            TradeDescriptionDraft = string.Empty;
+            TradeDescriptionError = null;
+        }
+        OnPropertyChanged(nameof(IsDescriptionEditorOpen));
+        SaveTradeDescriptionCommand.NotifyCanExecuteChanged();
+        CancelDescriptionEditorCommand.NotifyCanExecuteChanged();
+        RemoveMistakeCommand.NotifyCanExecuteChanged();
+        DeleteScreenshotCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(IsSetupEditorOpen));
         OnPropertyChanged(nameof(IsMistakeEditorOpen));
         OnPropertyChanged(nameof(HasTradeClassificationDraft));
+        OnPropertyChanged(nameof(HasTradeDetailDraft));
         ShowTradeDetailCommand.NotifyCanExecuteChanged();
         CloseTradeDetailCommand.NotifyCanExecuteChanged();
         ShowTradeEditCommand.NotifyCanExecuteChanged();

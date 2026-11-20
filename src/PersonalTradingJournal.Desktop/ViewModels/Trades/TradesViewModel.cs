@@ -290,7 +290,8 @@ public sealed partial class TradesViewModel : ObservableObject
         UpdateTradeUseCase? updateTradeUseCase = null,
         DeleteTradeUseCase? deleteTradeUseCase = null,
         IDialogService? dialogService = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IImportedTradeDescriptionStore? importedDescriptionStore = null)
     {
         ArgumentNullException.ThrowIfNull(referenceDataReader);
         ArgumentNullException.ThrowIfNull(tradingSetupReader);
@@ -317,6 +318,7 @@ public sealed partial class TradesViewModel : ObservableObject
         _tradeMistakeReader = tradeMistakeReader;
         _tradeListReader = tradeListReader;
         _tradeDetailReader = tradeDetailReader;
+        _importedDescriptionStore = importedDescriptionStore;
         _createManualTradeUseCase = createManualTradeUseCase;
         _setTradeTradingSetupUseCase = setTradeTradingSetupUseCase;
         _setupFeedbackClock = timeProvider ?? TimeProvider.System;
@@ -425,6 +427,7 @@ public sealed partial class TradesViewModel : ObservableObject
         SortTradesCommand = new AsyncRelayCommand<TradeListSortColumn>(
             SortTradesAsync,
             CanSortTrades);
+        InitializeDescriptionCommands();
         InitializeClassificationCommands();
     }
 
@@ -683,7 +686,7 @@ public sealed partial class TradesViewModel : ObservableObject
     }
 
     public bool IsSelectedTradeOpen =>
-        SelectedTradeDetail?.Status == TradeStatus.Open;
+        SelectedTradeDetail is { IsImported: false, Status: TradeStatus.Open };
 
     public string CloseTradeExecutedAtNewYorkText
     {
@@ -2214,7 +2217,7 @@ public sealed partial class TradesViewModel : ObservableObject
 
     private async Task RefreshAsync(CancellationToken cancellationToken)
     {
-        if (HasTradeClassificationDraft) return;
+        if (HasTradeDetailDraft) return;
         long epoch = _browseEpoch;
         _ = await LoadReferenceDataAsync(forceRefresh: true, cancellationToken);
         _ = await LoadTradingMistakeOptionsAsync(
@@ -2242,7 +2245,7 @@ public sealed partial class TradesViewModel : ObservableObject
     }
 
     private bool CanRefresh() =>
-        !HasTradeClassificationDraft &&
+        !HasTradeDetailDraft &&
         !IsLoading &&
         !IsTradeListLoading &&
         !IsTradeDetailLoading &&
@@ -2266,7 +2269,7 @@ public sealed partial class TradesViewModel : ObservableObject
     }
 
     private bool CanShowManualEntry() =>
-        !HasTradeClassificationDraft &&
+        !HasTradeDetailDraft &&
         !IsManualEntryVisible &&
         !IsAddingScreenshot &&
         !IsAddScreenshotVisible &&
@@ -2297,7 +2300,7 @@ public sealed partial class TradesViewModel : ObservableObject
         !IsClosingTrade;
 
     private bool CanShowTradeEdit(TradeListItem? item) =>
-        !HasTradeClassificationDraft &&
+        !HasTradeDetailDraft &&
         item is not null &&
         _updateTradeUseCase is not null &&
         !IsTradeEditVisible &&
@@ -2329,8 +2332,8 @@ public sealed partial class TradesViewModel : ObservableObject
     }
 
     private bool CanShowSelectedTradeEdit() =>
-        !HasTradeClassificationDraft &&
-        SelectedTradeDetail is not null &&
+        !HasTradeDetailDraft &&
+        SelectedTradeDetail is { IsImported: false } &&
         _updateTradeUseCase is not null &&
         !IsTradeEditVisible &&
         !IsManualEntryVisible &&
@@ -2356,6 +2359,7 @@ public sealed partial class TradesViewModel : ObservableObject
         Guid tradeId,
         CancellationToken cancellationToken)
     {
+        if (HasTradeDetailDraft) return;
         TradeUpdateErrorMessage = null;
         TradeUpdateSuccessMessage = null;
         IsTradeDetailLoading = true;
@@ -2368,6 +2372,12 @@ public sealed partial class TradesViewModel : ObservableObject
             if (detail is null)
             {
                 TradeUpdateErrorMessage = "Trade details are no longer available.";
+                return;
+            }
+
+            if (detail.IsImported)
+            {
+                TradeUpdateErrorMessage = UpdateTradeUseCase.ImportedTradeMessage;
                 return;
             }
 
@@ -2584,7 +2594,7 @@ public sealed partial class TradesViewModel : ObservableObject
     }
 
     private bool CanDeleteTrade(TradeListItem? item) =>
-        !HasTradeClassificationDraft &&
+        !HasTradeDetailDraft &&
         item is not null &&
         _deleteTradeUseCase is not null &&
         _dialogService is not null &&
@@ -2613,7 +2623,7 @@ public sealed partial class TradesViewModel : ObservableObject
                 cancellationToken);
 
     private bool CanDeleteSelectedTrade() =>
-        !HasTradeClassificationDraft &&
+        !HasTradeDetailDraft &&
         SelectedTradeDetail is not null &&
         _deleteTradeUseCase is not null &&
         _dialogService is not null &&
@@ -2724,7 +2734,7 @@ public sealed partial class TradesViewModel : ObservableObject
         item is not null && CanLoadTradeDetail;
 
     private bool CanLoadTradeDetail =>
-        !HasTradeClassificationDraft &&
+        !HasTradeDetailDraft &&
         !IsTradeDetailLoading &&
         !IsTradeScreenshotsLoading &&
         !IsTradeMistakesLoading &&
@@ -2762,7 +2772,7 @@ public sealed partial class TradesViewModel : ObservableObject
         long epoch = _browseEpoch;
         if (!_browseActive) return;
 
-        if (HasTradeClassificationDraft) return;
+        if (HasTradeDetailDraft) return;
         OpenScreenshotPreviewCommand.Cancel();
         IsTradeDetailVisible = true;
         SelectedTradeDetail = null;
@@ -2833,7 +2843,7 @@ public sealed partial class TradesViewModel : ObservableObject
     }
 
     private bool CanCloseTradeDetail() =>
-        !HasTradeClassificationDraft &&
+        !HasTradeDetailDraft &&
         IsTradeDetailVisible &&
         !IsTradeDetailLoading &&
         !IsTradingSetupSaving &&
@@ -2860,7 +2870,7 @@ public sealed partial class TradesViewModel : ObservableObject
     }
 
     private bool CanShowCloseTrade() =>
-        !HasTradeClassificationDraft &&
+        !HasTradeDetailDraft &&
         !IsCloseTradeVisible &&
         IsTradeDetailVisible &&
         IsSelectedTradeOpen &&
@@ -3184,7 +3194,7 @@ public sealed partial class TradesViewModel : ObservableObject
     }
 
     private bool CanRemoveMistake(TradeMistakeListItem? item) =>
-        item is not null &&
+        !IsDescriptionEditorOpen && item is not null &&
         IsTradeDetailVisible &&
         SelectedTradeDetail is { } detail &&
         item.TradeId == detail.Id &&
@@ -3358,7 +3368,7 @@ public sealed partial class TradesViewModel : ObservableObject
         HasScreenshotPreviewError;
 
     private bool CanDeleteScreenshot(TradeScreenshotListItem? item) =>
-        item is not null &&
+        !IsDescriptionEditorOpen && item is not null &&
         IsTradeDetailVisible &&
         SelectedTradeDetail is { } detail &&
         item.TradeId == detail.Id &&
@@ -3450,7 +3460,7 @@ public sealed partial class TradesViewModel : ObservableObject
     }
 
     private bool CanShowAddScreenshot() =>
-        !HasTradeClassificationDraft &&
+        !HasTradeDetailDraft &&
         !IsAddScreenshotVisible &&
         ((IsTradeDetailVisible && SelectedTradeDetail is not null) || IsManualEntryVisible) &&
         !IsTradeDetailLoading && !IsTradeScreenshotsLoading && !IsAddingScreenshot && !IsSaving &&

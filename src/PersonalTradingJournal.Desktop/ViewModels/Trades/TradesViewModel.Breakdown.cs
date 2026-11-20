@@ -32,11 +32,12 @@ public sealed partial class TradesViewModel
     }
     public bool TryLeaveBreakdownScope()
     {
-        if (HasTradeClassificationDraft)
+        if (HasTradeDetailDraft)
         {
             const string message = "Save or cancel the open form before leaving Trades.";
             if (IsSetupEditorOpen) TradingSetupSaveErrorMessage = message;
-            else AssignMistakeErrorMessage = message;
+            else if (IsMistakeEditorOpen) AssignMistakeErrorMessage = message;
+            else TradeDescriptionError = message;
             return false;
         }
 

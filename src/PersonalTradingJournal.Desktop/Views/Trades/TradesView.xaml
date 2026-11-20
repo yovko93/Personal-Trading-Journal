@@ -222,9 +222,17 @@
                                 Margin="8,0,0,0"
                                 Padding="12,4"
                                 MinHeight="28"
-                                Command="{Binding ShowSelectedTradeEditCommand}"
-                                Content="Edit"
-                                Style="{StaticResource PtjEntityActionButtonStyle}" />
+                                Command="{Binding ShowSelectedTradeEditCommand}" Content="Edit">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource PtjEntityActionButtonStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedTradeDetail.IsImported}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
                         <Button Grid.Column="3"
                                 Margin="8,0,0,0"
                                 AutomationProperties.Name="More trade actions"
@@ -352,8 +360,41 @@
 
                         <Separator Style="{StaticResource PtjSeparatorStyle}" />
 
-                        <TextBlock Text="Description" Style="{StaticResource PtjCaptionTextStyle}" />
-                        <TextBlock Text="{Binding SelectedTradeDetail.Description, TargetNullValue=—}" TextWrapping="Wrap" Margin="0,6,0,16" Style="{StaticResource PtjBodyTextStyle}" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Description" Style="{StaticResource PtjCaptionTextStyle}" VerticalAlignment="Center" />
+                            <Button x:Name="EditImportedDescription" Grid.Column="1" Content="Edit Description"
+                                    Visibility="{Binding SelectedTradeDetail.IsImported, Converter={StaticResource CohortVisible}}"
+                                    Command="{Binding OpenDescriptionEditorCommand}" Style="{StaticResource PtjSecondaryButtonStyle}" />
+                        </Grid>
+                        <TextBlock Text="{Binding SelectedTradeDetail.Description, TargetNullValue=—}" TextWrapping="Wrap" Margin="0,6,0,16">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource PtjBodyTextStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsDescriptionEditorOpen}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <StackPanel x:Name="ImportedDescriptionEditor" Margin="0,6,0,16"
+                                    Visibility="{Binding IsDescriptionEditorOpen, Converter={StaticResource CohortVisible}}">
+                            <TextBox AutomationProperties.Name="Imported Trade description"
+                                     Text="{Binding TradeDescriptionDraft, UpdateSourceTrigger=PropertyChanged}"
+                                     IsReadOnly="{Binding IsSavingTradeDescription}" MaxLength="10000"
+                                     AcceptsReturn="True" TextWrapping="Wrap" Height="88"
+                                     VerticalScrollBarVisibility="Auto" Style="{StaticResource PtjTextBoxStyle}" />
+                            <WrapPanel HorizontalAlignment="Right" Margin="0,8,0,0">
+                                <Button Content="Cancel" Command="{Binding CancelDescriptionEditorCommand}"
+                                        Margin="0,0,8,0" Style="{StaticResource PtjSecondaryButtonStyle}" />
+                                <Button Content="Save Description" Command="{Binding SaveTradeDescriptionCommand}"
+                                        Style="{StaticResource PtjPrimaryButtonStyle}" />
+                            </WrapPanel>
+                            <TextBlock Text="{Binding TradeDescriptionError}" TextWrapping="Wrap"
+                                       AutomationProperties.LiveSetting="Polite" Foreground="{DynamicResource PtjDangerBrush}" />
+                        </StackPanel>
                         <tradeViews:TradeSetupClassificationView />
 
                         <TextBlock Margin="0,10,0,0"
@@ -483,7 +524,7 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
-                                        <TextBlock Text="{Binding SelectedTradeDetail.GrossPnL}">
+                                        <TextBlock Text="{Binding SelectedTradeDetail.GrossPnL, StringFormat={}{0:N2}}">
                                             <TextBlock.Style>
                                                 <Style TargetType="{x:Type TextBlock}"
                                                        BasedOn="{StaticResource PtjBodyTextStyle}">
@@ -536,7 +577,7 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
-                                        <TextBlock Text="{Binding SelectedTradeDetail.EffectiveNet.Value}">
+                                        <TextBlock Text="{Binding SelectedTradeDetail.EffectiveNet.Value, StringFormat={}{0:N2}}">
                                             <TextBlock.Style>
                                                 <Style TargetType="{x:Type TextBlock}"
                                                        BasedOn="{StaticResource PtjBodyTextStyle}">
@@ -784,8 +825,8 @@
                             <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0"
                                        Style="{StaticResource PtjSectionTitleTextStyle}" Text="Trading Mistakes" />
                             <Button x:Name="OpenMistakeEditor" Grid.Column="1" Content="Add Mistake"
-                                    Command="{Binding OpenMistakeEditorCommand}"
-                                    Style="{StaticResource PtjSecondaryButtonStyle}" />
+                                    Command="{Binding OpenMistakeEditorCommand}" Margin="0"
+                                    Style="{StaticResource PtjPlaybookArchiveButtonStyle}" />
                         </Grid>
 
                         <TextBlock Margin="0,12,0,0"
@@ -896,7 +937,7 @@
                                                     Command="{Binding DataContext.RemoveMistakeCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                                                     CommandParameter="{Binding}"
                                                     Content="Remove"
-                                                    Style="{StaticResource PtjButtonStyle}" />
+                                                    Style="{StaticResource PtjPlaybookRemoveButtonStyle}" />
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
@@ -1338,7 +1379,7 @@
                                 </StackPanel>
                             </Button>
                             <TextBlock Grid.Column="6"
-                                       Margin="8,0,0,0"
+                                       HorizontalAlignment="Center"
                                        Style="{StaticResource PtjCaptionTextStyle}"
                                        Text="Actions" />
                         </Grid>
@@ -1433,7 +1474,7 @@
                                                                Text="Gross P&amp;L " />
                                                     <TextBlock MaxWidth="145"
                                                                TextWrapping="Wrap"
-                                                               Text="{Binding GrossPnL, TargetNullValue=—}">
+                                                               Text="{Binding GrossPnL, StringFormat={}{0:N2}, TargetNullValue=—}">
                                                         <TextBlock.Style>
                                                             <Style TargetType="{x:Type TextBlock}"
                                                                    BasedOn="{StaticResource PtjBodyTextStyle}">
@@ -1495,7 +1536,7 @@
                                                             </WrapPanel.Style>
                                                             <TextBlock MaxWidth="145"
                                                                        TextWrapping="Wrap"
-                                                                       Text="{Binding EffectiveNet.Value}">
+                                                                       Text="{Binding EffectiveNet.Value, StringFormat={}{0:N2}}">
                                                                 <TextBlock.Style>
                                                                     <Style TargetType="{x:Type TextBlock}"
                                                                            BasedOn="{StaticResource PtjBodyTextStyle}">

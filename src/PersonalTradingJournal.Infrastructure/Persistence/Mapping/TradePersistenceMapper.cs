@@ -25,7 +25,8 @@ public static class TradePersistenceMapper
 
     public static Trade ToDomain(
         TradeRecord record,
-        IEnumerable<TradeExecutionRecord> executionRecords)
+        IEnumerable<TradeExecutionRecord> executionRecords,
+        bool isImported = false)
     {
         ArgumentNullException.ThrowIfNull(record);
         ArgumentNullException.ThrowIfNull(executionRecords);
@@ -46,6 +47,7 @@ public static class TradePersistenceMapper
             executions,
             record.CreatedAtUtc,
             record.UpdatedAtUtc,
-            record.Description);
+            record.Description,
+            isImported);
     }
 }

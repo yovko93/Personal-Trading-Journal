@@ -93,7 +93,9 @@ public sealed class TradeWorkspaceViewTests
                         ((SolidColorBrush)app.Resources[background]).Color) >= 4.5, $"{theme}: {foreground} on {background}");
                 var compiledForm = new ResourceDictionary { Source = new Uri("/PersonalTradingJournal.Desktop;component/Views/Trades/TradeEntryForm.xaml", UriKind.Relative) };
                 app.Resources["TradeEntryFormTemplate"] = compiledForm["TradeEntryFormTemplate"];
-                var details = TradesViewModelTests.CreateAssociationRenderModel(image).GetAwaiter().GetResult();
+                bool zeroNet = width == 360 && theme == "Light";
+                bool unknownNet = width == 360 && theme == "Dark";
+                var details = TradesViewModelTests.CreateAssociationRenderModel(image, imported: true, zeroNet: zeroNet, unknownNet: unknownNet).GetAwaiter().GetResult();
                 var page = new TradesView { DataContext = details };
                 page.Measure(new Size(width, 800)); page.Arrange(new Rect(0, 0, width, 800)); page.UpdateLayout();
                 VisualTreeHelper.SetRootDpi(page, new DpiScale(dpi / 96d, dpi / 96d));
@@ -107,6 +109,27 @@ public sealed class TradeWorkspaceViewTests
                 var pageScroll = Descendants(page).OfType<ScrollViewer>().First();
                 var summary = (Grid)page.FindName("TradeEconomicsSummary");
                 AssertEconomicsSummary(page, summary, width == 360);
+                AssertAmount(page, "SelectedTradeDetail.GrossPnL", unknownNet ? null : zeroNet ? 3.50m : 1262.50m);
+                AssertAmount(page, "SelectedTradeDetail.EffectiveNet.Value", unknownNet ? null : zeroNet ? 0m : 1259m);
+                AssertAmount(page, "GrossPnL", unknownNet ? null : zeroNet ? 3.50m : 1262.50m);
+                AssertAmount(page, "EffectiveNet.Value", unknownNet ? null : zeroNet ? 0m : 1259m);
+
+                var editDescription = (Button)page.FindName("EditImportedDescription");
+                Assert.True(IsShown(editDescription) && editDescription.IsEnabled);
+                Assert.False(IsShown(Assert.Single(Descendants(page).OfType<Button>(),
+                    b => ReferenceEquals(b.Command, details.ShowSelectedTradeEditCommand))));
+                editDescription.Command.Execute(null);
+                page.UpdateLayout();
+                var descriptionEditor = (StackPanel)page.FindName("ImportedDescriptionEditor");
+                var importedText = Assert.Single(Descendants(descriptionEditor).OfType<TextBox>());
+                Assert.Equal("Imported annotation", importedText.Text);
+                Assert.Equal(TextWrapping.Wrap, importedText.TextWrapping);
+                pageScroll.ScrollToVerticalOffset(descriptionEditor.TranslatePoint(new Point(), pageScroll).Y + pageScroll.VerticalOffset - 50);
+                page.UpdateLayout();
+                Render(page, theme, width, dpi, "imported-description");
+                details.CancelDescriptionEditorCommand.Execute(null);
+                page.UpdateLayout();
+                Assert.Equal(Visibility.Collapsed, descriptionEditor.Visibility);
                 var setupStatus = (TextBlock)page.FindName("SetupSuccessStatus");
                 Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(setupStatus));
                 Assert.Equal(Visibility.Collapsed, setupStatus.Visibility);
@@ -126,6 +149,11 @@ public sealed class TradeWorkspaceViewTests
                 var rowView = Assert.Single(rowButtons, b => ReferenceEquals(b.Command, details.ShowTradeDetailCommand));
                 var rowMenu = Assert.Single(rowButtons, b => ReferenceEquals(b.DataContext, rowView.DataContext) &&
                     AutomationProperties.GetName(b) == "More trade actions");
+                var actionsHeading = Assert.Single(Descendants(page).OfType<TextBlock>(), t => t.Text == "Actions");
+                var header = (Grid)actionsHeading.Parent;
+                var column = header.ColumnDefinitions[Grid.GetColumn(actionsHeading)];
+                Assert.Equal(column.Offset + column.ActualWidth / 2,
+                    actionsHeading.TranslatePoint(new Point(actionsHeading.ActualWidth / 2, 0), header).X, 2);
                 Assert.Equal(36d, rowView.ActualHeight);
                 Assert.Equal(rowView.ActualHeight, rowMenu.ActualHeight);
                 Assert.Equal(rowView.TranslatePoint(new Point(), page).Y, rowMenu.TranslatePoint(new Point(), page).Y, 6);
@@ -149,7 +177,7 @@ public sealed class TradeWorkspaceViewTests
                 page.UpdateLayout();
                 Assert.Equal(Visibility.Visible, setupEdit.Visibility);
                 var setupChoice = (ComboBox)setup.FindName("ClassificationSetup");
-                setupChoice.SelectedItem = Assert.Single(details.TradeDetailTradingSetupOptions);
+                setupChoice.SelectedItem = Assert.Single(details.TradeDetailTradingSetupOptions, option => option.Id != details.SelectedTradeDetail!.TradingSetupId);
                 Assert.True(((Button)setup.FindName("SaveClassification")).IsEnabled);
                 pageScroll.ScrollToVerticalOffset(setup.TranslatePoint(new Point(), pageScroll).Y + pageScroll.VerticalOffset - 20);
                 page.UpdateLayout();
@@ -163,6 +191,17 @@ public sealed class TradeWorkspaceViewTests
                 Assert.Equal(Visibility.Collapsed, mistakeEdit.Visibility);
                 var mistakeHeading = Assert.Single(Descendants(page).OfType<TextBlock>(), t => t.Text == "Trading Mistakes");
                 AssertRightAligned(mistakeHeading, mistakeAdd);
+                var screenshotAdd = Assert.Single(Descendants(page).OfType<Button>(),
+                    b => IsShown(b) && ReferenceEquals(b.Command, details.ShowAddScreenshotCommand));
+                var removeMistake = Assert.Single(Descendants(page).OfType<Button>(),
+                    b => b.CommandParameter is PersonalTradingJournal.Application.Mistakes.TradeMistakeListItem && Equals(b.Content, "Remove"));
+                Assert.Equal("Change Setup", setupAdd.Content);
+                AssertActionContrast(app, setupAdd, hover, "PtjJournalDraftBrush", "PtjJournalDraftHoverBrush");
+                AssertActionContrast(app, mistakeAdd, hover, "PtjJournalReviewBrush", "PtjJournalReviewHoverBrush");
+                AssertActionContrast(app, screenshotAdd, hover, "PtjJournalRevisionBrush", "PtjJournalRevisionHoverBrush");
+                AssertActionContrast(app, removeMistake, hover, "PtjDangerBrush", "PtjPlaybookRemoveHoverBrush");
+                Assert.Equal(3, new[] { setupAdd.Background, mistakeAdd.Background, screenshotAdd.Background }
+                    .Cast<SolidColorBrush>().Select(brush => brush.Color).Distinct().Count());
                 mistakeAdd.Command.Execute(null);
                 page.UpdateLayout();
                 Assert.Equal(Visibility.Visible, mistakeEdit.Visibility);
@@ -191,6 +230,45 @@ public sealed class TradeWorkspaceViewTests
             }
             app.Shutdown();
         });
+    }
+
+    // These roots are deliberately detached from a native window.
+    private static bool IsShown(FrameworkElement element)
+    {
+        for (DependencyObject? current = element; current is not null; current = VisualTreeHelper.GetParent(current))
+        {
+            if (current is UIElement { Visibility: not Visibility.Visible }) return false;
+        }
+        return true;
+    }
+
+    private static void AssertAmount(TradesView page, string path, decimal? amount)
+    {
+        var text = Assert.Single(Descendants(page).OfType<TextBlock>(),
+            t => t.GetBindingExpression(TextBlock.TextProperty)?.ParentBinding.Path?.Path == path);
+        if (amount.HasValue)
+        {
+            Assert.True(IsShown(text), $"Expected a visible amount for {path}.");
+            Assert.Equal(amount.Value.ToString("N2", text.Language.GetSpecificCulture()), text.Text);
+        }
+        else
+        {
+            Assert.True(!IsShown(text) || text.Text == "—");
+        }
+    }
+
+    private static void AssertActionContrast(System.Windows.Application app, Button button, DependencyPropertyKey hover, string normal, string hovered)
+    {
+        button.ApplyTemplate();
+        var focus = Assert.IsType<System.Windows.Shapes.Rectangle>(button.Template.FindName("FocusIndicator", button));
+        Color foreground = ((SolidColorBrush)button.Foreground).Color;
+        Assert.Equal(foreground, ((SolidColorBrush)focus.Stroke).Color);
+        Assert.Same(app.Resources[normal], button.Background);
+        Assert.True(Contrast(foreground, ((SolidColorBrush)button.Background).Color) >= 4.5);
+        button.SetValue(hover, true);
+        Assert.Same(app.Resources[hovered], button.Background);
+        Assert.True(Contrast(foreground, ((SolidColorBrush)button.Background).Color) >= 4.5);
+        button.SetValue(hover, false);
     }
 
     private static void AssertEntryFieldNames(TradesView page, string quantityLabel)
