@@ -195,11 +195,40 @@ public sealed class InstrumentsViewTests
                 .Single(t => BindingOperations.GetBinding(t, TextBox.TextProperty)?.Path.Path == path);
             TextBlock DetailCurrency() => Descendants(view).OfType<TextBlock>()
                 .Single(t => BindingOperations.GetBinding(t, TextBlock.TextProperty)?.Path.Path == "SelectedInstrument.Currency");
+            void AssertOwnsPoint(FrameworkElement target, Point point, string stage)
+            {
+                var expected = ((HwndSource)PresentationSource.FromVisual(target)).Handle;
+                var screenPoint = new NativePoint((int)point.X, (int)point.Y);
+                var observed = WindowFromPoint(screenPoint);
+                if (expected != observed)
+                {
+                    var observedAt = DateTimeOffset.UtcNow;
+                    NotebookMouseReadinessEvidence.Retain(directory, () => new Dictionary<string, string>
+                    {
+                        ["observedAtUtc"] = observedAt.ToString("O"),
+                        ["stage"] = stage,
+                        ["theme"] = theme,
+                        ["widthDip"] = width.ToString(CultureInfo.InvariantCulture),
+                        ["fixtureDpi"] = dpi.ToString(CultureInfo.InvariantCulture),
+                        ["processId"] = Environment.ProcessId.ToString(CultureInfo.InvariantCulture),
+                        ["target"] = $"{target.GetType().Name}#{target.Name}",
+                        ["intendedScreenPoint"] = FormattableString.Invariant($"{screenPoint.X},{screenPoint.Y}"),
+                        ["expectedWindow"] = NotebookMouseReadinessEvidence.NativeWindow(expected),
+                        ["windowAtIntendedPoint"] = NotebookMouseReadinessEvidence.NativeWindow(observed),
+                        ["foregroundWindow"] = NotebookMouseReadinessEvidence.ForegroundWindow(),
+                        ["fixtureActive"] = window.IsActive.ToString(),
+                        ["targetIsMouseOver"] = target.IsMouseOver.ToString(),
+                        ["dispatcherShutdown"] = $"{target.Dispatcher.HasShutdownStarted}/{target.Dispatcher.HasShutdownFinished}"
+                    });
+                }
+                Assert.Equal(expected, observed);
+            }
+
             void Move(FrameworkElement target, bool requireHover = true)
             {
                 target.BringIntoView(); Layout();
                 var point = Center(target);
-                Assert.Equal(((HwndSource)PresentationSource.FromVisual(target)).Handle, WindowFromPoint(new((int)point.X, (int)point.Y)));
+                AssertOwnsPoint(target, point, "before movement");
                 Assert.True(SetCursorPos((int)point.X, (int)point.Y));
                 Assert.True(Wait(() => new Rect(target.RenderSize).Contains(Mouse.GetPosition(target)) && (!requireHover || target.IsMouseOver)),
                     "Native pointer did not reach the target with the expected capture/hover state.");
@@ -215,8 +244,7 @@ public sealed class InstrumentsViewTests
                     point = approach.Position;
                 }
                 else { Move(target, requireHover: Mouse.Captured is not ContextMenu); point = Center(target); }
-                var hwnd = ((HwndSource)PresentationSource.FromVisual(target)).Handle;
-                Assert.Equal(hwnd, WindowFromPoint(new((int)point.X, (int)point.Y)));
+                AssertOwnsPoint(target, point, "before click");
                 bool up = false;
                 void Released(object sender, ProcessInputEventArgs e) { if (e.StagingItem.Input is MouseButtonEventArgs { ButtonState: MouseButtonState.Released }) up = true; }
                 InputManager.Current.PostProcessInput += Released;
