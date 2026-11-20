@@ -37,7 +37,7 @@ public sealed class JournalCalendarSqliteTests
             Assert.True(cell.IsSaturday);
             Assert.False(cell.HasJournal);
             await calendar.SelectDayCommand.ExecuteAsync(cell);
-            Assert.True(calendar.IsSelectedDayEmpty);
+            Assert.False(Cell(calendar, saturday).HasDailyTrades);
             Assert.Equal("Add Journal", calendar.DayJournalActionText);
             calendar.OpenJournalAsync = async (date, account) =>
             {
@@ -103,13 +103,13 @@ public sealed class JournalCalendarSqliteTests
                 Assert.Equal(saturday, calendar.SelectedDate);
                 Assert.Null(calendar.SelectedAccount.Id);
                 Assert.Equal("USD", calendar.SelectedCurrency);
-                Assert.True(calendar.IsSelectedDayEmpty);
+                Assert.False(Cell(calendar, saturday).HasDailyTrades);
             }
         }
         finally
         {
             calendar.Deactivate();
-            await Task.WhenAll(calendar.LoadTask, calendar.DayLoadTask, calendar.JournalLoadTask);
+            await Task.WhenAll(calendar.LoadTask, calendar.DayJournalLoadTask, calendar.JournalLoadTask);
         }
     }
 
@@ -142,8 +142,8 @@ public sealed class JournalCalendarSqliteTests
             Assert.Contains("inactive", calendar.SelectedAccount.Name);
             Assert.Equal(specific.Entry.Id, calendar.SelectedDayJournalStatus!.JournalId);
             Assert.Equal("Completed", Cell(calendar, saturday).JournalStatusText);
-            Assert.Equal(1, calendar.DayDetails!.ClosedTradeCount);
-            Assert.Equal("EUR", Assert.Single(calendar.DaySummaries).Currency);
+            Assert.Equal(1, Assert.Single(Cell(calendar, saturday).DailySummaries).Metrics.ClosedTradeCount);
+            Assert.Equal("EUR", Assert.Single(Cell(calendar, saturday).DailySummaries).Currency);
             Assert.Equal(new[] { "EUR", "USD" }, Cell(calendar, saturday).WeeklySummaries.Select(s => s.Currency));
 
             calendar.SelectedCurrency = "USD";
@@ -151,7 +151,7 @@ public sealed class JournalCalendarSqliteTests
             Assert.Equal(account.Id, calendar.SelectedAccount.Id);
             Assert.Equal(specific.Entry.Id, calendar.SelectedDayJournalStatus!.JournalId);
             Assert.Equal("Completed", Cell(calendar, saturday).JournalStatusText);
-            Assert.True(calendar.IsSelectedDayEmpty); // Saturday's Trade is EUR; Sunday contributes USD to the week.
+            Assert.False(Cell(calendar, saturday).HasDailyTrades); // Saturday's Trade is EUR; Sunday contributes USD to the week.
             Assert.Equal(7m, Assert.Single(Cell(calendar, saturday).WeeklySummaries).Amount);
             Assert.Equal(1, Assert.Single(Cell(calendar, saturday).WeeklySummaries).Metrics.ClosedTradeCount);
 
@@ -171,7 +171,7 @@ public sealed class JournalCalendarSqliteTests
             Assert.Equal("Completed", Cell(calendar, saturday).JournalStatusText);
             Assert.Equal(3L, calendar.SelectedDayJournalStatus!.Revision);
             Assert.Equal("USD", calendar.SelectedCurrency);
-            Assert.True(calendar.IsSelectedDayEmpty);
+            Assert.False(Cell(calendar, saturday).HasDailyTrades);
 
             calendar.Deactivate();
             await calendar.ActivateAsync();
@@ -194,7 +194,7 @@ public sealed class JournalCalendarSqliteTests
         finally
         {
             calendar.Deactivate();
-            await Task.WhenAll(calendar.LoadTask, calendar.DayLoadTask, calendar.JournalLoadTask);
+            await Task.WhenAll(calendar.LoadTask, calendar.DayJournalLoadTask, calendar.JournalLoadTask);
         }
     }
 

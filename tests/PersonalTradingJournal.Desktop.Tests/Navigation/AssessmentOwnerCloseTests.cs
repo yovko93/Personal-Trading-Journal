@@ -3,13 +3,11 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
-using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Desktop.Dialogs;
 using PersonalTradingJournal.Desktop.Navigation;
 using PersonalTradingJournal.Desktop.Tests.CalendarPage;
 using PersonalTradingJournal.Desktop.Tests.Rules;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
-using PersonalTradingJournal.Desktop.Tests.Trades;
 using PersonalTradingJournal.Desktop.ViewModels.Calendar;
 using PersonalTradingJournal.Desktop.ViewModels.Rules;
 using PersonalTradingJournal.Desktop.Views.Calendar;
@@ -22,8 +20,6 @@ public sealed partial class MainWindowViewModelTests
     [Theory]
     [InlineData("main", "journal")]
     [InlineData("day", "journal")]
-    [InlineData("main", "trade")]
-    [InlineData("day", "trade")]
     [InlineData("main", "assessment")]
     [InlineData("day", "assessment")]
     [InlineData("main", "subscriber")]
@@ -34,16 +30,9 @@ public sealed partial class MainWindowViewModelTests
     {
         if (Environment.GetEnvironmentVariable(OwnerCloseHostVariable) != "1") { await OwnerCloseHost.Value; return; }
         var date = new DateOnly(2026, 9, 5);
-        var row = CalendarDayDetailsTests.Row(date, 10, 9);
-        var detail = TradesViewModelTests.CreateEditableTradeDetail(row, null);
-        var details = new FakeTradeDetailReader(); details.EnqueueResult(detail); details.EnqueueResult(detail);
-        var editor = TradesViewModelTests.CreateViewModel(tradeDetailReader: details,
-            reader: TradesViewModelTests.CreateEditReferenceReader(detail));
         var journalDialogs = new CountingOwnerCloseDialogs { Accept = veto != "journal" };
         var repository = new FakeDailyJournalRepository();
-        var fixture = CreateFixture(calendarEditor: editor,
-            calendarDayReader: new FakeTradingCalendarDayReader { Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date, [row], ct)) },
-            calendarJournalRepository: repository, calendarJournalDialogs: journalDialogs);
+        var fixture = CreateFixture(calendarJournalRepository: repository, calendarJournalDialogs: journalDialogs);
         var main = fixture.Main;
         main.NavigateCommand.Execute(NavigationDestination.Calendar);
         var calendar = Assert.IsType<CalendarViewModel>(main.CurrentContentViewModel);
@@ -52,12 +41,6 @@ public sealed partial class MainWindowViewModelTests
         await calendar.SelectDayCommand.ExecuteAsync(selected);
         await calendar.AddDayJournalCommand.ExecuteAsync(null);
         var journal = calendar.InlineJournal!; journal.Text = "Synthetic unsaved journal";
-        if (veto == "trade")
-        {
-            await calendar.ViewTradeCommand.ExecuteAsync(row);
-            await editor.ShowSelectedTradeEditCommand.ExecuteAsync(null);
-            Assert.True(calendar.HasInlineWork);
-        }
         var assessmentDialogs = new CountingOwnerCloseDialogs { Accept = veto != "assessment" };
         var data = new AssessmentData();
         var vm = new RuleAssessmentViewModel(data, data, data.Rules, data,
@@ -96,7 +79,7 @@ public sealed partial class MainWindowViewModelTests
                             assessment.Activate(); explanation.Focus();
                             // Registered AFTER the assessment subscriber: its approval is not final consent.
                             closing.Closing += (_, e) => { if (lateVeto) e.Cancel = true; };
-                            WpfStepDiagnostics.Write($"assessment close attempt: owner={target}; veto={veto}; draft={vm.HasUnsavedChanges}; tradeWork={calendar.HasInlineWork}");
+                            WpfStepDiagnostics.Write($"assessment close attempt: owner={target}; veto={veto}; draft={vm.HasUnsavedChanges}");
                             CloseTarget();
                             WpfStepDiagnostics.Write($"veto returned: main={owner.IsVisible}; day={day.IsVisible}; assessment={assessment.IsVisible}; journalRetained={ReferenceEquals(journal, calendar.InlineJournal)}");
                             FlushOwnerCloseDispatcher(); // Deferred work must not consume a vetoed draft either.
@@ -117,7 +100,6 @@ public sealed partial class MainWindowViewModelTests
                             Assert.Empty(data.Saved); Assert.Equal(0, repository.Writes);
 
                             lateVeto = false; assessmentDialogs.Accept = true; journalDialogs.Accept = true;
-                            if (veto == "trade") editor.CancelTradeEditCommand.Execute(null);
                             int journalPrompts = journalDialogs.Count, assessmentPrompts = assessmentDialogs.Count;
                             CloseTarget();
                             WpfStepDiagnostics.Write($"accepted returned: main={owner.IsVisible}; day={day.IsVisible}; assessment={assessment.IsVisible}");
@@ -133,7 +115,6 @@ public sealed partial class MainWindowViewModelTests
                         finally
                         {
                             lateVeto = false; assessmentDialogs.Accept = true; journalDialogs.Accept = true;
-                            if (editor.IsTradeEditVisible) editor.CancelTradeEditCommand.Execute(null);
                             assessment.Close(); if (!dayClosed) day.Close();
                         }
                     });

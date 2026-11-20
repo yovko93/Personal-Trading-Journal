@@ -85,44 +85,6 @@ public sealed partial class MainWindowViewModelTests
     }
 
     [Fact]
-    public async Task CalendarOwnerCloseVetoesInProgressTradeBeforeConsultingDirtyJournal()
-    {
-        var date = new DateOnly(2026, 9, 5);
-        var row = CalendarDayDetailsTests.Row(date, 10, 9);
-        var detail = TradesViewModelTests.CreateEditableTradeDetail(row, null);
-        var details = new FakeTradeDetailReader { HoldRead = true };
-        details.EnqueueResult(detail); details.EnqueueResult(detail); // View, then Edit reload.
-        var editor = TradesViewModelTests.CreateViewModel(tradeDetailReader: details,
-            reader: TradesViewModelTests.CreateEditReferenceReader(detail));
-        var dialogs = new CountingOwnerCloseDialogs { Accept = true };
-        var fixture = CreateFixture(calendarEditor: editor,
-            calendarDayReader: new FakeTradingCalendarDayReader { Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date, [row], ct)) },
-            calendarJournalRepository: new FakeDailyJournalRepository(), calendarJournalDialogs: dialogs);
-        using var main = fixture.Main;
-        main.NavigateCommand.Execute(NavigationDestination.Calendar);
-        var calendar = Assert.IsType<CalendarViewModel>(main.CurrentContentViewModel);
-        await calendar.LoadTask;
-        await calendar.SelectDayCommand.ExecuteAsync(calendar.Weeks.SelectMany(w => w.Days).Single(d => d.Date == date));
-        await calendar.AddDayJournalCommand.ExecuteAsync(null);
-        var journal = calendar.InlineJournal!; journal.Text = "Do not discard while Trade is loading";
-        Task load = calendar.ViewTradeCommand.ExecuteAsync(row);
-        try
-        {
-            await details.ReadStarted.WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.True(calendar.HasInlineWork); Assert.False(main.TryCloseWindow());
-            Assert.False(details.CancellationToken.IsCancellationRequested);
-            Assert.Same(journal, calendar.InlineJournal); Assert.Equal(0, dialogs.Count);
-            Assert.Contains("Finish loading", calendar.DayErrorMessage);
-        }
-        finally { details.ReleaseRead(); await load; }
-        await editor.ShowSelectedTradeEditCommand.ExecuteAsync(null);
-        Assert.True(editor.IsTradeEditVisible); Assert.False(main.TryCloseWindow());
-        Assert.Same(journal, calendar.InlineJournal); Assert.Equal(0, dialogs.Count);
-        editor.CancelTradeEditCommand.Execute(null);
-        Assert.True(main.TryCloseWindow()); Assert.Equal(1, dialogs.Count);
-    }
-
-    [Fact]
     public async Task CalendarOwnerCloseStandaloneJournalStillUsesItsOwnGuard()
     {
         if (Environment.GetEnvironmentVariable(OwnerCloseHostVariable) != "1") { await OwnerCloseHost.Value; return; }

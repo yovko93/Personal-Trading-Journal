@@ -202,7 +202,7 @@ public sealed partial class MainWindowViewModelTests
         Assert.Equal(new DateOnly(2026, 9, 1), calendar.SelectedMonth);
         Assert.Null(calendar.SelectedAccount.Id);
         Assert.Equal("All currencies", calendar.SelectedCurrency);
-        Assert.True(calendar.IsSelectedDayEmpty);
+        Assert.False(cell.HasDailyTrades);
         await calendar.NavigateToJournalAsync(cell.Date, calendar.SelectedAccount);
         await journal.DeleteCommand.ExecuteAsync(null);
         Assert.False(journal.IsExisting);

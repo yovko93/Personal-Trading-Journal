@@ -23,7 +23,7 @@ public sealed partial class CalendarViewModel
         // discard that page's draft. No History or duplicate Trade-context query in the modal.
         if (repository is not null && dialogs is not null)
             _dayJournalFactory = () => new JournalViewModel(repository, _accountReader, dialogs,
-                new JournalTradeContextViewModel(_dayReader, _accountReader), _timeProvider);
+                new JournalTradeContextViewModel(_journalTradeContextReader, _accountReader), _timeProvider);
         OpenInlineJournalCommand = new AsyncRelayCommand(OpenInlineJournalAsync,
             () => CanOpenDayJournal && !HasInlineJournal && _dayJournalFactory is not null);
         CloseInlineJournalCommand = new RelayCommand(() => TryCloseInlineJournal(), () => HasInlineJournal);
@@ -139,6 +139,17 @@ public sealed partial class CalendarViewModel
         if (ReferenceEquals(sender, InlineJournal) && InlineJournal?.JournalId is null) ReleaseInlineJournal();
         OnJournalCommitted();
     }
+
+    public bool TryCloseDayDialog()
+    {
+        if (!CanCloseDayDialog()) return false;
+        CompleteDayDialogClose();
+        return true;
+    }
+
+    internal bool CanCloseDayDialog() => Dialogs.WindowCloseAttempt.Check(this, CanCloseInlineJournal);
+
+    internal void CompleteDayDialogClose() => ReleaseInlineJournal();
 
     public bool TryCloseInlineJournal()
     {

@@ -1,5 +1,7 @@
 # Trading Rules — contracts, persistence and assessments
 
+The Trades and Calendar assessment entry points have been retired. The Rules catalog still manages Rules. Portable exports and full backups retain assessments and their original Rule revisions. In a portable export, open `journal.json` and read `tables.tradingRuleAssessments` and `tables.tradingRuleRevisions`. Weekly and Monthly Reviews continue to use retained assessments, and existing report citations remain readable. The verification below describes the historical assessment entry points. See [Calendar day behavior](trading-calendar.md#opening-a-calendar-day).
+
 ## PR #21 — Owned assessment close coordination (14 October 2026)
 
 Started from clean `develop`, HEAD `5d345b64edeafdf8a4b36bf6f2f79dc1c80a1de2`. All verification uses synthetic fixtures; no production data, provider calls, persistence/schema changes or Git writes.

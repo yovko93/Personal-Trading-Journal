@@ -138,17 +138,16 @@ public sealed class CalendarSummaryTests
 
 internal static class CalendarSummaryFixture
 {
-    public static async Task<CalendarViewModel> CreateAsync(ITradingCalendarDayReader? dayReader = null,
-        PersonalTradingJournal.Desktop.ViewModels.Trades.TradesViewModel? editor = null,
+    public static async Task<CalendarViewModel> CreateAsync(
         PersonalTradingJournal.Application.Journals.IDailyJournalStatusReader? journalStatusReader = null,
         PersonalTradingJournal.Application.Journals.IDailyJournalRepository? journalRepository = null,
         PersonalTradingJournal.Desktop.Dialogs.IDialogService? journalDialogs = null,
-        TradeAnalyticsFact? additionalFact = null)
+        TradeAnalyticsFact? additionalFact = null, ITradingCalendarDayReader? journalTradeContextReader = null)
     {
         using var timing = CalendarStaTest.Timing("fixture create and activate");
         var reader = new TradingCalendarReader(new FactsReader(additionalFact));
-        var vm = new CalendarViewModel(reader, new Clock(), dayReader ?? new FakeTradingCalendarDayReader(), new FakeTradingAccountReader(),
-            tradeEditor: editor, journalStatusReader: journalStatusReader,
+        var vm = new CalendarViewModel(reader, new Clock(), journalTradeContextReader ?? new FakeTradingCalendarDayReader(), new FakeTradingAccountReader(),
+            journalStatusReader: journalStatusReader,
             journalRepository: journalRepository ?? new FakeDailyJournalRepository(), journalDialogs: journalDialogs ?? new FakeDialogService());
         await vm.ActivateAsync();
         return vm;

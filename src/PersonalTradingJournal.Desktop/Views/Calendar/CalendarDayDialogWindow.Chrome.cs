@@ -74,16 +74,18 @@ public partial class CalendarDayDialogWindow
             _restorePanelMargin = DayPanel.Margin;
             DayPanel.MaxWidth = DayPanel.MaxHeight = double.PositiveInfinity;
             DayPanel.Margin = new Thickness(8);
+            DayPanel.VerticalAlignment = VerticalAlignment.Stretch;
         }
         else
         {
             DayPanel.MaxWidth = _restorePanelWidth;
             DayPanel.MaxHeight = _restorePanelHeight;
             DayPanel.Margin = _restorePanelMargin;
+            DayPanel.VerticalAlignment = VerticalAlignment.Center;
         }
         IsPanelMaximized = !IsPanelMaximized;
         MaximizeButton.Content = IsPanelMaximized ? "❐" : "□";
-        MaximizeButton.ToolTip = IsPanelMaximized ? "Restore Day Performance" : "Maximize Day Performance within the application";
-        AutomationProperties.SetName(MaximizeButton, IsPanelMaximized ? "Restore Day Performance" : "Maximize Day Performance");
+        MaximizeButton.ToolTip = IsPanelMaximized ? "Restore Calendar day" : "Maximize Calendar day within the application";
+        AutomationProperties.SetName(MaximizeButton, IsPanelMaximized ? "Restore Calendar day" : "Maximize Calendar day");
     }
 }

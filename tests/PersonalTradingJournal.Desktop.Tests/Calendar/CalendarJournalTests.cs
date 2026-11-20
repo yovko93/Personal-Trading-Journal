@@ -50,7 +50,7 @@ public sealed class CalendarJournalTests
         Assert.False(Cell(vm, Adjacent).IsInDisplayedMonth);
         Assert.Contains("Daily Journal draft", saturday.AccessibleName);
         await vm.SelectDayCommand.ExecuteAsync(saturday);
-        Assert.True(vm.IsSelectedDayEmpty);
+        Assert.False(Cell(vm, Saturday).HasDailyTrades);
         Assert.True(vm.CanOpenDayJournal);
         Assert.Equal("Continue Journal", vm.DayJournalActionText);
         await vm.SelectDayCommand.ExecuteAsync(Cell(vm, Adjacent));
@@ -126,7 +126,6 @@ public sealed class CalendarJournalTests
         await vm.ActivateAsync();
         await vm.SelectDayCommand.ExecuteAsync(Cell(vm, Saturday));
         TradingCalendarMonth month = vm.MonthData!;
-        TradingCalendarDayDetails day = vm.DayDetails!;
         CalendarDayCell cell = Cell(vm, Saturday);
         foreach (var expected in new[] { (true, "Draft", "Continue Journal"), (false, "Completed", "Open Journal"), (true, "Draft", "Continue Journal") })
         {
@@ -136,7 +135,6 @@ public sealed class CalendarJournalTests
             Assert.Equal(expected.Item2, cell.JournalStatusText);
             Assert.Equal(expected.Item3, vm.DayJournalActionText);
             Assert.Same(month, vm.MonthData);
-            Assert.Same(day, vm.DayDetails);
             Assert.Same(cell, Cell(vm, Saturday));
             Assert.Equal(Saturday, vm.SelectedDate);
             Assert.Equal(new DateOnly(2026, 9, 1), vm.SelectedMonth);
@@ -197,7 +195,7 @@ public sealed class CalendarJournalTests
         Assert.Null(vm.DayJournalError);
         Assert.Contains("No Journal", vm.DayJournalStatusMessage);
         Assert.NotNull(vm.MonthData);
-        Assert.True(vm.IsSelectedDayEmpty);
+        Assert.False(Cell(vm, Saturday).HasDailyTrades);
         source.Handler = null;
         source.Set(null, Status(Saturday, true));
         await vm.RefreshCommand.ExecuteAsync(null);

@@ -130,25 +130,16 @@ public sealed partial class MainWindowViewModelTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task PendingTradeDeletionFromTradesOrCalendarRefreshesDirtyJournalOnlyAfterCommit(
-        bool calendarEditor, bool cancel)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PendingTradeDeletionRefreshesDirtyJournalOnlyAfterCommit(bool cancel)
     {
         var deletion = new FakeTradeDeletionStore { HoldDelete = true };
-        var calendarRows = new FakeTradeListReader();
-        var row = CalendarPage.CalendarDayDetailsTests.Row(new DateOnly(2026, 9, 10), 100m, 95m);
-        calendarRows.EnqueueResult([row]);
-        var inlineEditor = calendarEditor ? Trades.TradesViewModelTests.CreateViewModel(
-            tradeListReader: calendarRows, tradeDeletionStore: deletion,
-            dialogService: new FakeDialogService { ConfirmationResult = true }) : null;
-        var fixture = CreateFixture(tradeDeletionStore: calendarEditor ? null : deletion, calendarEditor: inlineEditor);
+        var fixture = CreateFixture(tradeDeletionStore: deletion);
         using var main = fixture.Main;
-        var writer = inlineEditor ?? fixture.Trades;
+        var writer = fixture.Trades;
         await writer.EnsureLoadedAsync();
-        row = Assert.Single(writer.RecentTrades);
+        var row = Assert.Single(writer.RecentTrades);
         deletion.Result = new(row.Id, []);
         fixture.Journal.SelectedDate = new DateTime(2026, 9, 10);
         fixture.JournalReader.Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date, [row], ct));

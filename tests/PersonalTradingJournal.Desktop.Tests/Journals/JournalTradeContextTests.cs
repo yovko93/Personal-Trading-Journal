@@ -4,6 +4,7 @@ using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Application.Journals;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
+using PersonalTradingJournal.Desktop.ViewModels.Calendar;
 using PersonalTradingJournal.Desktop.ViewModels.Journals;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Domain.Journals;
@@ -61,7 +62,7 @@ public sealed class JournalTradeContextTests
         Assert.Equal("3 closed Trades", context.CountText);
         Assert.Contains("All accounts", context.ScopeLabel);
         Assert.False(context.IsEmpty);
-        Assert.All(context.Rows, row => Assert.Null(row.Editor));
+        Assert.Null(typeof(CalendarTradePresentation).GetProperty("Editor"));
         var classified = context.Rows.Single(row => row.Trade.Id == usdVerified.Id);
         Assert.Equal("Breakout (inactive)", classified.SetupText);
         Assert.Equal("Chased, Unavailable Mistake", classified.MistakesText);

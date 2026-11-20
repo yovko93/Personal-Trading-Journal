@@ -42,7 +42,7 @@ public sealed partial class CalendarViewModel
     private bool _journalStatusesLoaded, _isJournalLoading;
     private string? _journalErrorMessage;
 
-    /// <summary>Optional targeted standalone navigation. Day Performance uses its own inline editor.</summary>
+    /// <summary>Optional targeted standalone navigation. Calendar day uses its own inline editor.</summary>
     public Func<DateOnly, CalendarAccountOption, Task>? OpenJournalAsync { get; set; }
     public Task JournalNavigationTask { get; private set; } = Task.CompletedTask;
     public Task JournalLoadTask { get; private set; } = Task.CompletedTask;

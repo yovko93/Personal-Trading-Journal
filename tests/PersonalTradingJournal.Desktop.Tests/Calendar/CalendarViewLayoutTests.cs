@@ -304,12 +304,7 @@ public sealed class CalendarViewLayoutTests
     [InlineData("Dark", 480, 240)]
     public async Task RefreshPreservesDateContainersAndAutomationAndMonthWheelRouting(string theme, int width, int dpi)
     {
-        var reader = new FakeTradingCalendarDayReader
-        {
-            Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date,
-                [CalendarDayDetailsTests.Row(q.Date, -285m, null)], ct)),
-        };
-        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync(reader);
+        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync();
         await OnSta(() =>
         {
             var dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
@@ -345,7 +340,7 @@ public sealed class CalendarViewLayoutTests
                 peer.GetPattern(System.Windows.Automation.Peers.PatternInterface.Invoke));
             invoke.Invoke();
             Layout();
-            Finish(vm.DayLoadTask);
+            Finish(vm.DayJournalLoadTask);
             Layout();
             Assert.Equal(new DateOnly(2026, 9, 5), vm.SelectedDate);
             Assert.Contains("Selected", peer.GetItemStatus());
@@ -492,16 +487,13 @@ public sealed class CalendarViewLayoutTests
     [Theory]
     [InlineData("Light", 1100, 96, Key.Enter)]
     [InlineData("Dark", 1100, 96, Key.Space)]
-    [InlineData("Light", 640, 240, Key.Space)]
-    [InlineData("Dark", 640, 240, Key.Enter)]
-    public async Task DaySelectionByKeyboardAndMouseRendersResponsiveDetailsAndExactViewTargets(string theme, int width, int dpi, Key key)
+    [InlineData("Light", 480, 240, Key.Space)]
+    [InlineData("Dark", 480, 240, Key.Enter)]
+    public async Task KeyboardAndMouseOpenJournalOnlyDayViewAtEachSize(string theme, int width, int dpi, Key key)
     {
-        var reader = new FakeTradingCalendarDayReader
-        {
-            Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date,
-                [CalendarDayDetailsTests.Row(q.Date, -285m, null), CalendarDayDetailsTests.Row(q.Date, 10m, 9m) with { Currency = "EUR" }], ct))
-        };
-        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync(reader);
+        var journals = new FakeDailyJournalRepository();
+        await journals.CreateAsync(new(new DateOnly(2026, 9, 5), null, "Reviewed the morning Trades.", false));
+        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync(journalStatusReader: journals, journalRepository: journals);
         await OnSta(() =>
         {
             SynchronizationContext.SetSynchronizationContext(new System.Windows.Threading.DispatcherSynchronizationContext());
@@ -530,10 +522,10 @@ public sealed class CalendarViewLayoutTests
             {
                 var dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
                 var frame = new System.Windows.Threading.DispatcherFrame();
-                _ = vm.DayLoadTask.ContinueWith(_ => dispatcher.BeginInvoke(new Action(() => frame.Continue = false)),
+                _ = vm.DayJournalLoadTask.ContinueWith(_ => dispatcher.BeginInvoke(new Action(() => frame.Continue = false)),
                     CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
                 System.Windows.Threading.Dispatcher.PushFrame(frame);
-                vm.DayLoadTask.GetAwaiter().GetResult();
+                vm.DayJournalLoadTask.GetAwaiter().GetResult();
             }
             Layout();
             Border Cell(int month, int day) => Assert.Single(Descendants(view).OfType<Border>(), b => b.Focusable &&
@@ -550,57 +542,50 @@ public sealed class CalendarViewLayoutTests
             Assert.Equal(new DateOnly(2026, 9, 5), vm.SelectedDate);
             Assert.True(((CalendarDayCell)saturday.DataContext).IsSelected);
             Assert.Null(view.FindName("DayDetailsPanel"));
-            var panel = new CalendarDayDetailsView { DataContext = vm, Resources = SharedThemeResources(theme) };
-            panel.Measure(new Size(width, 650));
-            panel.Arrange(new Rect(0, 0, width, 650));
-            panel.UpdateLayout();
-            Assert.Equal(Visibility.Visible, panel.Visibility);
-            Assert.True(panel.ActualWidth <= width);
-            Assert.Contains(Descendants(panel).OfType<TextBlock>(), t => t.Text == "2 closed Trades");
-            Assert.Contains(Descendants(panel).OfType<TextBlock>(), t => t.Text == "Estimated");
-            Button[] views = Descendants(panel).OfType<Button>().Where(b => b.Content?.ToString() == "View").ToArray();
-            Assert.Equal(2, views.Length);
-            Assert.All(views, b =>
+            Assert.True(((CalendarDayCell)saturday.DataContext).HasDailyTrades);
+            CheckDayContent("populated", "Reviewed the morning Trades.");
+            Border empty = Cell(9, 10);
+            Assert.False(((CalendarDayCell)empty.DataContext).HasDailyTrades);
+            var emptyClick = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = Mouse.MouseUpEvent };
+            empty.RaiseEvent(emptyClick);
+            Assert.True(emptyClick.Handled);
+            FinishLoad();
+            Assert.Equal(new DateOnly(2026, 9, 10), vm.SelectedDate);
+            CheckDayContent("empty", "No Journal for this date in the selected Account filter.");
+
+            void CheckDayContent(string scenario, string expectedJournalText)
             {
-                Assert.Same(vm.ViewTradeCommand, b.Command);
-                Assert.Contains(vm.DayTrades, row => ReferenceEquals(row.Trade, b.CommandParameter));
-                Assert.True(KeyboardNavigation.GetIsTabStop(b));
-                Assert.True(b.ActualWidth >= 48);
-            });
-            var scroller = (ScrollViewer)panel.FindName("DayContentScroller");
-            ScrollViewer table = Assert.Single(Descendants(panel).OfType<ScrollViewer>(), s =>
-                NestedTableWheelRouting.GetForwardVerticalWheel(s) && s.Content is StackPanel);
-            foreach (UIElement surface in new UIElement[] { views[0], table,
-                Descendants(panel).OfType<Border>().First(b => b.Tag is CalendarDayPerformancePoint) })
-            {
-                scroller.ScrollToTop();
+                var panel = new CalendarDayDetailsView { DataContext = vm, Resources = SharedThemeResources(theme) };
+                panel.Measure(new Size(width, 650));
+                panel.Arrange(new Rect(0, 0, width, 650));
                 panel.UpdateLayout();
-                var wheel = new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, -120)
-                    { RoutedEvent = UIElement.PreviewMouseWheelEvent };
-                surface.RaiseEvent(wheel);
-                Assert.True(wheel.Handled);
-                panel.UpdateLayout();
-                Assert.True(scroller.VerticalOffset > 0);
-                Assert.Equal(0, table.VerticalOffset);
-            }
-            if (table.ScrollableWidth > 0)
-            {
-                table.ScrollToHorizontalOffset(100);
-                panel.UpdateLayout();
-                Assert.True(table.HorizontalOffset > 0);
-            }
-            scroller.ScrollToBottom();
-            panel.UpdateLayout();
-            Assert.True(scroller.VerticalOffset > 0);
-            var bitmap = new RenderTargetBitmap(width * dpi / 96, 650 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
-            bitmap.Render(panel);
-            if (Environment.GetEnvironmentVariable("PTJ_CALENDAR_RENDER_DIRECTORY") is { Length: > 0 } output)
-            {
-                Directory.CreateDirectory(output);
-                var encoder = new PngBitmapEncoder();
-                encoder.Frames.Add(BitmapFrame.Create(bitmap));
-                using var file = File.Create(Path.Combine(output, $"calendar-details-{theme}-{width}-{dpi}.png"));
-                encoder.Save(file);
+                Assert.Equal(Visibility.Visible, panel.Visibility);
+                Assert.True(panel.ActualWidth <= width);
+                Assert.Contains(Descendants(panel).OfType<TextBlock>(), t => t.Text == vm.SelectedDateLabel);
+                Assert.Contains(Descendants(panel).OfType<TextBlock>(), t => t.Text == "Day Journal");
+                Assert.Contains(Descendants(panel).OfType<TextBlock>(), t => t.Text == expectedJournalText);
+                Assert.DoesNotContain(Descendants(panel).OfType<TextBlock>(), t => t.Text is "Day Performance" or "Closed Trades");
+                Assert.DoesNotContain(Descendants(panel).OfType<Button>(), button =>
+                    button.Content?.ToString() is "Retry" or "View" || button.Content?.ToString()?.StartsWith("Assess day Rules") == true);
+                Assert.Null(panel.FindName("DayTradesList"));
+                var action = (Button)panel.FindName("DayJournalAction");
+                Assert.Same(vm.AddDayJournalCommand, action.Command);
+                Assert.True(action.IsEnabled && action.Focusable);
+                var origin = action.TranslatePoint(new Point(), panel);
+                Assert.InRange(origin.X, 0, width - action.ActualWidth);
+                Assert.InRange(origin.Y, 0, 160);
+                Assert.InRange(origin.Y + action.ActualHeight, 1, 650);
+                Assert.InRange(((Border)panel.FindName("DayDetailsPanel")).ActualHeight, 115, 330);
+                var bitmap = new RenderTargetBitmap(width * dpi / 96, 650 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
+                bitmap.Render(panel);
+                if (Environment.GetEnvironmentVariable("PTJ_CALENDAR_RENDER_DIRECTORY") is { Length: > 0 } output)
+                {
+                    Directory.CreateDirectory(output);
+                    var encoder = new PngBitmapEncoder();
+                    encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                    using var file = File.Create(Path.Combine(output, $"calendar-day-journals-{theme}-{width}-{dpi}-{scenario}.png"));
+                    encoder.Save(file);
+                }
             }
             Border adjacent = Cell(8, 31);
             var mouse = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
@@ -611,7 +596,6 @@ public sealed class CalendarViewLayoutTests
             Layout();
             Assert.Equal(new DateOnly(2026, 8, 31), vm.SelectedDate);
             Assert.False(((CalendarDayCell)saturday.DataContext).IsSelected);
-            Assert.Equal(2, reader.Calls.Count);
             TextBlock weekLabel = Assert.Single(Descendants(saturday).OfType<TextBlock>(), t => t.Text == "Week 1");
             var weeklyClick = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
                 { RoutedEvent = Mouse.MouseUpEvent };
@@ -629,7 +613,6 @@ public sealed class CalendarViewLayoutTests
             Layout();
             Assert.True(amountClick.Handled);
             Assert.Equal(new DateOnly(2026, 9, 4), vm.SelectedDate);
-            Assert.Equal(4, reader.Calls.Count);
         });
     }
 

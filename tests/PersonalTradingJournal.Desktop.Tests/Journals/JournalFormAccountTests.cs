@@ -100,12 +100,12 @@ public sealed class JournalFormAccountTests
             Assert.Equal(calendarAccount ? account : (Guid?)null, vm.EditorAccount.Id);
             Guid? target = calendarAccount ? null : account;
             vm.EditorAccount = vm.Accounts.Single(a => a.Id == target); SetFields(vm);
-            var details = calendar.DayDetails;
+            var details = calendar.MonthData;
             await vm.SaveCommand.ExecuteAsync(null); await calendar.JournalLoadTask;
             Assert.Null(vm.ErrorMessage); Assert.False(vm.IsEditorOpen); Assert.True(vm.IsCompleted);
             if (calendarAccount) Assert.Null(calendar.InlineJournal);
             else Assert.Same(vm, calendar.InlineJournal);
-            Assert.Same(details, calendar.DayDetails);
+            Assert.Same(details, calendar.MonthData);
             Assert.Equal(calendarAccount ? account : (Guid?)null, calendar.SelectedAccount.Id);
             Assert.Equal(!calendarAccount, day.HasJournal);
             var entry = (await db.Repository.GetAsync(day.Date, target))!.Entry;

@@ -42,7 +42,6 @@ public sealed class WpfRuleAssessmentDialog(Func<RuleAssessmentViewModel> create
             }
         };
         // WPF does not raise Closing for an owned window when its ancestor closes.
-        // Include the main owner even when this dialog was opened inside Day Performance.
         foreach (var ancestor in owners) ancestor.Closing += ownerClosing;
         window.Closing += (_, e) => { if (!acceptedOwnerClose && !vm.TryLeave()) e.Cancel = true; };
         window.PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; window.Close(); } };
