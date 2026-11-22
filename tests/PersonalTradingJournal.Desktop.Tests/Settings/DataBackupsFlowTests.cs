@@ -67,7 +67,7 @@ public sealed class DataBackupsFlowTests
             await vm.CreateBackupCommand.ExecuteAsync(null); Assert.Equal(archive, vm.OutputLocation); Assert.True(File.Exists(archive));
             VerifyArchive(archive);
             f.Target = Path.Combine(root, "export"); await vm.ExportCommand.ExecuteAsync(null);
-            Assert.Equal(6, Directory.GetFiles(f.Target).Length); Assert.Contains("Not a restorable backup", vm.Status);
+            Assert.Equal(7, Directory.GetFiles(f.Target).Length); Assert.Contains("Not a restorable backup", vm.Status);
             string originalTables = InspectExport(f.Target, id);
             f.Target = archive; await vm.InspectCommand.ExecuteAsync(null); Assert.True(vm.HasPreview); vm.RestoreCommand.Execute(null);
             var request = Assert.IsType<JournalRestoreRequest>(f.Request);
@@ -212,7 +212,7 @@ public sealed class DataBackupsFlowTests
         Assert.Equal(1, tables.GetProperty("analyses").GetArrayLength());
         Assert.Equal(1, tables.GetProperty("screenshots").GetArrayLength());
         Assert.All(tables.GetProperty("journals").EnumerateArray(), j => Assert.Equal("2026-11-01", j.GetProperty("tradingDateNewYork").GetString()));
-        Assert.Equal(4, Directory.GetFiles(directory, "*.csv").Length);
+        Assert.Equal(5, Directory.GetFiles(directory, "*.csv").Length);
         foreach (string csv in new[] { "accounts", "trades", "executions", "journals" })
             Assert.Contains("\"id\"", File.ReadAllText(Path.Combine(directory, csv + ".csv")));
         Assert.Contains("'=Synthetic, 日本語\nsecond line", File.ReadAllText(Path.Combine(directory, "journals.csv")));

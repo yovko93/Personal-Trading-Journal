@@ -81,7 +81,7 @@ public sealed partial class TradingRulePersistenceTests
         var result = await f.Get<IPortableExportService>().CreateAsync(output);
         Assert.True(result.Succeeded, result.ToString());
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(output, PortableExportContract.DataFile)));
-        Assert.Equal(18, json.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(20, json.RootElement.GetProperty("version").GetInt32());
         var tables = json.RootElement.GetProperty("tables");
         var positions = tables.GetProperty("tradingRulePositions").EnumerateArray().ToArray();
         Assert.Equal(new[] { manual.RuleId, rule.RuleId }, positions.Select(p => p.GetProperty("ruleId").GetGuid()));
@@ -106,7 +106,7 @@ public sealed partial class TradingRulePersistenceTests
         await using var db = f.Context();
         Assert.Equal((await db.TradingRuleAssessments.SingleAsync()).EvidenceJson, assessment.GetProperty("evidenceJson").GetString());
         Assert.Equal(JsonValueKind.Null, tables.GetProperty("executions")[0].GetProperty("commission").ValueKind);
-        Assert.Equal(4, Directory.GetFiles(output, "*.csv").Length);
+        Assert.Equal(5, Directory.GetFiles(output, "*.csv").Length);
         Assert.False(json.RootElement.GetProperty("restorableBackup").GetBoolean());
         Assert.NotNull(revision.GetProperty("automaticCriterionJson").GetString());
         Assert.Equal(JsonValueKind.Null, assessment.GetProperty("evaluationJson").ValueKind);
@@ -140,7 +140,7 @@ public sealed partial class TradingRulePersistenceTests
         Assert.Equal(BackupValidationCode.UnsupportedDatabaseSchema, result.Failure);
         await using var installed = f.Context();
         Assert.Equal(migrations.ToArray(), (await installed.Database.GetAppliedMigrationsAsync()).ToArray());
-        Assert.Equal(trade.Id, (await installed.Trades.SingleAsync()).Id);
+        Assert.Equal(trade.Id, await installed.Trades.Select(t => t.Id).SingleAsync());
         Assert.Empty(Directory.GetDirectories(f.Root, ".preflight-*.partial"));
     }
 }

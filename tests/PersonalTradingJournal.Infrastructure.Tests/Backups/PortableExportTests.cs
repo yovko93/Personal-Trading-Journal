@@ -32,11 +32,11 @@ public sealed class PortableExportTests
         var service = f.Services.GetRequiredService<IPortableExportService>(); Assert.False(Directory.Exists(Output(f)));
         var result = await service.CreateAsync(Output(f)); Assert.True(result.Succeeded, result.ToString()); Assert.Equal(2, result.Rows); // Rules and principles concurrency singletons, no user records.
         using var document = Read(f); var root = document.RootElement;
-        Assert.Equal(18, root.GetProperty("version").GetInt32()); Assert.False(root.GetProperty("restorableBackup").GetBoolean());
+        Assert.Equal(20, root.GetProperty("version").GetInt32()); Assert.False(root.GetProperty("restorableBackup").GetBoolean());
         Assert.Equal("metadata-only", root.GetProperty("screenshotContent").GetString());
         foreach (var table in PortableExportSchema.Tables) Assert.Equal(table.Name is "tradingRuleCatalogState" or "dailyTradingPrincipleState" ? 1 : 0, root.GetProperty("tables").GetProperty(table.Name).GetArrayLength());
         Assert.Equal(0, root.GetProperty("tables").GetProperty("tradingRuleCatalogState")[0].GetProperty("version").GetInt64());
-        Assert.Equal(6, Directory.GetFiles(Output(f)).Length); NoPartial(f);
+        Assert.Equal(7, Directory.GetFiles(Output(f)).Length); NoPartial(f);
         using var manifest = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(Output(f), PortableExportContract.InventoryFile)));
         foreach (var file in manifest.RootElement.GetProperty("files").EnumerateArray())
         {
@@ -65,6 +65,8 @@ public sealed class PortableExportTests
     public async Task MixedAccountsExactEconomicsRelationshipsRevisionsAndSavedSnapshotsSurviveWithoutLiveFileReads()
     {
         await using var f = await Fixture.Create(); await Seed(f);
+        await using (var descriptions = f.Context())
+            await descriptions.Trades.ExecuteUpdateAsync(t => t.SetProperty(x => x.Description, "Trade-only description 🙂\nSecond line"));
         // Screenshots deliberately have no binaries. Metadata-only export must not require or manufacture them.
         await using var context = f.Context();
         var expectedAnalyses = await context.CoachingAnalyses.AsNoTracking().ToArrayAsync();
@@ -73,6 +75,7 @@ public sealed class PortableExportTests
         using var data = Read(f); var tables = data.RootElement.GetProperty("tables");
         Assert.Equal(2, tables.GetProperty("accounts").GetArrayLength());
         Assert.Equal(new[] { "EUR", "USD" }, tables.GetProperty("accounts").EnumerateArray().Select(r => r.GetProperty("currency").GetString()).Order());
+        Assert.All(tables.GetProperty("trades").EnumerateArray(), t => Assert.Equal("Trade-only description 🙂\nSecond line", t.GetProperty("description").GetString()));
         Assert.Equal(2, tables.GetProperty("screenshots").GetArrayLength()); Assert.Empty(Directory.GetDirectories(Output(f)));
         Assert.Equal(2, tables.GetProperty("journals").GetArrayLength()); Assert.Equal(3, tables.GetProperty("journalRevisions").GetArrayLength());
         Assert.Contains(tables.GetProperty("journals").EnumerateArray(), j => j.GetProperty("tradingAccountId").ValueKind == JsonValueKind.Null);

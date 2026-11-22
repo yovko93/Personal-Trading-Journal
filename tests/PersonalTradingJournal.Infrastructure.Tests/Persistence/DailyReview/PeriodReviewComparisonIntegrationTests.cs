@@ -138,11 +138,11 @@ public sealed partial class DailyReviewEvidenceReaderTests
         var guidance = TradingSetupPlaybookRevision.Create(setup, new("Before", "Entry", "Confirm", "Invalid", "Execution"), Audit);
         var playbooks = db.ServiceProvider.GetRequiredService<ITradingSetupPlaybookStore>();
         Assert.True(await playbooks.TryAppendAsync(guidance, 0, Audit));
-        Assert.True(await db.ServiceProvider.GetRequiredService<ITradePlaybookContextStore>()
+        Assert.True(await (await LegacyTradeCaptureFixture.ContextsAsync(db.ContextFactory))
             .TryAddAsync(TradePlaybookContext.Capture(old, setup, guidance, Close), Audit));
         var revised = guidance.Revise(setup, 1, new("After", "Entry", "Confirm", "Invalid", "Execution"), Close);
         Assert.True(await playbooks.TryAppendAsync(revised, 1, Audit));
-        Assert.True(await db.ServiceProvider.GetRequiredService<ITradePlaybookContextStore>()
+        Assert.True(await (await LegacyTradeCaptureFixture.ContextsAsync(db.ContextFactory))
             .TryAddAsync(TradePlaybookContext.Capture(current, setup, revised, Close), Audit));
         var rule = TradingRuleRevision.Create(Guid.NewGuid(), new("Retained rule"), Audit);
         var rules = db.ServiceProvider.GetRequiredService<ITradingRuleStore>(); Assert.True(await rules.TryAppendAsync(rule, 0));

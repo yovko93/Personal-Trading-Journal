@@ -26,7 +26,9 @@ public sealed class AccountBalanceLayoutTests
         if (Environment.GetEnvironmentVariable("PTJ_ACCOUNT_BALANCE_HOST") != "1") { await Host.Value; return; }
         var reader = new AccountBalancePresentationTests.Balances();
         reader.Reads.Enqueue(_ => Task.FromResult<IReadOnlyList<AccountListItem>>([
-            AccountBalancePresentationTests.Item(1, true), AccountBalancePresentationTests.Item(-1, true), AccountBalancePresentationTests.Item(0, false)]));
+            AccountBalancePresentationTests.Item(1, true),
+            AccountBalancePresentationTests.Item(-1, true) with { IsActive = false },
+            AccountBalancePresentationTests.Item(0, false)]));
         var vm = AccountBalancePresentationTests.Create(reader); await vm.EnsureLoadedAsync();
         await CalendarStaTest.RunAsync(() =>
         {
@@ -42,9 +44,47 @@ public sealed class AccountBalanceLayoutTests
             var header = elements.OfType<TextBlock>().Single(t => t.Text == "Current Balance");
             var starting = Descendants(scroll).OfType<TextBlock>().Single(t => t.Text == "Starting Balance");
             Assert.Equal(Grid.GetColumn(starting) + 1, Grid.GetColumn(header));
+            var payoutHeader = elements.OfType<TextBlock>().Single(t => t.Text == "Payout");
+            var statusHeader = elements.OfType<TextBlock>().Single(t => t.Text == "Status");
+            Assert.Equal(Grid.GetColumn(header) + 1, Grid.GetColumn(payoutHeader));
+            Assert.Equal(Grid.GetColumn(payoutHeader) + 1, Grid.GetColumn(statusHeader));
+            Assert.All(Descendants(scroll).OfType<TextBlock>(), t => Assert.Equal(TextAlignment.Left, t.TextAlignment));
+            Assert.All(Descendants(scroll).OfType<StackPanel>().Where(p => p.Orientation == Orientation.Horizontal && p.Parent is Grid),
+                p => Assert.Equal(HorizontalAlignment.Right, p.HorizontalAlignment));
+            var actionsHeader = elements.OfType<TextBlock>().Single(t => t.Text == "Actions");
+            var headerGridForActions = (Grid)actionsHeader.Parent;
+            var actionsColumn = headerGridForActions.ColumnDefinitions[Grid.GetColumn(actionsHeader)];
+            Assert.True(actionsColumn.Width.IsAuto);
+            double actionsCenter = actionsColumn.Offset + actionsColumn.ActualWidth / 2;
+            Assert.Equal(actionsCenter, actionsHeader.TranslatePoint(new(actionsHeader.ActualWidth / 2, 0), headerGridForActions).X, 2);
+            var actionPanels = Descendants(scroll).OfType<StackPanel>().Where(p => p.Parent is Grid && Grid.GetColumn(p) == 8).ToArray();
+            Assert.Equal(3, actionPanels.Length);
+            foreach (var panel in actionPanels)
+            {
+                var row = (Grid)panel.Parent;
+                var buttons = panel.Children.OfType<Button>().ToArray();
+                Assert.Equal(2, buttons.Length);
+                Assert.Equal(VerticalAlignment.Center, panel.VerticalAlignment);
+                Assert.Equal(36, buttons[0].ActualHeight);
+                Assert.Equal(buttons[0].ActualHeight, buttons[1].ActualHeight);
+                Assert.Equal(buttons[0].TranslatePoint(new(), row).Y, buttons[1].TranslatePoint(new(), row).Y, 2);
+                Assert.Equal(row.ActualHeight / 2, panel.TranslatePoint(new(0, panel.ActualHeight / 2), row).Y, 2);
+                Assert.Equal(row.ActualWidth, panel.TranslatePoint(new(panel.ActualWidth, 0), row).X, 2);
+                Assert.Equal(headerGridForActions.TranslatePoint(new(headerGridForActions.ActualWidth, 0), scroll).X,
+                    buttons[1].TranslatePoint(new(buttons[1].ActualWidth, 0), scroll).X, 2);
+                Assert.Equal(panel.ActualWidth, row.ColumnDefinitions[8].ActualWidth, 2);
+                for (int column = 0; column < 9; column++)
+                {
+                    Assert.Equal(headerGridForActions.ColumnDefinitions[column].ActualWidth, row.ColumnDefinitions[column].ActualWidth, 2);
+                    if (column == 8) continue;
+                    var heading = headerGridForActions.Children.OfType<TextBlock>().Single(h => Grid.GetColumn(h) == column);
+                    var cell = row.Children.OfType<FrameworkElement>().Single(c => Grid.GetColumn(c) == column);
+                    Assert.Equal(heading.TranslatePoint(new(), scroll).X, cell.TranslatePoint(new(), scroll).X, 2);
+                }
+            }
             var values = elements.OfType<TextBlock>().Where(t => t.Name == "CurrentBalanceValue").ToArray();
             Assert.Equal(3, values.Length);
-            Assert.Equal(TextAlignment.Center, header.TextAlignment);
+            Assert.Equal(TextAlignment.Left, header.TextAlignment);
             string[] colors = ["PtjSuccessBrush", "PtjDangerBrush", "PtjTextPrimaryBrush"];
             for (int i = 0; i < values.Length; i++)
             {
@@ -52,20 +92,39 @@ public sealed class AccountBalanceLayoutTests
                 Assert.True(values[i].Focusable);
                 Assert.Contains("Not a broker balance", AutomationProperties.GetName(values[i]));
                 if (i < 2) Assert.StartsWith("Estimated", values[i].Text);
-                double headerCenter = header.TranslatePoint(new(header.ActualWidth / 2, 0), scroll).X;
-                double valueCenter = values[i].TranslatePoint(new(values[i].ActualWidth / 2, 0), scroll).X;
+                double headerCenter = header.TranslatePoint(new(0, 0), scroll).X;
+                double valueCenter = values[i].TranslatePoint(new(0, 0), scroll).X;
                 var headerGrid = (Grid)header.Parent;
                 var rowGrid = (Grid)((StackPanel)values[i].Parent).Parent;
                 Assert.Equal(headerGrid.ColumnDefinitions[5].ActualWidth, rowGrid.ColumnDefinitions[5].ActualWidth, 2);
                 Assert.Equal(headerCenter, valueCenter, 2);
-                Assert.Equal(TextAlignment.Center, values[i].TextAlignment);
-                var coverage = ((StackPanel)values[i].Parent).Children.OfType<TextBlock>().Single(t => t.Name == "CurrentBalanceCoverage");
-                Assert.Equal(headerCenter, coverage.TranslatePoint(new(coverage.ActualWidth / 2, 0), scroll).X, 2);
-                Assert.Equal(TextAlignment.Center, coverage.TextAlignment);
-                Assert.Equal(0, values[i].TranslatePoint(new(), (StackPanel)values[i].Parent).Y, 2);
-                double coverageTop = coverage.TranslatePoint(new(), (StackPanel)values[i].Parent).Y;
-                Assert.Equal(values[i].ActualHeight, coverageTop, 2); // TranslatePoint can differ by floating-point roundoff (18.62 vs 18.619999999999976).
-                Assert.Equal(i < 2, coverage.Text.Length > 0);
+                Assert.Equal(TextAlignment.Left, values[i].TextAlignment);
+                var balanceCell = (StackPanel)values[i].Parent;
+                var status = rowGrid.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == Grid.GetColumn(statusHeader));
+                Assert.Equal(i == 1 ? "Inactive" : "Active", status.Text);
+                var rowName = rowGrid.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == 0);
+                double rowCenter = rowName.TranslatePoint(new(0, rowName.ActualHeight / 2), rowGrid).Y;
+                Assert.Equal(rowCenter, status.TranslatePoint(new(0, status.ActualHeight / 2), rowGrid).Y, 2);
+                Assert.Equal(rowCenter, balanceCell.TranslatePoint(new(0, balanceCell.ActualHeight / 2), rowGrid).Y, 2);
+                var coverage = balanceCell.Children.OfType<TextBlock>().Single(t => t.Name == "CurrentBalanceCoverage");
+                Assert.Equal(TextAlignment.Left, coverage.TextAlignment);
+                Assert.Equal(0, values[i].TranslatePoint(new(), balanceCell).Y, 2);
+                if (i < 2)
+                {
+                    Assert.NotEmpty(coverage.Text);
+                    Assert.Equal(Visibility.Visible, coverage.Visibility);
+                    Assert.True(coverage.ActualHeight > status.ActualHeight, "Estimated balance coverage must wrap.");
+                    Assert.Equal(headerCenter, coverage.TranslatePoint(new(), scroll).X, 2);
+                    double coverageTop = coverage.TranslatePoint(new(), balanceCell).Y;
+                    Assert.Equal(values[i].ActualHeight, coverageTop, 2);
+                }
+                else
+                {
+                    Assert.Empty(coverage.Text);
+                    Assert.Equal(Visibility.Collapsed, coverage.Visibility);
+                    double valueMidpoint = values[i].TranslatePoint(new(0, values[i].ActualHeight / 2), rowGrid).Y;
+                    Assert.Equal(rowCenter, valueMidpoint, 2);
+                }
             }
             Assert.Equal(width < 1120, scroll.ScrollableWidth > 0);
             scroll.ScrollToRightEnd(); root.UpdateLayout();
@@ -79,6 +138,60 @@ public sealed class AccountBalanceLayoutTests
                 var bitmap = new RenderTargetBitmap(width * dpi / 96, 700 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32); bitmap.Render(root);
                 var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
                 using var file = File.Create(Path.Combine(path, $"balance-{theme}-{width}-{dpi}.png")); encoder.Save(file);
+            }
+            root.Child = null;
+        }, shutdownDispatcher: false);
+    }
+
+    [Theory]
+    [InlineData("Light", 1280, 96)]
+    [InlineData("Dark", 1280, 96)]
+    [InlineData("Light", 480, 240)]
+    [InlineData("Dark", 480, 240)]
+    public async Task PayoutDetailsRemainReadableAndReachable(string theme, int width, int dpi)
+    {
+        if (Environment.GetEnvironmentVariable("PTJ_ACCOUNT_BALANCE_HOST") != "1") { await Host.Value; return; }
+        var store = new AccountPayoutViewModelTests.Payouts();
+        await store.AddAsync(store.Id, "EUR", 12.34m); await store.AddAsync(store.Id, "EUR", 56.78m);
+        var vm = AccountPayoutViewModelTests.Create(store, new FakeDialogService());
+        await vm.EnsureLoadedAsync(); await vm.ViewAccountCommand.ExecuteAsync(store.Id);
+        await CalendarStaTest.RunAsync(() =>
+        {
+            var app = System.Windows.Application.Current ?? new() { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            app.Resources = CalendarViewLayoutTests.SharedThemeResources(theme);
+            var view = new AccountsView { DataContext = vm };
+            var root = new Border { Child = view }; root.SetResourceReference(Border.BackgroundProperty, "PtjBackgroundBrush");
+            VisualTreeHelper.SetRootDpi(root, new DpiScale(dpi / 96d, dpi / 96d));
+            root.Measure(new(width, 900)); root.Arrange(new(0, 0, width, 900)); root.UpdateLayout();
+            var section = Assert.IsType<Border>(view.FindName("AccountPayoutSection"));
+            var children = Descendants(section).OfType<FrameworkElement>().Where(e => e is Button or TextBox).ToArray();
+            Assert.Equal(4, children.Length);
+            var removeButtons = Descendants(section).OfType<Button>().Where(b => b.Content as string == "Remove").ToArray();
+            Assert.Equal(2, removeButtons.Length);
+            foreach (var remove in removeButtons)
+            {
+                Assert.Same(app.Resources["PtjDangerButtonStyle"], remove.Style);
+                Assert.Equal(((SolidColorBrush)app.Resources["PtjDangerBrush"]).Color, ((SolidColorBrush)remove.Background).Color);
+                Assert.Equal(((SolidColorBrush)app.Resources["PtjDangerBrush"]).Color, ((SolidColorBrush)remove.BorderBrush).Color);
+                Assert.Equal(((SolidColorBrush)app.Resources["PtjSurfaceBrush"]).Color, ((SolidColorBrush)remove.Foreground).Color);
+                Assert.Same(vm.RemovePayoutCommand, remove.Command);
+                Assert.Null(remove.ContextMenu);
+                Assert.Contains(Assert.IsType<AccountPayout>(remove.CommandParameter), vm.Payouts);
+            }
+            foreach (var element in children)
+            {
+                Assert.True(element.IsEnabled);
+                Assert.InRange(element.TranslatePoint(new(), section).X, 0, section.ActualWidth);
+                Assert.InRange(element.TranslatePoint(new(element.ActualWidth, 0), section).X, 0, section.ActualWidth);
+            }
+            Assert.Equal(((SolidColorBrush)app.Resources["PtjSuccessBrush"]).Color, ((SolidColorBrush)section.BorderBrush).Color);
+            section.BringIntoView(); root.UpdateLayout();
+            if (Environment.GetEnvironmentVariable("PTJ_ACCOUNT_RENDER_DIRECTORY") is { Length: > 0 } path)
+            {
+                Directory.CreateDirectory(path);
+                var bitmap = new RenderTargetBitmap(width * dpi / 96, 900 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32); bitmap.Render(root);
+                var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                using var file = File.Create(Path.Combine(path, $"payout-{theme}-{width}-{dpi}.png")); encoder.Save(file);
             }
             root.Child = null;
         }, shutdownDispatcher: false);

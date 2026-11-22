@@ -485,7 +485,7 @@ public sealed partial class CalendarViewModel : ObservableObject
             TradingCalendarDayDetails? source = await Task.Run(async () =>
             {
                 if (requestedAccount is { } id && !(await _accountReader.GetAllAsync(cancellation.Token)).Any(a => a.Id == id)) return null;
-                return await _dayReader.GetAsync(new(date, requestedAccount), cancellation.Token);
+                return await _dayReader.GetAsync(TradingCalendarDayQuery.ForTradingDate(date, requestedAccount), cancellation.Token);
             }, cancellation.Token);
             if (generation != _dayGeneration || cancellation.IsCancellationRequested || !_isActive || SelectedDate != date) return;
             if (source is null)
@@ -517,7 +517,7 @@ public sealed partial class CalendarViewModel : ObservableObject
         {
             if (generation != _dayGeneration || !_isActive) return;
             _logger.LogError(exception, "Calendar day load failed");
-            DayErrorMessage = "Day Trades could not be loaded. Select Retry to try again.";
+            DayErrorMessage = "Day Trades could not be loaded. Reopen this date to try again.";
         }
         finally
         {
@@ -532,7 +532,7 @@ public sealed partial class CalendarViewModel : ObservableObject
 
     private void CancelDay()
     {
-        if (IsDayLoading) _dayNotice = "Day read cancelled. Select Retry to try again.";
+        if (IsDayLoading) _dayNotice = "Day read cancelled. Reopen this date to try again.";
         _dayGeneration++;
         _dayCancellation?.Cancel();
         _dayCancellation = null;

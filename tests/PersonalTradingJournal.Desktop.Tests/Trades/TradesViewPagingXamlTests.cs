@@ -79,11 +79,11 @@ public sealed class TradesViewPagingXamlTests
         Assert.Contains(list.Descendants(presentation + "TextBlock"), item =>
             (string?)item.Attribute("Text") == "Net P&L ");
         Assert.Contains(list.Descendants(presentation + "TextBlock"), item =>
-            (string?)item.Attribute("Text") == "{Binding GrossPnL, TargetNullValue=—}");
+            (string?)item.Attribute("Text") == "{Binding GrossPnL, StringFormat={}{0:N2}, TargetNullValue=—}");
         Assert.Contains(list.Descendants(presentation + "TextBlock"), item =>
-            (string?)item.Attribute("Text") == "{Binding EffectiveNet.Value}");
+            (string?)item.Attribute("Text") == "{Binding EffectiveNet.Value, StringFormat={}{0:N2}}");
         Assert.Contains(view.Descendants(presentation + "TextBlock"), item =>
-            (string?)item.Attribute("Text") == "{Binding SelectedTradeDetail.EffectiveNet.Value}");
+            (string?)item.Attribute("Text") == "{Binding SelectedTradeDetail.EffectiveNet.Value, StringFormat={}{0:N2}}");
 
         XElement[] explanations = view.Descendants(presentation + "TextBlock")
             .Where(item => (string?)item.Attribute("Text") ==
@@ -167,8 +167,8 @@ public sealed class TradesViewPagingXamlTests
         foreach (string path in amountPaths)
         {
             XElement amount = Assert.Single(view.Descendants(presentation + "TextBlock"), item =>
-                (string?)item.Attribute("Text") == $"{{Binding {path}}}" ||
-                (string?)item.Attribute("Text") == $"{{Binding {path}, TargetNullValue=—}}");
+                (string?)item.Attribute("Text") == $"{{Binding {path}, StringFormat={{}}{{0:N2}}}}" ||
+                (string?)item.Attribute("Text") == $"{{Binding {path}, StringFormat={{}}{{0:N2}}, TargetNullValue=—}}");
             XElement[] triggers = amount.Descendants(presentation + "DataTrigger")
                 .Where(trigger => (string?)trigger.Attribute("Binding") ==
                     $"{{Binding {path}, Converter={{StaticResource PnLOutcomeConverter}}}}")
@@ -299,7 +299,7 @@ public sealed class TradesViewPagingXamlTests
             "<ColumnDefinition Width=\"1.2\\*\" MinWidth=\"155\" />\\s*" +
             "<ColumnDefinition Width=\"56\" />\\s*" +
             "<ColumnDefinition Width=\"180\" />\\s*" +
-            "<ColumnDefinition Width=\"122\" />";
+            "<ColumnDefinition Width=\"136\" />";
 
         Assert.True(Regex.Matches(view, columns).Count >= 2);
         Assert.Contains("PtjTradeOutcomeRowStyle", view, StringComparison.Ordinal);
@@ -321,7 +321,7 @@ public sealed class TradesViewPagingXamlTests
         Assert.Equal("Auto", (string?)scroller.Attribute("HorizontalScrollBarVisibility"));
         Assert.Equal("Disabled", (string?)scroller.Attribute("VerticalScrollBarVisibility"));
         XElement table = Assert.Single(scroller.Elements(presentation + "StackPanel"));
-        Assert.Equal("884", (string?)table.Attribute("MinWidth"));
+        Assert.Equal("898", (string?)table.Attribute("MinWidth"));
         Assert.Equal("{Binding ViewportWidth, ElementName=TradeListScrollViewer}",
             (string?)table.Attribute("Width"));
 
@@ -339,20 +339,20 @@ public sealed class TradesViewPagingXamlTests
             row.Element(presentation + "Grid.ColumnDefinitions")!.Elements(presentation + "ColumnDefinition")
                 .Select(column => ((string?)column.Attribute("Width"), (string?)column.Attribute("MinWidth"))));
 
-        // The seven columns need 857 DIP at their minimums. The header margins
+        // The seven columns need 871 DIP at their minimums. The header margins
         // and row padding/border each add 26 DIP, leaving 1 DIP inside the
-        // table's 884-DIP floor. Narrower viewports retain horizontal scrolling.
+        // table's 898-DIP floor. Narrower viewports retain horizontal scrolling.
         var columns = header.Element(presentation + "Grid.ColumnDefinitions")!
             .Elements(presentation + "ColumnDefinition").ToArray();
         Assert.Equal("126", (string?)columns[0].Attribute("Width"));
         Assert.Equal("124", (string?)columns[1].Attribute("MinWidth"));
         Assert.Equal("94", (string?)columns[2].Attribute("Width"));
         Assert.Equal("56", (string?)columns[4].Attribute("Width"));
-        Assert.Equal("122", (string?)columns[6].Attribute("Width"));
+        Assert.Equal("136", (string?)columns[6].Attribute("Width"));
         double minimumColumns = columns.Sum(column => double.Parse(
             (string?)column.Attribute("MinWidth") ?? (string)column.Attribute("Width")!.Value,
             System.Globalization.CultureInfo.InvariantCulture));
-        Assert.Equal(857, minimumColumns);
+        Assert.Equal(871, minimumColumns);
         Assert.True(minimumColumns + 26 <= double.Parse(
             (string)table.Attribute("MinWidth")!, System.Globalization.CultureInfo.InvariantCulture));
 

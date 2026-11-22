@@ -32,6 +32,15 @@ public sealed partial class TradesViewModel
     }
     public bool TryLeaveBreakdownScope()
     {
+        if (HasTradeDetailDraft)
+        {
+            const string message = "Save or cancel the open form before leaving Trades.";
+            if (IsSetupEditorOpen) TradingSetupSaveErrorMessage = message;
+            else if (IsMistakeEditorOpen) AssignMistakeErrorMessage = message;
+            else TradeDescriptionError = message;
+            return false;
+        }
+
         if (!HasBreakdownScope) return true;
         if (IsTradeFormVisible || IsCloseTradeVisible || IsAddScreenshotVisible || IsSaving || IsUpdatingTrade || IsDeletingTrade || IsTradingSetupSaving || IsAddingScreenshot || IsDeletingScreenshot || IsClosingTrade || IsTradeDetailLoading || IsTradeScreenshotsLoading || IsTradeMistakesLoading || IsScreenshotPreviewLoading)
         {
@@ -52,6 +61,7 @@ public sealed partial class TradesViewModel
     {
         if (_browseDisposed) return;
         _browseActive = false; InvalidateBrowse(IsTradeListLoading || HasBreakdownScope);
+        ClearTradingSetupSuccess();
         ShowTradeDetailCommand.Cancel(); ShowTradeEditCommand.Cancel(); ShowSelectedTradeEditCommand.Cancel();
         IsTradeDetailLoading = false;
     }

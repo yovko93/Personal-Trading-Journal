@@ -141,7 +141,9 @@ internal static class NotebookMouseReadinessEvidence
             $"open={popup.IsOpen}; loaded={popup.IsLoaded}; animation={popup.PopupAnimation}; staysOpen={popup.StaysOpen}; placement={popup.Placement}; target={Describe(popup.PlacementTarget)}; child={Describe(popup.Child)}";
     }
 
-    private static string NativeWindow(IntPtr hwnd)
+    internal static string ForegroundWindow() => NativeWindow(GetForegroundWindow());
+
+    internal static string NativeWindow(IntPtr hwnd)
     {
         uint tid = GetWindowThreadProcessId(hwnd, out uint pid);
         var cls = new StringBuilder(256); GetClassName(hwnd, cls, cls.Capacity);

@@ -84,7 +84,7 @@ public sealed class AddTradeScreenshotUseCase
         }
     }
 
-    private static string ValidateCommand(AddTradeScreenshotCommand command)
+    internal static string ValidateCommand(AddTradeScreenshotCommand command)
     {
         if (command.TradeId == Guid.Empty)
         {

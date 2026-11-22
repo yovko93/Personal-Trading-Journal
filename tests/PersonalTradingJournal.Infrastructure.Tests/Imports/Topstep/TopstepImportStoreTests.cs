@@ -5,6 +5,10 @@ using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Imports;
 using PersonalTradingJournal.Application.Analytics;
 using PersonalTradingJournal.Application.Imports.Topstep;
+using PersonalTradingJournal.Application.Trades;
+using PersonalTradingJournal.Application.Accounts;
+using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Domain.Instruments;
 using PersonalTradingJournal.Domain.Trades;
@@ -59,8 +63,26 @@ public sealed class TopstepImportStoreTests
         Assert.False(metrics.EffectiveNet.IsEstimated);
         Assert.Equal(1, metrics.EffectiveNet.VerifiedTradeCount);
         Assert.Equal(0, metrics.UnknownCostTradeCount);
+        await using var database = await f.Database.ContextFactory.CreateDbContextAsync();
+        var importedId = await database.Trades.Select(t => t.Id).SingleAsync();
+        var services = f.Database.ServiceProvider;
+        var detailReader = services.GetRequiredService<ITradeDetailReader>();
+        var original = (await detailReader.GetByIdAsync(importedId))!;
+        Assert.True(original.IsImported);
+        var edit = new UpdateTradeUseCase(services.GetRequiredService<ITradeMutationStore>(),
+            services.GetRequiredService<ITradingAccountStore>(), services.GetRequiredService<IInstrumentStore>(),
+            services.GetRequiredService<ITradingSetupStore>(), TimeProvider.System);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => edit.ExecuteAsync(new(
+            original.Id, original.TradingAccountId, original.InstrumentId, null, TradeDirection.Long, 100m,
+            new(original.Executions[0].Id, original.OpenedAtUtc, 1m, 0m, 0m), null)));
+        Assert.Equal(UpdateTradeUseCase.ImportedTradeMessage, error.Message);
+        var descriptions = services.GetRequiredService<IImportedTradeDescriptionStore>();
+        await descriptions.SaveDescriptionAsync(importedId, "Topstep annotation");
         Assert.Equal(TopstepImportStatus.NoChanges, (await f.Import(await f.Preview(Csv()), Csv())).Status);
         Assert.Equal(metrics, Assert.Single((await reader.GetAsync(query)).Currencies).Metrics);
+        var after = (await detailReader.GetByIdAsync(importedId))!;
+        Assert.Equal(original.Executions, after.Executions);
+        Assert.Equal(original with { Description = "Topstep annotation", Executions = after.Executions }, after);
     }
 
     [Theory]

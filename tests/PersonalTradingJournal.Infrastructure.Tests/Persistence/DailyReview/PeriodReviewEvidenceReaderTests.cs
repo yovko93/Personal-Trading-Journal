@@ -147,7 +147,7 @@ public sealed partial class DailyReviewEvidenceReaderTests
             [new PlaybookExample(Guid.NewGuid(), "Only text; no chart inspection")]), Audit);
         var store = db.ServiceProvider.GetRequiredService<ITradingSetupPlaybookStore>();
         Assert.True(await store.TryAppendAsync(first, 0, Audit));
-        Assert.True(await db.ServiceProvider.GetRequiredService<ITradePlaybookContextStore>()
+        Assert.True(await (await LegacyTradeCaptureFixture.ContextsAsync(db.ContextFactory))
             .TryAddAsync(TradePlaybookContext.Capture(trade, setup, first, Close), Audit));
         var associations = new Infrastructure.Trades.TradePlaybookAssociationStore(db.ContextFactory, TimeProvider.System);
         Assert.True(await associations.TryApplyAsync(await associations.PreviewAsync(trade.Id, setup.Id)));

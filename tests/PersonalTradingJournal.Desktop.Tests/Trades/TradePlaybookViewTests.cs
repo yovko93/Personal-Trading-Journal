@@ -12,7 +12,7 @@ namespace PersonalTradingJournal.Desktop.Tests.Trades;
 public sealed class TradePlaybookViewTests
 {
     [Fact]
-    public async Task CompiledAssociationConfirmationAndFrozenContextWrapAcrossThemesAndDpi()
+    public async Task CompiledSetupClassificationWrapsAcrossThemesAndDpi()
     {
         const string host = "PTJ_TRADE_PLAYBOOK_VIEW_HOST";
         if (Environment.GetEnvironmentVariable(host) != "1")
@@ -28,28 +28,32 @@ public sealed class TradePlaybookViewTests
             {
                 app.Resources = CalendarViewLayoutTests.SharedThemeResources(theme);
                 var vm = TradesViewModelTests.CreateAssociationRenderModel().GetAwaiter().GetResult();
-                var view = new TradePlaybookAssociationView { DataContext = vm, Margin = new Thickness(12) };
+                var view = new TradeSetupClassificationView { DataContext = vm, Margin = new Thickness(12) };
                 var scroll = new ScrollViewer { Content = view, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                     HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Background = (Brush)app.Resources["PtjSurfaceBrush"] };
                 VisualTreeHelper.SetRootDpi(scroll, new DpiScale(dpi / 96d, dpi / 96d));
                 void Layout() { scroll.Measure(new Size(width, 650)); scroll.Arrange(new Rect(0,0,width,650)); scroll.UpdateLayout(); }
                 Layout();
-                var selector = (ComboBox)view.FindName("AssociationSetup");
-                Assert.Same(vm.SelectedTradeDetailTradingSetup, selector.SelectedItem);
+                var selector = (ComboBox)view.FindName("ClassificationSetup");
+                var editor = (FrameworkElement)view.FindName("SetupEditor");
+                Assert.Equal(Visibility.Collapsed, editor.Visibility);
+                var add = (Button)view.FindName("OpenSetupEditor");
+                Assert.Equal("Add Setup", add.Content);
+                Assert.True(add.IsEnabled);
+                add.Command.Execute(null);
+                Layout();
+                Assert.Equal(Visibility.Visible, editor.Visibility);
+                Assert.True(selector.ActualHeight > 0);
+                selector.SelectedItem = Assert.Single(vm.TradeDetailTradingSetupOptions);
                 Assert.True(selector.Focusable); Assert.Contains("Trading Setup", AutomationProperties.GetName(selector));
-                var confirm = (Button)view.FindName("ConfirmAssociation");
+                var confirm = (Button)view.FindName("SaveClassification");
                 Assert.Same(vm.SaveTradingSetupCommand, confirm.Command); Assert.True(confirm.IsEnabled && confirm.Focusable);
                 Assert.NotNull(confirm.FocusVisualStyle); Assert.InRange(confirm.TranslatePoint(new Point(confirm.ActualWidth,0), scroll).X, 0, width);
-                var context = (Button)view.FindName("OpenCapturedContext"); Assert.Same(vm.LoadPlaybookHistoryCommand, context.Command);
-                var expander = Descendants(view).OfType<Expander>().Single(); Assert.False(expander.IsExpanded);
-                Render(scroll, theme, width, dpi, "collapsed");
-                expander.IsExpanded = true; Layout();
-                Assert.Contains("revision 1", AutomationProperties.GetName(expander));
-                Assert.Empty(Descendants(view).OfType<TextBox>()); // Frozen guidance is never an editor.
-                Assert.Contains(Descendants(view).OfType<TextBlock>(), t => t.Text.Contains("Record planned execution"));
+                Assert.Null(view.FindName("OpenCapturedContext"));
+                Assert.Empty(Descendants(view).OfType<Expander>());
                 Assert.All(Descendants(view).OfType<Button>().Where(b => b.IsVisible), b =>
                     Assert.InRange(b.TranslatePoint(new Point(b.ActualWidth, 0), scroll).X, 0, width));
-                Render(scroll, theme, width, dpi, "expanded");
+                Render(scroll, theme, width, dpi, "classification");
                 scroll.ScrollToBottom(); Layout(); Assert.InRange(scroll.ScrollableHeight - scroll.VerticalOffset, 0, 1);
             }
             app.Shutdown();

@@ -1063,3 +1063,106 @@ Resource preparation fell from 4.915 to 0.731 seconds in the full runs; total ST
 - Changed files: `tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalViewTests.cs`, `README.md`, `docs/ci-wpf-tests.md`, `docs/backup-restore.md`. Branch/HEAD unchanged. No production data, provider calls, migrations or Git writes.
 
 **Local full-suite acceptance is green.** The original deadline failure's precise blocking instruction remains unverified; measurements demonstrate load sensitivity and remove a specific repeated-work cost. This is not proof that every runner has sufficient headroom. No live UI acceptance was performed or required by this harness correction. Uncommitted changes cannot have a matching GitHub Actions run; the existing workflow requires a push to `main` or a PR targeting `main`. The user must commit/push the change through their existing PR workflow and inspect the new run before claiming CI acceptance. No trigger changes or M16.7 implementation are included.
+
+## Journal History zero-row assertion — 17 November 2026
+
+The local Trades Release gate (`release-20261117-124842-e27c4cdf27fe4a1ea97ff1535caab4f2`) on the worktree that became `79ac02f` recorded 5,609 passed, one failure and the existing Rules quarantine skip. Parallel Desktop test `JournalHistorySqliteTests.AllScopesHistoryOpensEditsAndDeletesOriginalAccountWithoutChangingOtherEntries` failed at the original line 38 after awaiting activation. The ViewModel exposed zero History rows where the test expected three. The retained TRX has no History status, returned row count, or exception from the reader.
+
+The assertion reads the ViewModel directly without a bound WPF view. Fixture cleanup runs after the assertion, and each test owns a separate temporary SQLite database. The call to `JournalViewModel.ActivateAsync` awaits History along with the Journal and Trade context loads. History clears earlier rows on load start and maps reader exceptions to an error status. The original evidence does not distinguish a reader failure, a zero-row query, or a result that was rejected before publication. No shared-state fault or product defect was demonstrated. In the failing TRX, Infrastructure had already finished. The overlapping Desktop case was Notebook editor round-trip, Light at 1280 DIP / 96 DPI. Timing overlap alone does not identify a cause.
+
+The Journal SQLite test now verifies three distinct seeded entries and retains bounded evidence at the activation assertion. It reports scope, task status, ViewModel rows and status, fixture open-connection count, and the real History reader's entry and outcome. Reader faults retain up to three exception types with SQLite codes and six stack method names per exception. The probe records at most the first four page reads and omits journal text, SQL, identifiers and paths. It delegates every read. The original three-row assertion, fixture lifetime and Release scheduling remain in place.
+
+| Loaded check | Result |
+| --- | --- |
+| Gate-equivalent parallel partition under Desktop and Infrastructure load | 5,459 passed, zero failed, one existing Rules skip. Journal reader returned and published three rows with uncancelled All accounts scope and zero open fixture connections at assertion time. |
+| Exact Journal case plus the overlapping Notebook editor parameter | 2 passed, zero failed or skipped. TRX intervals overlapped for about 4.0 seconds. History returned three rows in about 120 ms and published all three before activation returned. |
+
+The original failure has not reproduced. The only test source change is `tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalHistorySqliteTests.cs`. The probe improves evidence for a recurrence. A behavior correction would require a captured failing reader/publication outcome.
+
+Logs, TRX, and build results for the loaded runs are in `TestResults/JournalHistoryInvestigation/`. The Release build passed with zero warnings or errors.
+
+The complete local `pwsh -File scripts/Test-Release.ps1` run (`TestResults/release-20261117-134715-54308f4c2d024a4b845b50184b8da24e/`) finished with **5,610 passed, zero failed, and one existing [Rules-view quarantine](rules-view-quarantine.md) skip**, exit 0. Exclusive WPF passed 151, Domain 602, Application 1,052, Infrastructure 1,652 and parallel Desktop 2,153. The Journal trace captured an uncancelled All accounts read returning three rows. Activation published all three and completed with zero open fixture connections. No production code, retry, skip, or deadline change was needed for this verification.
+
+The gate took **14 minutes 7 seconds** locally, about **5 minutes 53 seconds** below the hosted Test step's 20-minute limit. Hosted execution and timing remain unverified.
+
+## Trades Release gate timing on 19 November 2026
+
+The 18 November gate took 23m 16s locally. Compared with the preceding 14m 07s gate, Exclusive WPF added 244.2s and the parallel partition added 304.1s. Both runs passed 5,610 top-level cases with one Rules quarantine skip. The changed Trades view fixture ran once in each gate and finished in 9.03s and 8.73s, respectively. The slowdown occurred across existing tests and child startup. The retained evidence does not identify a specific machine resource or scheduling defect responsible for it.
+
+### Source and runner
+
+The 18 November build used base commit `67c318738541faff03b10917bbe2141c8ec02aca` plus the Trade entry XAML and its compiled accessibility assertions. The build-input tree was `03b7a8dafba58ef51c6d1bc042a2de64176c9265`. The current develop commit is `49366fc95b0a2fbf9f98e3e417ce99d58c0445ef`, tree `0c663a43487081049c1e53e02a0c90d38962e41f`. Its two source blobs match the tested XAML and test exactly. Documentation was added after the original build. The earlier [Trades acceptance record](trades-workspace.md#acceptance-on-18-november-2026) identifies the executable and managed DLL.
+
+Both comparison runs used the same Windows workstation, interactive WinSta0/Default desktop, eight logical CPUs, x64 VSTest 18.6.0 and .NET/WPF 10.0.12. The gate runs `dotnet test -c Release --no-build --no-restore` with TRX, VSTest diagnostics and the three-minute blame-hang collector. Exclusive Desktop WPF runs first. The complementary solution filter then runs the four projects concurrently, with xUnit limits of two threads for Desktop and four for Infrastructure. The 18 November VSTest path resolves to SDK 10.0.303. CI performs restore and build in separate steps and gives Test 20 minutes.
+
+| Local gate under `TestResults/` | Exclusive WPF | Parallel | Gate elapsed¹ | Passed / failed / skipped |
+| --- | ---: | ---: | ---: | ---: |
+| `release-20261117-120020-e5075a1ae37743919805618160000503` | 429.8s | 417.6s | ≈14m 08s | 5,604 / 0 / 1 |
+| `release-20261117-124842-e27c4cdf27fe4a1ea97ff1535caab4f2` | 423.4s | 434.3s | ≈14m 18s | 5,609 / 1 / 1 |
+| `release-20261117-134715-54308f4c2d024a4b845b50184b8da24e` | 425.0s | 422.3s | 14m 07s | 5,610 / 0 / 1 |
+| `release-20261118-134537-8822de0fec0c4883ad32ab90f8a6879b` | 669.2s | 726.4s | 23m 16s | 5,610 / 0 / 1 |
+
+¹ Partition durations use the first start and last finish in `summary.json`; elapsed is rounded. The 17 November 13:47 partition span was 847.4s and its command wrapper measured 847.9s. The slow run's wrapper measured 1,396.4s, including 0.7s before the first stage and under 0.1s after the last. The corrected solution build had already completed in 54.43s, compared with 59.68s for the preceding Journal investigation build. Neither build contributed to Test elapsed. The 12:48 failure is the historical [Journal History assertion](#journal-history-zero-row-assertion--17-november-2026).
+
+### Where the additional time went
+
+| TRX or supervision measurement, seconds | 17 Nov 13:47 | 18 Nov 13:45 |
+| --- | ---: | ---: |
+| Exclusive stage start to first top-level case | 3.6 | 6.1 |
+| Exclusive wall time covered by top-level case intervals | 420.2 | 661.2 |
+| Exclusive gaps between cases / time after last case | 0.7 / 0.6 | 1.2 / 0.6 |
+| Parallel stage start to first case across projects | 4.5 | 12.6 |
+| Parallel wall time covered by top-level case intervals | 415.4 | 711.8 |
+| Parallel gaps between cases / time after last case | 0.4 / 2.0 | 0.4 / 1.6 |
+| Parallel Desktop first-to-last case | 412.1 | 711.4 |
+| Parallel Infrastructure first-to-last case | 298.0 | 546.3 |
+| Parallel Application / Domain first-to-last case | 6.4 / 3.7 | 10.6 / 5.7 |
+
+The wall-time rows use the union of reported TRX start/end intervals. A parent case can wait on a child process during its interval. Concurrent project durations overlap. Desktop finished last in both parallel partitions. The sum of parallel Desktop case intervals divided by the first-to-last case span was 1.98 on 17 November and 1.97 on 18 November, consistent with the two-thread limit in both runs. For Infrastructure the ratios were 3.48 and 3.64. This measures concurrent in-flight cases, including waits.
+
+Matching child supervision logs and TRX files split the Exclusive WPF time further. Both runs launched the same 54 supervised children with the same 146 child results. Summed launch-to-first-case time grew from 146.3s to 227.2s, time inside reported child cases from 256.0s to 407.1s, and last-case-to-confirmed-exit from 16.0s to 23.8s. The first figure includes host startup, discovery and scheduling. The last includes result writing and shutdown. Inside each child, overlapping case intervals count only once.
+
+Both parallel partitions recorded 77 supervision logs. The 70 children with usable, nonempty case intervals recorded the same 180 results in each run. Across those children, launch-to-first-case time grew from 253.4s to 466.2s, case time from 355.4s to 640.3s, and exit time from 23.1s to 42.9s. These child-seconds overlap. The repeated result names come from Playbook's separate write and restart-read phases and the dispatch guard's wrong-result probe. Launch counts and case identities match between the runs.
+
+The largest serial child increase was Calendar native, from about 47s to 102s. For the same 172 STA resource observations, its first-to-last wall span grew from 43.5s to 96.1s and its process CPU from 56.9s to 127.9s. Both runs recorded 780 operation timings. Owner-window Show grew from 5.29s to 14.69s across those operations. Summed first-to-last process CPU across the 54 exclusive child logs rose from 266.7s to 481.5s. None of the 290 exclusive pool snapshots in either run showed pending thread-pool work. CPU time includes work on multiple threads. These observations show additional CPU time within the testhosts as well as longer startup. They do not isolate rendering, CPU speed or competing workloads as the cause.
+
+Among the 1,110 matching Infrastructure cases taking at least 100ms in the earlier run, 1,016 slowed and the median wall-time ratio was 1.86. The live acceptance app used a separate synthetic profile and was closed for the gate. Its corrected interactive session started after the gate. The gate's own Trades child body took 5.79s before the change and 5.66s after it. Neither the live workflow nor an extra Trades invocation accounts for the added minutes.
+
+VSTest log volume was comparable (exclusive 2.21/2.31 MB, parallel 42.55/43.15 MB), and neither run collected a dump. Time spent writing diagnostics during a case is included in its interval. The historical records have no system-wide CPU, disk-latency or per-process scheduling trace for the slow run. They cannot attribute delay to diagnostic I/O, another process or a specific hardware limit. The comparison provides no basis to change isolation, scheduling or timeouts.
+
+### Current-tree verification
+
+A fresh Release solution build on 19 November completed in 63.38s (64.60s including its command wrapper), with zero warnings and errors. The focused scheduling-contract and compiled Trades workspace checks passed 2/2. One subsequent `pwsh -File scripts/Test-Release.ps1` run exited 0 in **14m 22s**, 5m 38s below the hosted Test budget on this machine. Exclusive WPF took **429.4s** and passed 151. Parallel took **432.1s** and passed 602 Domain, 1,052 Application, 1,652 Infrastructure and 2,153 Desktop cases. The only skip was `RulesViewTests.CompiledThemesNarrowHighDpiBindingsValidationHistoryAndWindowClose`. Total **5,610 passed, 0 failed, 1 skipped**. The wrapper spent about 0.4s before the first stage and 0.1s after the last. The Trades child finished in 8.49s and Calendar native in about 49s.
+
+A separate, bounded Windows counter sampler recorded 21 observations in each partition at 20-second intervals. Median total CPU was 27.4% in Exclusive WPF and 79.2% in parallel. Median processor queue length was zero in both partitions, with a peak of 18 in parallel. Median disk transfer latency was 0.13ms and 0.35ms respectively. These measurements describe the 19 November run only. It returned to the earlier timing range with the accessibility regression enabled. The underlying reason the workstation took more time on 18 November is unresolved.
+
+Evidence for this rerun is under `TestResults/release-20261119-132552-5dd78f158ea64f22b3cdb454c45fba4b/` (TRX, child diagnostics and summary) and `TestResults/TradesGateTiming-20261119/` (build, focused results, gate log, wrapper timestamps and counter samples). Changed tracked files for the investigation are `README.md` and `docs/ci-wpf-tests.md`.
+
+GitHub reported zero runs and zero associated PRs for develop SHA `49366fc95b0a2fbf9f98e3e417ce99d58c0445ef`. CI runs on pushes to main and PRs targeting main. The latest hosted run used a different source tree. Hosted timing and completion within 20 minutes remain unverified. Physical Trades acceptance remains pending as recorded in the [Trades matrix](trades-workspace.md#acceptance-on-18-november-2026). [Hosted run #121](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/42018550512)
+
+## Native window ownership during Accounts verification
+
+The 19 November Accounts gate `release-20261119-155502-4e776c50811441bf88fa0b6e4cd484e4` finished in 18m 03s with 5,599 passed, 11 failed and one existing Rules quarantine skip, exit 1. Exclusive WPF recorded 140 passes and 11 failures. The tested worktree had base `4009a6dd2921b82db04c8aca7804c7f608e5aeff` and the Accounts changes later committed as `6174b89`. The investigation started on `6174b89` on develop.
+
+| Parent cases | Parameters | First failing boundary and retained evidence |
+| --- | --- | --- |
+| Instruments `CompiledRowsAlignEditTargetsRowAndNativeMenusToggleWithReadableHover` (4) | Light and Dark at 1280/96 and 480/240 | The initial move to the outside button hit the incorrect native window at InstrumentsViewTests.cs:202. `WindowFromPoint` returned `0x704C0` in all four children. The test stopped before moving or clicking. |
+| Notebook `OverflowTriggersToggleThroughNativeMouseAndOwnedKeyboard` (4) | Light and Dark at 1280/96 and 480/240 | The readiness guard stopped the first `NoteOverflow` click at Menus.cs:98/265. Every snapshot reports a settled target, three seconds of readiness observation, cursor at the intended point and `0x704C0` under that point. WPF reports the fixture active and no direct hover. |
+| Notebook `TagMenuRoutedToggleDismissalAndCapturedOwnership` (2) | Light 1280/96 and Dark 480/240 | The initial Beta tag trigger failed the window-at-point guard at TagMenus.cs:56/130. Both `input-sequence.log` files report `0x704C0` at the intended point, with valid layout and `hitReady=False`. |
+| Notebook `NativeTrashPressRetainsTargetWhileReadIsPending` (1) | Single case | The pre-press guard at Scopes.cs:216 expected `0x3F0616` and observed `0x704C0`. `native-scope-input.log` shows the left button released before the test installed its held-read input or sent a press. |
+
+The Notebook traces identify the covering HWND as `Chrome_RenderWidgetHostHWND`, PID 21476, with foreground root `0x2505C0`. Windows process lookup identified PID 21476 as ChatGPT. The Instruments decimal value 459968 resolves to the same HWND. The first failing condition in each case was screen-point ownership, either directly or inside the readiness predicate. Issuing a click and testing its dispatch or command effects occur after those guards. The evidence establishes which window covered the intended points. It leaves open how that window came to cover the fixtures.
+
+The two focused Accounts child processes had confirmed exits by 15:54:44 UTC. Exclusive WPF began at 15:55:02 UTC. The gate's Accounts bulk/balance children started at 16:11:50 and 16:12:03 UTC in the parallel partition and both exited successfully. The Accounts layout checks measure/arrange detached roots and write offscreen bitmaps. The retained PNG inspection had no native-input step. The observed window belongs to a different process from the Accounts fixtures.
+
+Instruments now writes one best-effort snapshot at a mismatched point before the original assertion. The snapshot records the stage, test parameters, target and coordinates, expected and observed HWND metadata, foreground HWND, fixture activation, hover and dispatcher shutdown state. It reuses the Notebook evidence writer under the child's `ui-evidence` directory. The failing lookup result is carried into the snapshot and assertion without a second hit-test lookup. The trace does not pump the dispatcher or send input. The shared writer preserves the original assertion if recording fails.
+
+### Load and overlap checks
+
+The Release build succeeded in 61.71s with zero warnings or errors. The focused selection passed all 11 parent cases in 1m 38s, exit 0, while the Infrastructure test project ran on synthetic data. The child TRX files each recorded one pass. Infrastructure passed 1,652 cases in 3m 58s, exit 0. Both commands started at 20:35:52 UTC and their retained timestamps cover the focused run. There were no skips in either command.
+
+During the same Infrastructure run, a separate controlled check ran Dark Instruments at 1280 DIP / 96 DPI with a short-lived, non-activating synthetic window covering the first target. It produced one intentional failure at the original equality assertion, exit 1. The new snapshot records point (1679, 150), the active foreground fixture HWND `0x602F2`, and the occluder HWND `0x90226` from PID 17700. The stage is `before movement`. The dispatcher had not started shutting down and hover was false. The occluder was closed after the check. This demonstrates that a fixture can be active and foreground while another window owns its screen point. The unrelated process overlap from the original run did not recur in the focused load check.
+
+No application or fixture behavior correction was indicated. The tracked changes are `tests/PersonalTradingJournal.Desktop.Tests/Instruments/InstrumentsViewTests.cs`, `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookMouseReadinessEvidence.cs`, `README.md` and `docs/ci-wpf-tests.md`. The build, focused/Infrastructure TRX files, timestamps and controlled snapshot are under `TestResults/NativeOwnershipInvestigation/`. Live Accounts inspection at physical monitor settings remains pending. [Accounts layout verification](account-payouts.md#accounts-row-alignment)
+
+The complete follow-up gate finished in 13m 51s with **5,610 passed and 0 failed**, exit 0. The sole skip is the existing Rules-view quarantine for `RulesViewTests.CompiledThemesNarrowHighDpiBindingsValidationHistoryAndWindowClose`. Exclusive WPF passed 151, including all 11 affected cases. Parallel Domain, Application, Infrastructure and Desktop passed 602, 1,052, 1,652 and 2,153 respectively. The summary, top-level TRX and isolated child results are in `TestResults/release-20261119-204101-410ee84d040247ce80318e0676c8b423`. The original ownership interruption did not recur, and the passing run leaves the trigger for the overlap unresolved.

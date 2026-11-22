@@ -1,0 +1,209 @@
+using PersonalTradingJournal.Application.Common.Time;
+using PersonalTradingJournal.Domain.Trades;
+
+namespace PersonalTradingJournal.Application.Imports.Tradovate;
+
+/// <summary>Reconciles reported Trades to Fills and Cash History and validates any excluded Fills.</summary>
+public static class TradovateCostReconciler
+{
+    public static TradovateVerifiedCosts Reconcile(TradovateImportPreparationResult preparation,
+        IReadOnlyList<TradovateMatchedPairEvidence> pairs, TradovateCostSources sources)
+    {
+        void Require(bool condition, string message)
+        {
+            if (!condition) throw new TradovateCostSourceException(message);
+        }
+
+        Require(preparation.IsReadyForPreview, "Prepare an eligible Performance import first.");
+        var account = preparation.AccountSnapshot!;
+        var fills = sources.Fills;
+        var cash = sources.Cash;
+        Require(fills.Count > 0 && cash.Count > 0, "Both Fills and Cash History must contain complete activity.");
+        Require(!string.IsNullOrWhiteSpace(account.ExternalAccountId) &&
+            fills.All(f => f.Account == account.ExternalAccountId) && cash.All(c => c.Account == account.ExternalAccountId),
+            "Set the selected Account's external ID to the exact export Account. Mixed or mismatched Accounts are blocked.");
+        Require(account.Currency == "USD" && cash.All(c => c.Currency == account.Currency),
+            "Verified costs currently require matching USD Account, Instruments and Cash History. No FX is inferred.");
+        Require(cash.Select(c => c.Id).Distinct(StringComparer.Ordinal).Count() == cash.Count,
+            "Duplicate cash transaction IDs are ambiguous. Export each source once.");
+        foreach (var entry in cash)
+            entry.ValidateMovement();
+
+        Require(fills.All(f => f.Quantity > 0 && f.Quantity == decimal.Truncate(f.Quantity) &&
+            f.Commission >= 0 && f.Commission == decimal.Round(f.Commission, 2)),
+            "Fill quantity or commission is invalid; USD charges must be nonnegative whole cents.");
+        bool usesFixedOffsetDisplay = ValidateDisplayClock(fills);
+        var executions = preparation.PreparedCandidates.SelectMany((c, i) => c.OrderedExecutions.Select(e => (Execution: e, Candidate: i))).ToArray();
+        var (byId, excluded) = MatchFills(sources, pairs.SelectMany(pair => new[] { pair.BuyFillId, pair.SellFillId }));
+        Require(byId.Count > 0 && byId.Keys.ToHashSet(StringComparer.Ordinal)
+            .SetEquals(executions.Select(e => e.Execution.ExternalFillId)),
+            "Prepared execution IDs must match the Performance fill IDs.");
+        var start = byId.Values.Min(f => f.TradingDate);
+        var end = byId.Values.Max(f => f.TradingDate);
+        var adjustments = cash.Where(c => c.IsManualAdjustment).ToArray();
+        Require(adjustments.All(c => c.TradingDate >= start && c.TradingDate <= end),
+            "Cash History Manual Adjustment falls outside the verified Fills period.");
+        ValidateExcludedPositions(excluded, preparation.PreparedCandidates);
+        Require(pairs.Count > 0 && pairs.Select(p => p.SourceRecordIndex).Distinct().Count() == pairs.Count,
+            "Performance matched-row evidence is missing or duplicated.");
+        var candidateRows = preparation.PreparedCandidates.SelectMany(c => c.SourceRecordIndices).ToArray();
+        Require(candidateRows.Length == pairs.Count && candidateRows.ToHashSet().SetEquals(pairs.Select(p => p.SourceRecordIndex)),
+            "Trade candidates do not partition Performance evidence exactly once.");
+        var pairsByFill = pairs.SelectMany(p => new[] { (Id: p.BuyFillId, Pair: p), (Id: p.SellFillId, Pair: p) })
+            .ToLookup(p => p.Id, p => p.Pair, StringComparer.Ordinal);
+        var pairsByRow = pairs.ToDictionary(p => p.SourceRecordIndex);
+        var result = new List<TradovateCostAllocation>();
+        foreach (var group in executions.GroupBy(e => e.Execution.ExternalFillId))
+        {
+            var fill = byId[group.Key];
+            Require(group.All(a => a.Execution.BrokerSymbol == fill.Symbol && a.Execution.Side == fill.Side &&
+                a.Execution.Price == fill.Price && a.Execution.SourceLocalTimestamp == fill.LocalTimestamp) &&
+                group.Sum(a => a.Execution.Quantity) == fill.Quantity,
+                "Fill price, side, timestamp, symbol or complete matched quantity differs from Performance.");
+            Require(group.All(a => a.Execution.ExecutedAtUtc.Offset == TimeSpan.Zero &&
+                a.Execution.ExecutedAtUtc == fill.UtcTimestamp),
+                "Prepared execution times must use the matching Fills UTC instants. Rebuild the preview.");
+            var matched = pairsByFill[fill.Id].ToArray();
+            Require(matched.Sum(p => p.MatchedQuantity) == fill.Quantity && matched.All(p =>
+                p.BrokerSymbol == fill.Symbol && (fill.Side == ExecutionSide.Buy ? p.BuyFillId : p.SellFillId) == fill.Id),
+                "Performance contains partial or inconsistent matched-fill evidence.");
+            // Largest remainder in cents, with immutable allocation index as the tie-breaker.
+            // Each source fill is charged once even across a reversal's two Trades.
+            var portions = group.OrderBy(a => a.Execution.AllocationIndex).ToArray();
+            Require(portions.Select(a => a.Execution.AllocationIndex).Distinct().Count() == portions.Length,
+                "Repeated allocation identity is ambiguous.");
+            decimal cents = fill.Commission * 100m;
+            var shares = portions.Select(a => cents * a.Execution.Quantity / fill.Quantity).ToArray();
+            var allocated = shares.Select(decimal.Floor).ToArray();
+            int remaining = decimal.ToInt32(cents - allocated.Sum());
+            foreach (int index in Enumerable.Range(0, portions.Length)
+                .OrderByDescending(i => shares[i] - allocated[i]).ThenBy(i => portions[i].Execution.AllocationIndex).Take(remaining))
+                allocated[index]++;
+            for (int i = 0; i < portions.Length; i++)
+                result.Add(new(portions[i].Candidate, fill.Id, portions[i].Execution.AllocationIndex, allocated[i] / 100m));
+        }
+
+        // A zero aggregate difference alone is insufficient: require each commission event and
+        // each contract/trading-date gross total to agree, without adding Trade Paired to P&L.
+        // Cash posting can lag execution (observed by one second); it has no fill ID.
+        // Compare exact daily charge multisets, never invent a cash-to-fill timestamp join.
+        var expectedCharges = byId.Values.GroupBy(f => (f.Symbol, f.TradingDate, Delta: -f.Commission))
+            .ToDictionary(g => g.Key, g => g.Count());
+        var actualCharges = cash.Where(c => c.Type == "Commission")
+            .GroupBy(c => (c.Symbol, c.TradingDate, c.Delta)).ToDictionary(g => g.Key, g => g.Count());
+        Require(expectedCharges.Count == actualCharges.Count && expectedCharges.All(k => actualCharges.GetValueOrDefault(k.Key) == k.Value),
+            "Cash commission amounts and counts do not match Fills by contract and trading date.");
+        var grossByDay = pairs.GroupBy(p => (p.BrokerSymbol, Date: Later(byId[p.BuyFillId], byId[p.SellFillId]).TradingDate))
+            .ToDictionary(g => g.Key, g => g.Sum(p => p.SourceReportedPnL));
+        var cashByDay = cash.Where(c => c.Type == "Trade Paired").GroupBy(c => (c.Symbol, Date: c.TradingDate))
+            .ToDictionary(g => g.Key, g => g.Sum(c => c.Delta));
+        Require(grossByDay.Count == cashByDay.Count && grossByDay.All(k => cashByDay.TryGetValue(k.Key, out var value) && value == k.Value),
+            "Cash Trade Paired totals differ from Performance by contract or trading date.");
+        Require(cash.Zip(cash.Skip(1)).All(p => p.First.LocalTimestamp <= p.Second.LocalTimestamp &&
+            p.First.Balance + p.Second.Delta == p.Second.Balance),
+            "Cash History must be chronological with continuous running balances; missing or reordered transactions are blocked.");
+
+        for (int i = 0; i < preparation.PreparedCandidates.Count; i++)
+        {
+            var candidate = preparation.PreparedCandidates[i];
+            var instrument = preparation.InstrumentResolution.CanonicalInstrumentResolutions.Single(r => r.CanonicalSymbol == candidate.CanonicalSymbol);
+            decimal tickValue = instrument.ExistingInstrument?.TickValue ?? instrument.CreationProposal!.TickValue;
+            decimal tickSize = instrument.ExistingInstrument?.TickSize ?? instrument.CreationProposal!.TickSize;
+            string currency = instrument.ExistingInstrument?.Currency ?? instrument.CreationProposal!.Currency;
+            decimal gross = candidate.OrderedExecutions.Sum(e => (e.Side == ExecutionSide.Sell ? 1m : -1m) * e.Quantity * e.Price) * tickValue / tickSize;
+            Require(currency == account.Currency && gross == candidate.SourceRecordIndices.Sum(r => pairsByRow[r].SourceReportedPnL),
+                "Instrument-derived Gross differs from source Gross or currency. No economics will be overwritten.");
+        }
+        decimal sourceGross = pairs.Sum(p => p.SourceReportedPnL);
+        decimal costs = byId.Values.Sum(f => f.Commission);
+        var excludedDays = excluded.GroupBy(f => f.TradingDate).OrderBy(day => day.Key)
+            .Select(day => new TradovateExcludedFillsDay(day.Key, day.Count(), day.Sum(f => f.Commission))).ToArray();
+        var verified = new TradovateVerifiedCosts(sourceGross, costs, start, end, result.AsReadOnly(),
+            adjustments.Length, adjustments.Sum(c => c.Delta), usesFixedOffsetDisplay, Array.AsReadOnly(excludedDays));
+        Require(cash.Sum(c => c.Delta) == verified.TotalCashMovement && result.Sum(a => a.Commission) == costs,
+            "Total cash movement or commission allocation reconciliation failed.");
+        return verified;
+    }
+
+    internal static (IReadOnlyDictionary<string, TradovateCostFill> Matched, IReadOnlyList<TradovateCostFill> Excluded) MatchFills(
+        TradovateCostSources sources, IEnumerable<string> performanceIds)
+    {
+        if (sources.Fills.Select(f => f.Id).Distinct(StringComparer.Ordinal).Count() != sources.Fills.Count)
+            throw new TradovateCostSourceException("Duplicate fill IDs are ambiguous. Export each source once.");
+        var expected = performanceIds.ToHashSet(StringComparer.Ordinal);
+        var matched = sources.Fills.Where(f => expected.Contains(f.Id)).ToDictionary(f => f.Id, StringComparer.Ordinal);
+        int missing = expected.Count - matched.Count;
+        var excluded = sources.Fills.Where(f => !expected.Contains(f.Id)).ToArray();
+        if (missing != 0)
+            throw new TradovateCostSourceException(
+                $"Performance and Fills IDs do not match ({missing} missing, {excluded.Length} extra). Select a complete Fills export.");
+
+        if (excluded.Length > 0)
+        {
+            // Report dates and display dates can differ around midnight. Either one can indicate activity.
+            var activityDates = new HashSet<DateOnly>();
+            foreach (var fill in matched.Values)
+            {
+                activityDates.Add(fill.TradingDate);
+                activityDates.Add(DateOnly.FromDateTime(fill.LocalTimestamp));
+            }
+            foreach (var entry in sources.Cash)
+            {
+                activityDates.Add(entry.TradingDate);
+                activityDates.Add(DateOnly.FromDateTime(entry.LocalTimestamp));
+            }
+
+            if (excluded.Any(f => activityDates.Contains(f.TradingDate) ||
+                activityDates.Contains(DateOnly.FromDateTime(f.LocalTimestamp))))
+                throw new TradovateCostSourceException(
+                    $"{excluded.Length} extra Fills IDs include a date with Performance or Cash History activity. Verified import is blocked.");
+        }
+
+        return (matched, excluded);
+    }
+
+    private static void ValidateExcludedPositions(IReadOnlyList<TradovateCostFill> excluded,
+        IReadOnlyList<TradovatePreparedTradeCandidate> candidates)
+    {
+        if (excluded.Count == 0) return;
+
+        if (excluded.GroupBy(f => (f.TradingDate, f.Symbol))
+            .Any(group => group.Sum(f => f.Side == ExecutionSide.Buy ? f.Quantity : -f.Quantity) != 0))
+            throw new TradovateCostSourceException(
+                "Extra Fills leave a nonzero position on an unreported date. Verified coverage is ambiguous.");
+
+        var byContract = excluded.GroupBy(f => f.Symbol, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Select(f => f.UtcTimestamp).Order().ToArray(), StringComparer.Ordinal);
+        foreach (var candidate in candidates)
+        {
+            if (!byContract.TryGetValue(candidate.BrokerSymbol, out var excludedTimes)) continue;
+            int index = Array.BinarySearch(excludedTimes, candidate.OpenedAtUtc);
+            if (index < 0) index = ~index;
+            if (index < excludedTimes.Length &&
+                (candidate.ClosedAtUtc is null || excludedTimes[index] <= candidate.ClosedAtUtc))
+                throw new TradovateCostSourceException(
+                    "An extra Fill overlaps a reported position in the same contract. Verified coverage is ambiguous.");
+        }
+    }
+
+    internal static bool ValidateDisplayClock(IReadOnlyList<TradovateCostFill> fills)
+    {
+        // Check one convention for the whole export. Never choose a clock per row.
+        var fixedOffset = TimeSpan.FromHours(2);
+        bool allSofia = true;
+        bool allFixed = true;
+        foreach (var fill in fills)
+        {
+            var utc = fill.UtcTimestamp.AddTicks(-(fill.UtcTimestamp.Ticks % TimeSpan.TicksPerSecond));
+            var sofia = TradingTimePolicy.ConvertUtcToLocal(utc, TradingTimePolicy.TradovateSourceTimeZoneId);
+            allSofia &= fill.LocalTimestamp == sofia.DateTime;
+            allFixed &= fill.LocalTimestamp == utc.ToOffset(fixedOffset).DateTime;
+        }
+
+        if (allSofia) return false;
+        if (allFixed) return true;
+        throw new TradovateCostSourceException("Fills UTC and display timestamps do not agree across the export with Europe/Sofia time or a consistent UTC+02:00 display.");
+    }
+
+    private static TradovateCostFill Later(TradovateCostFill a, TradovateCostFill b) => a.UtcTimestamp >= b.UtcTimestamp ? a : b;
+}

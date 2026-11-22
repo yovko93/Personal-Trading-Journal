@@ -1,5 +1,7 @@
 # Trading Rules — contracts, persistence and assessments
 
+The current Calendar day dialog omits the **Assess day Rules…** button. The Rules catalog, historical assessments and stored review evidence remain available through their existing paths. Earlier assessment entry points and validation below are historical. See [Calendar day details](trading-calendar.md#selected-day-read-path-and-modal-m134-and-refinements).
+
 ## PR #21 — Owned assessment close coordination (14 October 2026)
 
 Started from clean `develop`, HEAD `5d345b64edeafdf8a4b36bf6f2f79dc1c80a1de2`. All verification uses synthetic fixtures; no production data, provider calls, persistence/schema changes or Git writes.

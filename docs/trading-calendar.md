@@ -8,13 +8,49 @@ Current inline Journal actions: green **Save Journal** completes the entry; viol
 
 `TradingCalendarQuery(year, month, tradingAccountId?)` selects a New York month. A null Account means all accounts; an empty ID is invalid. `ITradingCalendarReader.GetAsync` returns `TradingCalendarMonth` with `MonthStart`, `GridStart`, `GridEnd`, ordered `GridDates` and separate historical-currency buckets. The grid starts on Monday on/before the first and ends on Sunday on/after the last, giving four to six complete rows. September 2026 includes August 31 through October 4. Empty months still have complete date grids and no fabricated currency bucket.
 
-The reader makes one inclusive grid-date request to `IDashboardAnalyticsReader`. The fresh-context, no-tracking query selects fully closed Trades by authoritative `ClosedAtUtc`, using half-open UTC bounds for New York local midnights. Spring/fall DST days span 23/25 hours where applicable. Open and partially exited Trades, import TradeDay, current Instrument prices and Trades-list paging do not determine results. Reads forward cancellation and make no database writes.
+Calendar assigns a fully closed Trade by its authoritative `ClosedAtUtc`. In `America/New_York`, a close before 18:00 belongs to the same date. At 18:00 or later it belongs to the next date. A November 1 close at 18:12 therefore appears on November 2, with its original closure time shown in the Trade row.
+
+The reader makes one inclusive grid-date request to `IDashboardAnalyticsReader`. For an attributed date, the SQL interval runs from 18:00 the previous New York date through just before 18:00 on the labeled date. Each endpoint is converted to UTC using its own time-zone offset, so spring and fall DST intervals can span 23 and 25 hours. The grid groups those same closures by attributed date for daily, weekly and monthly totals. Adjacent intervals meet at the cutoff, so a closure at 18:00 enters exactly one date. Open and partially exited Trades, import TradeDay, current Instrument prices and Trades-list paging do not determine results. Reads forward cancellation and make no database writes.
+
+Calendar explicitly selects this boundary in the shared analytics and day queries. Dashboard, Breakdown, standalone Journal Trade Context, Rules, Daily Review and Period Reviews continue to use New York civil dates. Journal cards and status indicators use the stored Journal date and exact scope. The cutoff affects Calendar Trade attribution and does not rewrite stored timestamps, economics or historical review snapshots. Today continues to highlight the current New York civil date.
 
 Each currency has ordered `TradingCalendarWeek` rows with seven daily values and a Monday–Sunday `ClosedTradeMetrics` summary, reusing M12 daily/weekly calculations and historical pricing currency. Saturday and Sunday activity contribute once to their week, including adjacent-month activity. There is no cross-currency monetary total.
 
 `Metrics == null` means no closed Trades, not financial zero. A populated period with `EffectiveNet.Total == 0` is genuine zero; a null total is unavailable/incomplete. Known subtotals and coverage remain partial evidence, never a complete total. Effective Net uses authoritative Net when known, otherwise known Gross as an estimate for a closed Trade with unknown costs. Unknown Gross cannot become a numeric estimate. Estimate counts, strict verified Net and coverage remain available; stored unknown costs and Net remain null. Culture-aware display formatting does not change decimal precision.
 
 `TradingCalendarMonthlyPnl.From` combines only daily metrics belonging to the displayed month, with checked arithmetic and coverage. It excludes adjacent-month dates and never sums weekly summaries again. Saturday's own day and Sunday each contribute once. Currencies remain separate; incomplete months show a dash, genuine zero stays numeric, and no activity says No closed Trades. Overflow becomes a recoverable read error, not a truncated total.
+
+### Trading day verification
+
+The Release build passed with zero warnings and errors. Focused Release checks passed 59 Application, 31 Infrastructure and 64 Desktop cases. The SQLite tests compare the grid and selected-day Trade IDs and totals for one Account and All accounts at 17:59:59, 18:00, 18:12 and midnight. They cover spring and fall DST dates, a month boundary at the edge of the grid and a year boundary. Separate checks verify that both ends of a DST trading day use their own offsets and that the shared civil-date queries still select the original date.
+
+Light and Dark offscreen grid renders at 1100 DIP/96 DPI and 640 DIP/240 DPI show the synthetic September 23 close at 18:12 on September 24. The populated grid fixture uses theme brushes and simplified header controls. Bound checks also open both dates and verify the Trade appears only on the destination date. The Accounts checks verify the plain red **Remove** button and its confirmation command alongside the separate Account Actions menu. Artifacts are under `TestResults/calendar-cutoff-focused` and `TestResults/calendar-cutoff-renders`. Live Calendar and payout interaction, physical display scaling and screen-reader checks remain pending.
+
+The 9 November 2026 complete `pwsh -File scripts/Test-Release.ps1` run exited **0** with **5,569 passed, 0 failed and 1 skipped**. Exclusive WPF passed 151, Domain 602, Application 1,052, Infrastructure 1,616 and parallel Desktop 2,148. The sole skip was the existing [Rules-view quarantine](rules-view-quarantine.md). Full results are under `TestResults/release-20261109-173551-e8a8d79659d4410399de5e82818bb93d`.
+
+#### Changed files for the cutoff and payout label
+
+- `README.md`
+- `docs/account-payouts.md`
+- `docs/trading-calendar.md`
+- `src/PersonalTradingJournal.Application/Analytics/DashboardAnalyticsQuery.cs`
+- `src/PersonalTradingJournal.Application/Analytics/DashboardMetricCalculator.cs`
+- `src/PersonalTradingJournal.Application/Calendar/TradingCalendarDayDetails.cs`
+- `src/PersonalTradingJournal.Application/Calendar/TradingCalendarDayQuery.cs`
+- `src/PersonalTradingJournal.Application/Calendar/TradingCalendarQuery.cs`
+- `src/PersonalTradingJournal.Application/Calendar/TradingCalendarReader.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Accounts/AccountsView.xaml`
+- `src/PersonalTradingJournal.Infrastructure/Analytics/DashboardAnalyticsReader.cs`
+- `src/PersonalTradingJournal.Infrastructure/Calendar/TradingCalendarDayReader.cs`
+- `tests/PersonalTradingJournal.Application.Tests/Calendar/TradingCalendarDayTests.cs`
+- `tests/PersonalTradingJournal.Application.Tests/Calendar/TradingCalendarReaderTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Accounts/AccountBalanceLayoutTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarFilterTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarSummaryTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarViewLayoutTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Calendar/TradingCalendarDayReaderTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Calendar/TradingCalendarReaderTests.cs`
 
 ## Month grid and compact summaries (M13.2–M13.3)
 
@@ -32,13 +68,15 @@ Whole-cell click, Tab then Enter/Space, and UI Automation Invoke select every da
 
 ## Selected-day read path and modal (M13.4 and refinements)
 
+The day dialog omits four controls: the **Day Performance** heading, **Assess day Rules…**, the standalone **N closed Trades** count below the date, and the **Retry** button. It keeps the selected date, daily P&L summaries, currency-specific performance charts, Day Journal, and the horizontally scrollable Trades table with inline **View** actions. Empty dates show the existing messages. Loading and errors still appear with **Cancel** during a pending read. Close and reopen the date after a cancelled or failed read, or refresh Calendar. The feedback row takes space only while there is a message.
+
 Every saved Journal card also has a red **Delete Journal** beside its Open/Close toggle, with wrapping actions at narrow widths. There is no duplicate Delete in the expanded detail. It targets the card's exact identity and saved Account, checks the displayed/loaded revision, and reuses the permanent-entry-and-history confirmation (including an explicit warning about that entry's unsaved edits). Declining or a failed/conflicting write retains cards and entered fields. A committed delete removes only that card and its open detail, then refreshes the day list and Calendar markers without changing filters or date. Deleting another collapsed card leaves an unrelated inline draft untouched. See [deletion guarantees and verification](daily-journal.md#revision-toggles-and-calendar-card-deletion).
 
-Journal cards expand their selected full detail immediately beneath their own card, before the next card. Each saved card has one **Open Journal / Close Journal** toggle; its label, accessible expansion state and open/outlined-close style follow the actual expansion. The duplicate Close Journal inside saved-row detail is removed. Other Account cards stay visible; a new Add form stays above Trades with its own guarded Close until it has a saved card. Switching/closing respects unsaved-change protection; a veto preserves the expansion and Close label. The row action retains focus where possible and closing does not reset the scroller or filters. The single **Refresh Journals** action refreshes the open entry, day cards and markers after the same explicit dirty guard; no inline Reload latest button remains. Automatic refresh keeps drafts intact. Trade Retry is independent. See [row-toggle behavior and verification](daily-journal.md#journal-row-openclose-toggles).
+Journal cards expand their selected full detail immediately beneath their own card, before the next card. Each saved card has one **Open Journal / Close Journal** toggle; its label, accessible expansion state and open/outlined-close style follow the actual expansion. The duplicate Close Journal inside saved-row detail is removed. Other Account cards stay visible; a new Add form stays above Trades with its own guarded Close until it has a saved card. Switching/closing respects unsaved-change protection; a veto preserves the expansion and Close label. The row action retains focus where possible and closing does not reset the scroller or filters. The single **Refresh Journals** action refreshes the open entry, day cards and markers after the same explicit dirty guard; no inline Reload latest button remains. Automatic refresh keeps drafts intact. Reopening the date reloads its Trades. See [row-toggle behavior and verification](daily-journal.md#journal-row-openclose-toggles).
 
-`TradingCalendarDayQuery(date, tradingAccountId?)` reuses Dashboard's New York date validation and UTC boundaries. `ITradingCalendarDayReader.GetAsync` filters the date in SQL and returns `TradingCalendarDayDetails`, newest closure first with Trade ID as stable tie-breaker. It is not a paged Trades-list load followed by ViewModel filtering. Rows preserve stored economics and historical currency; daily metrics reuse `DashboardMetricCalculator` over exactly those rows. Peak Size uses the existing batched execution quantity/side reader. Two batch classification queries load Setup and Trading Mistakes, not one query per row. Inactive references remain identified, missing references say unavailable, and absent assignments say None assigned. Reads change no Trade/classification data.
+`TradingCalendarDayQuery.ForTradingDate(date, tradingAccountId?)` uses the same 18:00 cutoff as the grid. `ITradingCalendarDayReader.GetAsync` filters the interval in SQL and returns `TradingCalendarDayDetails`, newest closure first with Trade ID as stable tie-breaker. Rows retain the original closure timestamp, stored economics and historical currency. Daily metrics reuse `DashboardMetricCalculator` over exactly those rows. Peak Size uses the existing batched execution quantity/side reader. Two batch classification queries load Setup and Trading Mistakes. Inactive references remain identified, missing references say unavailable, and absent assignments say None assigned.
 
-Selecting a day opens the owned, themed Day Performance modal; the former below-grid panel is removed. Saturday opens Saturday's own Trades, not its visible weekly total. The dialog shows the date, daily count, separate-currency summaries/charts, Day Journal and a scrollable Trades table. Empty days still open with explicit empty chart/Trades states. Loading, Cancel, error/Retry and generation guards prevent stale day/filter results.
+The owned, themed day modal also opens from Saturday and adjacent dates. Saturday uses the selected date’s own Trades for the summaries, charts and table. Generation guards prevent stale day or filter results.
 
 The enabled modal/backdrop covers the application's client area while `ShowDialog` disables the Calendar owner. The initial centered panel is capped at 1,280 × 820 DIPs with a 16-DIP backdrop inset. Maximize expands the panel within the owner area with an 8-DIP inset; Restore restores its preceding size limits/inset. Minimize minimizes owner and modal together, retaining the open dialog and draft. Returning restores modality, not an interactive Calendar behind it. Owner size/location changes keep the backdrop aligned.
 
@@ -76,11 +114,84 @@ Currency selection consistently filters existing historical-currency buckets and
 
 Refresh reloads the month and any selected day without resetting month/date/filters. Committed manual Trade changes and Tradovate/TopstepX imports notify active Calendar on its WPF dispatcher. TopstepX notification survives cleared Import presentation and each committed generation is consumed once. NoChanges, Blocked, failed and rolled-back/cancelled imports do not trigger committed refresh. An import that actually committed still notifies if its presentation was cancelled. Re-entry rereads current data; persistence is independent of UI callbacks.
 
-Independent read generations reject superseded month/day results. Same-month date containers remain for focus; pending reads clear old financial values. Calendar Cancel stops both reads; day Cancel stops only the day read. Retry/Refresh restores usability after cancellation/errors. Empty month, empty day, genuine zero, unavailable economics, loading, read error and unavailable Account remain distinct. Adjacent activity cannot disguise an empty displayed month.
+Independent read generations reject superseded month/day results. Same-month date containers remain for focus; pending reads clear old financial values. Calendar Cancel stops both reads; day Cancel stops only the day read. Reopen the selected date or use Calendar Refresh to recover after cancellation or a read error. Empty month, empty day, genuine zero, unavailable economics, loading, read error and unavailable Account remain distinct. Adjacent activity cannot disguise an empty displayed month.
 
 Navigation, filters, dates, Refresh, modal controls and View/Edit are keyboard reachable, with meaningful names and selected/busy descriptions. Daily results are distinguished from Saturday's weekly summary. Scoped nested wheel routing sends ordinary vertical input once to a movable page ancestor, preserves boundary propagation and horizontal scrollbars/Shift+wheel, and adds no global handler.
 
-## Acceptance (M13.7)
+## Calendar day scope correction (20 November 2026)
+
+The earlier `046c426` simplification removed the whole performance area and Trade table. The correction restores the original layout, chart calculations, date and Account-scoped reads, Journal and row commands. The scoped UI change removes the four controls listed above. Historical evidence for the broader change remains in `TestResults/CalendarDaySimplification`.
+
+The Release build passed with **0 warnings and 0 errors**. The final focused run passed **404** top-level tests with **0 failures and 0 skips**. Calendar grid, native modal and owner-close child results were **36/36**, **87/87** and **15/15**, respectively. The first focused run reported four child failures from checking `IsVisible` on a detached render. The revised regression verifies the empty messages are set to Visible and have positive arranged height. Native-window checks separately verify visible empty-state content.
+
+The tests exercise the four absent controls, the idle feedback row collapsing, populated and empty date selection, Account and currency filtering, per-currency chart values, existing rows and columns, exact Trade View actions, Journal editing and scrolling. The restored Calendar reader keeps the 18:00 New York trading-day cutoff.
+
+I inspected eight compiled offscreen renders in Light and Dark at **1,100 DIP / 96 DPI** and **480 DIP / 240 DPI**, including dates with and without Trades. The populated fixture shows **9.00 EUR** and **−285.00 USD** in the summaries, chart values and Trade rows. The two right-scrolled renders show both View buttons at the narrow width. In the 480-DIP renders, the chart’s horizontal scrollbar partly covers the Time axis label. This correction preserves the chart’s previous layout. Physical mouse and keyboard checks, monitor scaling, screen-reader speech and hosted CI remain unverified.
+
+The complete `pwsh -File scripts/Test-Release.ps1` gate exited **0** in **14m 32s** with **5,612 passed**, **0 failed** and **1 skipped**. The **151** Exclusive WPF cases passed in 7m 18s. The parallel stage took 7m 14s and passed **602 Domain**, **1,052 Application**, **1,652 Infrastructure** and **2,155 Desktop** cases. The only skip was the existing [Rules-view quarantine](rules-view-quarantine.md). The test inventory includes the 85 cases restored from before the simplification. Gate results are under `TestResults/release-20261120-160306-2289fe4296b24cccb59299515c243c2d`.
+
+The focused TRX, Release build log, compiled renders and exact changed-file manifest are under `TestResults/CalendarDayScope`.
+
+<details>
+<summary>Exact changed files</summary>
+
+- `README.md`
+- `docs/daily-journal.md`
+- `docs/desktop-ui.md`
+- `docs/trading-calendar.md`
+- `docs/trading-rules.md`
+- `src/PersonalTradingJournal.Desktop/App.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/Dialogs/WpfRuleAssessmentDialog.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarTradePresentation.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarViewModel.InlineJournal.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarViewModel.Journal.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Calendar/CalendarDayDetailsView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Calendar/CalendarDayDialogWindow.Chrome.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Calendar/CalendarDayDialogWindow.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Calendar/CalendarDayDialogWindow.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Calendar/CalendarView.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Journals/InlineJournalView.xaml`
+- `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarDayDetailsTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarDayModalJournalTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarDayModalRunnerTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarDayModalTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarDayModalWindowTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarFilterTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarJournalTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarSqliteRefreshTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarSummaryTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarViewLayoutTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Import/TradovateImportAcceptanceTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Journals/CalendarDayJournalsTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Journals/CalendarInlineJournalSqliteTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Journals/InlineJournalViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalCalendarSqliteTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalDraftCloseTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalEditorActionTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalFormAccountTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalTradeContextTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/AssessmentOwnerCloseTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/CalendarJournalNavigationTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/CalendarOwnerCloseTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/JournalTradeRefreshTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/ManualAssessmentEntryTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/ReleaseSchedulingTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradingTimePresentationTests.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarDayPerformance.cs` (restored)
+- `src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarViewModel.InlineTrade.cs` (restored)
+- `src/PersonalTradingJournal.Desktop/Views/Calendar/CalendarInlineTradeView.xaml` (restored)
+- `src/PersonalTradingJournal.Desktop/Views/Calendar/CalendarInlineTradeView.xaml.cs` (restored)
+- `src/PersonalTradingJournal.Desktop/Views/Calendar/DayPerformanceChart.cs` (restored)
+- `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarDayModalTimestampTests.cs` (restored)
+- `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarDayPerformanceChartTests.cs` (restored)
+- `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarInlineTradeTests.cs` (restored)
+
+</details>
+
+## Historical acceptance (M13.7)
 
 Previous Save-completion verification: **648 focused** and **2,917 full parallel Release** tests passed, zero failures/skips. Both hosts save exact fields as Completed, accept meaningful freeform-only/partial answers, retain failed/conflicting edits, and previously preserved saved Drafts/history on Cancel without saving; this Cancel behavior is superseded by Draft saving above. Calendar stays on its selected day/account while standalone re-entry resets to today/All accounts. Automated normal/narrow-high-DPI Light/Dark renders were inspected. Live save/cancel interaction and matching GitHub Actions remain unverified. See the [current evidence and isolated Windows checklist](daily-journal.md#previous-save-completion-verification-2026-10-06); earlier Draft-save and Complete-button checks are historical, not the current workflow.
 

@@ -132,6 +132,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<AddTradeScreenshotUseCase>();
             builder.Services.AddTransient<DeleteTradeScreenshotUseCase>();
             builder.Services.AddTransient<ITradovateCsvParser, TradovateCsvParser>();
+            builder.Services.AddTransient<ITradovateCostCsvParser, TradovateCostCsvParser>();
             builder.Services.AddTransient<
                 ITradovateExecutionReconstructor,
                 TradovateExecutionReconstructor>();

@@ -1,6 +1,6 @@
 namespace PersonalTradingJournal.Infrastructure.Backups;
 
-// Deliberate version-18 allowlist, not reflection over future DB columns. Any field/semantic change requires contract review.
+// Deliberate version-20 allowlist, not reflection over future DB columns. Any field/semantic change requires contract review.
 internal enum ExportValueKind { Text, Id, Decimal, Integer, Boolean, Utc, NewYorkDate }
 internal sealed record ExportColumn(string Column, ExportValueKind Kind, string? Alias = null)
 {
@@ -67,12 +67,14 @@ internal static class PortableExportSchema
              Y("NewYorkDate", "newYorkDate"), N("ScopeKind"), I("AccountId"), T("AccountNameAtAssessment"), T("TargetFingerprint"),
              N("Outcome"), N("Source"), N("Basis"), N("EvidenceSufficiency"), T("Explanation"), T("EvidenceJson"),
              I("SupersedesAssessmentId"), U("RecordedAtUtc"), T("EvaluationJson"), T("EvaluationFingerprint")]),
+        new("accountPayouts", "AccountPayouts", "AccountId,CreatedAtUtc,Id", true,
+            [I("Id"), I("AccountId"), D("Amount"), T("Currency"), U("CreatedAtUtc")]),
         new("accounts", "TradingAccounts", "Id", true,
             [I("Id"), T("Name"), N("AccountType"), T("ProviderName"), T("ExternalAccountId"), T("Currency"), D("StartingBalance"), B("IsActive"), U("CreatedAtUtc"), U("UpdatedAtUtc")]),
         new("instruments", "Instruments", "Id", false,
             [I("Id"), T("Symbol"), T("DisplayName"), N("AssetClass"), T("Exchange"), T("Currency"), D("TickSize"), D("TickValue"), B("IsActive"), U("CreatedAtUtc"), U("UpdatedAtUtc")]),
         new("trades", "Trades", "Id", true,
-            [I("Id"), I("TradingAccountId"), I("InstrumentId"), D("PricingPointValue"), T("PricingCurrency"), I("TradingSetupId"), U("CreatedAtUtc"), U("UpdatedAtUtc")]),
+            [I("Id"), I("TradingAccountId"), I("InstrumentId"), D("PricingPointValue"), T("PricingCurrency"), I("TradingSetupId"), T("Description"), U("CreatedAtUtc"), U("UpdatedAtUtc")]),
         new("executions", "TradeExecutions", "TradeId,Sequence,Id", true,
             [I("Id"), I("TradeId"), N("Sequence"), U("ExecutedAtUtc"), N("Side"), D("Quantity"), D("Price"), D("Commission"), D("Fees"), T("ExternalExecutionId"), T("ExternalOrderId"), T("BrokerSymbol")]),
         new("setups", "TradingSetups", "Id", false,

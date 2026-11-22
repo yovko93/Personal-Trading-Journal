@@ -14,6 +14,8 @@ public sealed class TradeRecord
 
     public Guid? TradingSetupId { get; set; }
 
+    public string? Description { get; set; }
+
     public DateTimeOffset CreatedAtUtc { get; set; }
 
     public DateTimeOffset UpdatedAtUtc { get; set; }

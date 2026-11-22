@@ -42,6 +42,7 @@ public sealed partial class PlaybookPersistenceTests
         Assert.Empty((await f.Store.GetLatestAsync(g.Setup.Id))!.Guidance.Examples);
         Assert.Equal(kind, Assert.Single((await f.History.GetRevisionAsync(g.Setup.Id, 1))!.Guidance.Examples).Kind);
         Assert.Equal(image, Assert.Single((await f.Contexts.GetAsync(g.Trade.Id))!.Definition.Guidance.Examples).Image);
+        await f.RetireTradeCaptures();
         string export = Path.Combine(f.Root, "export"); Assert.True((await f.Get<IPortableExportService>().CreateAsync(export)).Succeeded);
         using (var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(export, PortableExportContract.DataFile))))
         {
@@ -58,8 +59,8 @@ public sealed partial class PlaybookPersistenceTests
         var restored = await new JournalRestoreService(f.Paths).RestoreAsync(new(archive, preview.Summary.ArchiveSha256));
         Assert.True(restored.Succeeded, restored.ToString()); Assert.True(File.Exists(restored.RecoveryArchivePath));
         await f.Restart(); Assert.Equal(ImageBytes, await f.Get<IPlaybookImageStorage>().ReadAsync(image));
-        var restoredAssociation = Assert.Single(await f.Get<ITradePlaybookAssociationStore>().ReadHistoryAsync(g.Trade.Id));
-        Assert.Equal(image, Assert.Single(restoredAssociation.Definition!.Guidance.Examples).Image);
+        Assert.Empty(await f.Get<ITradePlaybookAssociationStore>().ReadHistoryAsync(g.Trade.Id));
+        Assert.Equal(image, Assert.Single((await f.History.GetRevisionAsync(g.Setup.Id, 1))!.Guidance.Examples).Image);
         Assert.Equal(example.Annotation, Assert.Single((await f.History.GetRevisionAsync(g.Setup.Id, 1))!.Guidance.Examples).Annotation);
     }
 
@@ -71,6 +72,7 @@ public sealed partial class PlaybookPersistenceTests
         await f.Get<IPlaybookImageStorage>().DeleteUnreferencedAsync(image.StorageKey);
         Assert.Equal(ImageBytes, await f.Get<IPlaybookImageStorage>().ReadAsync(image));
         string export = Path.Combine(f.Root, "current-export");
+        await f.RetireTradeCaptures();
         Assert.True((await f.Get<IPortableExportService>().CreateAsync(export)).Succeeded);
         using (var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(export, PortableExportContract.DataFile))))
         {
@@ -122,6 +124,7 @@ public sealed partial class PlaybookPersistenceTests
         var saveError = await Assert.ThrowsAnyAsync<Exception>(() => f.Get<SaveTradingSetupPlaybookUseCase>().ExecuteAsync(new(g.Setup.Id, 1, first.Guidance)));
         foreach (var error in new[] { readError, saveError })
             if (changed) Assert.IsType<InvalidDataException>(error); else Assert.IsType<FileNotFoundException>(error);
+        await f.RetireTradeCaptures();
         string archive = Path.Combine(f.Root, "invalid.ptjbackup"); var result = await f.Get<IBackupArchiveService>().CreateAsync(archive);
         Assert.False(result.Succeeded); Assert.False(File.Exists(archive));
         Assert.Empty(await f.History.GetHistoryAsync(g.Setup.Id, null, 10)); // No capture or immutable authoring revision.

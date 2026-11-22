@@ -87,7 +87,7 @@ public sealed class TradeBrowseProjectionMigrationTests
                 context.TradeExecutions.AddRange(
                     Execution(tradeId, 1, ExecutionSide.Buy, 0.3m, 29131.25m, 0.1m, 0.01m),
                     Execution(tradeId, 2, ExecutionSide.Sell, 0.3m, 29200.50m, 0.2m, 0.02m));
-                await context.SaveChangesAsync();
+                LegacyTradeSchemaFixture.SaveBeforeDescription(context);
 
                 Assert.Equal(
                     [

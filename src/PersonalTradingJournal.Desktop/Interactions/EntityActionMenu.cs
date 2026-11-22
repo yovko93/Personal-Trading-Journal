@@ -2,11 +2,14 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 
 namespace PersonalTradingJournal.Desktop.Interactions;
 
 public static class EntityActionMenu
 {
+    private static readonly DependencyProperty StateProperty = DependencyProperty.RegisterAttached(
+        "State", typeof(ToggleState), typeof(EntityActionMenu));
     public static readonly DependencyProperty OpensContextMenuProperty =
         DependencyProperty.RegisterAttached(
             "OpensContextMenu",
@@ -31,7 +34,8 @@ public static class EntityActionMenu
                 nameof(dependencyObject));
         }
 
-        button.Click -= OpenContextMenu;
+        (button.GetValue(StateProperty) as ToggleState)?.Dispose();
+        button.ClearValue(StateProperty);
 
         if (eventArgs.NewValue is true)
         {
@@ -41,20 +45,88 @@ public static class EntityActionMenu
             }
 
             button.ToolTip ??= "More actions";
-            button.Click += OpenContextMenu;
+            button.SetValue(StateProperty, new ToggleState(button));
         }
     }
 
-    private static void OpenContextMenu(object sender, RoutedEventArgs eventArgs)
+    private sealed class ToggleState : IDisposable
     {
-        if (sender is not ButtonBase { ContextMenu: not null } button)
+        private readonly ButtonBase _button;
+        private ContextMenu? _menu;
+        private bool _dismissedByPress;
+        private int _dismissalTimestamp;
+
+        internal ToggleState(ButtonBase button)
         {
-            return;
+            _button = button;
+            button.Click += Toggle;
+            button.PreviewMouseDown += PreviewDown;
+            button.PreviewKeyDown += PreviewKey;
+            button.ContextMenuOpening += Opening;
+            button.Loaded += Loaded;
+            button.Unloaded += Unloaded;
+            TrackMenu();
         }
 
-        button.ContextMenu.PlacementTarget = button;
-        button.ContextMenu.Placement = PlacementMode.Bottom;
-        button.ContextMenu.IsOpen = true;
-        eventArgs.Handled = true;
+        private void TrackMenu()
+        {
+            if (ReferenceEquals(_menu, _button.ContextMenu)) return;
+            UntrackMenu();
+            _menu = _button.ContextMenu;
+            _menu?.AddHandler(Mouse.PreviewMouseDownOutsideCapturedElementEvent,
+                new MouseButtonEventHandler(OutsideDown), handledEventsToo: true);
+        }
+
+        private void UntrackMenu()
+        {
+            _menu?.RemoveHandler(Mouse.PreviewMouseDownOutsideCapturedElementEvent,
+                new MouseButtonEventHandler(OutsideDown));
+            _menu = null;
+            _dismissedByPress = false;
+        }
+
+        private void OutsideDown(object sender, MouseButtonEventArgs e)
+        {
+            // MenuBase dismisses on outside-down, before the trigger's Button.Click.
+            // Remember that same press, rather than reopening the just-dismissed menu.
+            if (e.ChangedButton == MouseButton.Left && _button.IsVisible &&
+                new Rect(_button.RenderSize).Contains(e.GetPosition(_button)))
+            {
+                _dismissedByPress = true;
+                _dismissalTimestamp = e.Timestamp;
+            }
+        }
+
+        private void PreviewDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.Timestamp != _dismissalTimestamp) _dismissedByPress = false;
+        }
+        private void PreviewKey(object sender, KeyEventArgs e) => _dismissedByPress = false;
+        private void Opening(object sender, ContextMenuEventArgs e) => TrackMenu();
+        private void Loaded(object sender, RoutedEventArgs e) => TrackMenu();
+        private void Unloaded(object sender, RoutedEventArgs e) => UntrackMenu();
+
+        private void Toggle(object sender, RoutedEventArgs e)
+        {
+            TrackMenu();
+            if (_menu is null) return;
+            bool close = _menu.IsOpen || _dismissedByPress;
+            _dismissedByPress = false;
+            _menu.PlacementTarget = _button;
+            _menu.Placement = PlacementMode.Bottom;
+            _menu.IsOpen = !close;
+            e.Handled = true;
+        }
+
+        public void Dispose()
+        {
+            UntrackMenu();
+            _button.Click -= Toggle;
+            _button.PreviewMouseDown -= PreviewDown;
+            _button.PreviewKeyDown -= PreviewKey;
+            _button.ContextMenuOpening -= Opening;
+            _button.Loaded -= Loaded;
+            _button.Unloaded -= Unloaded;
+        }
     }
 }

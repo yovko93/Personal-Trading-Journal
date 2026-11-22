@@ -1,0 +1,36 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.Trades.TradeSetupClassificationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="VisibleIf" />
+    </UserControl.Resources>
+    <StackPanel>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="SetupHeading" Text="Trading Setup" Style="{DynamicResource PtjSectionTitleTextStyle}"
+                       VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0" />
+            <Button x:Name="OpenSetupEditor" Grid.Column="1" Command="{Binding OpenSetupEditorCommand}"
+                    Content="{Binding TradeSetupEditorLabel}" Style="{DynamicResource PtjJournalDraftButtonStyle}" />
+        </Grid>
+        <TextBlock Text="{Binding SelectedTradeDetail.TradingSetupName, TargetNullValue=No Setup}"
+                   TextWrapping="Wrap" Style="{DynamicResource PtjBodyTextStyle}" Margin="0,4,0,0" />
+        <StackPanel x:Name="SetupEditor" Margin="0,8,0,0"
+                    Visibility="{Binding IsSetupEditorOpen, Converter={StaticResource VisibleIf}}">
+            <ComboBox x:Name="ClassificationSetup" Margin="0,0,0,8" ItemsSource="{Binding TradeDetailTradingSetupOptions}"
+                      SelectedItem="{Binding SelectedTradeDetailTradingSetup}" DisplayMemberPath="Name"
+                      Style="{DynamicResource PtjComboBoxStyle}" AutomationProperties.Name="Trading Setup classification" />
+            <WrapPanel HorizontalAlignment="Right">
+                <Button Content="Clear Setup" Command="{Binding ClearTradingSetupCommand}"
+                        Visibility="{Binding HasSavedTradeSetup, Converter={StaticResource VisibleIf}}"
+                        Style="{DynamicResource PtjSecondaryButtonStyle}" Margin="0,0,8,8" />
+                <Button Content="Cancel" Command="{Binding CancelSetupEditorCommand}"
+                        Style="{DynamicResource PtjSecondaryButtonStyle}" Margin="0,0,8,8" />
+                <Button x:Name="SaveClassification" Content="Save Setup" Command="{Binding SaveTradingSetupCommand}"
+                        Style="{DynamicResource PtjPrimaryButtonStyle}" Margin="0,0,0,8" />
+            </WrapPanel>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

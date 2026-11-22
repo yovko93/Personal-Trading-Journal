@@ -292,6 +292,7 @@ public sealed partial class PlaybookPersistenceTests
         await using var f = await Fixture.Create(); var g = await f.Seed(); var first = await f.Save(g, true);
         Assert.True(await f.Contexts.TryAddAsync(TradePlaybookContext.Capture(g.Trade, g.Setup, first, Now.AddMinutes(1)), Now));
         string archive = Path.Combine(f.Root, "synthetic.ptjbackup");
+        await f.RetireTradeCaptures();
         var result = await f.Get<IBackupArchiveService>().CreateAsync(archive);
         Assert.True(result.Succeeded, result.ToString());
         var check = await f.Get<IRestorePreflightService>().InspectAsync(archive, f.Root);
@@ -302,7 +303,7 @@ public sealed partial class PlaybookPersistenceTests
         var options = new DbContextOptionsBuilder<JournalDbContext>().UseSqlite($"Data Source={path};Mode=ReadOnly;Pooling=False").Options;
         await using var saved = new JournalDbContext(options);
         Assert.Equal(1, await saved.PlaybookRevisions.CountAsync()); Assert.Equal(1, await saved.PlaybookExamples.CountAsync());
-        Assert.Equal(1, await saved.TradePlaybookContexts.CountAsync());
+        Assert.Empty(await saved.TradePlaybookContexts.ToArrayAsync());
     }
 
     [Fact]
@@ -311,6 +312,8 @@ public sealed partial class PlaybookPersistenceTests
         await using var f = await Fixture.Create(); var g = await f.Seed(); var first = await f.Save(g, true);
         Assert.True(await f.Contexts.TryAddAsync(TradePlaybookContext.Capture(g.Trade, g.Setup, first, Now.AddMinutes(1)), Now));
         string archive = Path.Combine(f.Root, "restore.ptjbackup");
+        await f.RetireTradeCaptures();
+        await using (var described = f.Context()) await described.Trades.ExecuteUpdateAsync(t => t.SetProperty(x => x.Description, "Independent Trade description 🙂"));
         Assert.True((await f.Get<IBackupArchiveService>().CreateAsync(archive)).Succeeded);
         var preview = await f.Get<IRestorePreflightService>().InspectAsync(archive, f.Root);
         Assert.True(preview.Validated, preview.ToString());
@@ -322,9 +325,11 @@ public sealed partial class PlaybookPersistenceTests
         var recovery = await new RestorePreflightService().InspectAsync(restored.RecoveryArchivePath!, f.Root);
         Assert.True(recovery.Validated, recovery.ToString()); Assert.Equal(2, recovery.Summary!.TradeCount);
         await f.Restart();
-        Assert.Equal("Synthetic NQ context", (await f.Contexts.GetAsync(g.Trade.Id))!.Definition.Guidance.MarketContext);
+        Assert.Null(await f.Contexts.GetAsync(g.Trade.Id));
+        Assert.Equal("Synthetic NQ context", (await f.History.GetRevisionAsync(g.Setup.Id, 1))!.Guidance.MarketContext);
         Assert.Equal(g.Screenshot.Id, Assert.Single((await f.Store.GetLatestAsync(g.Setup.Id))!.Guidance.Examples).SourceScreenshotId);
         await using var db = f.Context(); Assert.Equal(1, await db.Trades.CountAsync());
+        Assert.Equal("Independent Trade description 🙂", (await db.Trades.SingleAsync()).Description);
         Assert.Equal(new byte[] { 1, 2, 3 }, await File.ReadAllBytesAsync(Path.Combine(f.Paths.ScreenshotsDirectory, g.Screenshot.StorageKey)));
     }
 
@@ -335,9 +340,10 @@ public sealed partial class PlaybookPersistenceTests
         Assert.True(await f.Contexts.TryAddAsync(TradePlaybookContext.Capture(g.Trade, g.Setup, first, Now.AddMinutes(1)), Now));
         Assert.True(await f.Store.TryAppendAsync(first.Revise(g.Setup, 1, new("New context", "e", "c", "i", "x"), Now.AddMinutes(2)), 1, Now));
         string output = Path.Combine(f.Root, "export");
+        await f.RetireTradeCaptures();
         Assert.True((await f.Get<IPortableExportService>().CreateAsync(output)).Succeeded);
         using var data = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(output, PortableExportContract.DataFile)));
-        Assert.Equal(18, data.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(20, data.RootElement.GetProperty("version").GetInt32());
         var tables = data.RootElement.GetProperty("tables");
         var revisions = tables.GetProperty("playbookRevisions");
         Assert.Equal(new[] { 1, 2 }, revisions.EnumerateArray().Select(r => r.GetProperty("revision").GetInt32()));
@@ -347,10 +353,9 @@ public sealed partial class PlaybookPersistenceTests
         Assert.Equal(g.Screenshot.Id, example.GetProperty("sourceScreenshotId").GetGuid());
         Assert.Equal("Synthetic annotated retest", example.GetProperty("annotation").GetString());
         await using var db = f.Context();
-        var snapshot = Assert.Single(tables.GetProperty("tradePlaybookContexts").EnumerateArray());
-        Assert.Equal(g.Trade.Id, snapshot.GetProperty("tradeId").GetGuid());
-        Assert.Equal((await db.TradePlaybookContexts.SingleAsync()).DefinitionJson, snapshot.GetProperty("definitionJson").GetString());
-        Assert.Equal(4, Directory.GetFiles(output, "*.csv").Length);
+        Assert.Empty(tables.GetProperty("tradePlaybookContexts").EnumerateArray());
+        Assert.Empty(await db.TradePlaybookContexts.ToArrayAsync());
+        Assert.Equal(5, Directory.GetFiles(output, "*.csv").Length);
         Assert.Empty(Directory.GetDirectories(output)); // Screenshot bytes are still metadata-only in exports.
     }
 
@@ -383,7 +388,7 @@ public sealed partial class PlaybookPersistenceTests
         Assert.Empty(Directory.GetDirectories(f.Root, ".preflight-*.partial"));
         await using var installed = f.Context();
         Assert.Equal(migrations.ToArray(), (await installed.Database.GetAppliedMigrationsAsync()).ToArray());
-        Assert.Equal(g.Trade.Id, (await installed.Trades.SingleAsync()).Id);
+        Assert.Equal(g.Trade.Id, await installed.Trades.Select(t => t.Id).SingleAsync());
     }
 
     [Theory]
@@ -440,7 +445,11 @@ public sealed partial class PlaybookPersistenceTests
         private ServiceProvider services;
         private Fixture() { Paths = new(Root); Paths.EnsureDirectoriesExist(); services = Build(); }
         private ServiceProvider Build() => new ServiceCollection().AddSingleton<TimeProvider>(new Clock()).AddPersistence(Paths).BuildServiceProvider();
-        internal T Get<T>() where T : notnull => services.GetRequiredService<T>();
+        internal T Get<T>() where T : notnull => typeof(T) == typeof(ITradePlaybookContextStore)
+            ? (T)(object)new PersonalTradingJournal.Infrastructure.Trades.TradePlaybookContextStore(Get<IDbContextFactory<JournalDbContext>>())
+            : typeof(T) == typeof(ITradePlaybookAssociationStore)
+                ? (T)(object)new PersonalTradingJournal.Infrastructure.Trades.TradePlaybookAssociationStore(Get<IDbContextFactory<JournalDbContext>>(), new Clock())
+                : services.GetRequiredService<T>();
         internal JournalDbContext Context() => Get<IDbContextFactory<JournalDbContext>>().CreateDbContext();
         internal ITradingSetupPlaybookStore Store => Get<ITradingSetupPlaybookStore>();
         internal ITradingSetupPlaybookHistoryReader History => Get<ITradingSetupPlaybookHistoryReader>();
@@ -453,9 +462,17 @@ public sealed partial class PlaybookPersistenceTests
                 await using var db = f.Context();
                 string? target = preM17 ? "20261008195353_AddCoachingAnalysisSnapshots" : null;
                 await db.GetService<IMigrator>().MigrateAsync(target);
+                if (!preM17) await LegacyTradeCaptureFixture.EnableAsync(db);
                 return f;
             }
             catch { await f.DisposeAsync(); throw; }
+        }
+        internal async Task RetireTradeCaptures()
+        {
+            await using var db = Context();
+            var migrations = (await db.Database.GetAppliedMigrationsAsync()).ToArray();
+            await db.GetService<IMigrator>().MigrateAsync(migrations[^2]);
+            await db.GetService<IMigrator>().MigrateAsync();
         }
         internal async Task Stop() { await services.DisposeAsync(); SqliteTestPoolCleanup.ClearPersistencePools(Paths.DatabasePath); }
         internal async Task Restart() { await Stop(); services = Build(); }
@@ -471,7 +488,17 @@ public sealed partial class PlaybookPersistenceTests
             }
             var trade = Trade.Start(account, instrument, new TradePricingSnapshot(1, "USD"),
                 new TradeExecution(Guid.NewGuid(), 1, Now, ExecutionSide.Buy, 1, 100, null, null, null, null, null), Now);
-            trade.SetTradingSetup(setup.Id, Now); await Get<ITradeStore>().AddAsync(trade);
+            trade.SetTradingSetup(setup.Id, Now);
+            await using var schema = Context();
+            if (!(await schema.Database.GetAppliedMigrationsAsync()).Any(m => m.EndsWith("SimplifyTradeWorkspace", StringComparison.Ordinal)))
+            {
+                await using var old = Context();
+                await old.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO Trades (Id,TradingAccountId,InstrumentId,PricingPointValue,PricingCurrency,TradingSetupId,CreatedAtUtc,UpdatedAtUtc) VALUES ({trade.Id},{account},{instrument},{1m},{"USD"},{setup.Id},{Now.UtcDateTime},{Now.UtcDateTime})");
+                old.TradeExecutions.AddRange(trade.Executions.Select(TradeExecutionPersistenceMapper.ToRecord));
+                old.TradeBrowse.Add(TradeBrowsePersistenceMapper.ToRecord(trade));
+                await old.SaveChangesAsync();
+            }
+            else await Get<ITradeStore>().AddAsync(trade);
             var screenshot = new TradeScreenshot(trade.Id, TradeScreenshotType.Entry, key ?? Guid.NewGuid().ToString("N") + ".png", "example.png", Now, null, null, Now);
             await Get<ITradeScreenshotStore>().AddAsync(screenshot);
             await File.WriteAllBytesAsync(Path.Combine(Paths.ScreenshotsDirectory, screenshot.StorageKey), [1, 2, 3]);

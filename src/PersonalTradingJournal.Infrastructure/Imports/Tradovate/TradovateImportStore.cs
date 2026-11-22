@@ -8,7 +8,7 @@ using PersonalTradingJournal.Infrastructure.Persistence.Records;
 
 namespace PersonalTradingJournal.Infrastructure.Imports.Tradovate;
 
-public sealed class TradovateImportStore : ITradovateImportStore
+public sealed partial class TradovateImportStore : ITradovateImportStore
 {
     private readonly IDbContextFactory<JournalDbContext> _contextFactory;
 
@@ -17,6 +17,21 @@ public sealed class TradovateImportStore : ITradovateImportStore
         ArgumentNullException.ThrowIfNull(contextFactory);
         _contextFactory = contextFactory;
     }
+
+    public async Task<string?> FindVerifiedImportConflictAsync(
+        TradovateImportPreparationResult preparation, CancellationToken cancellationToken = default)
+    {
+        Guid accountId = preparation.AccountSnapshot!.TradingAccountId;
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+        var persisted = await ReadIdentitiesAsync(context, accountId, cancellationToken);
+        return ClassifyCandidates(preparation.PreparedCandidates, persisted, accountId, verifiedTimes: true).ConflictMessage;
+    }
+
+    private static Task<TradovateImportedExecutionRecord[]> ReadIdentitiesAsync(
+        JournalDbContext context, Guid accountId, CancellationToken cancellationToken) =>
+        context.TradovateImportedExecutions.AsNoTracking()
+            .Where(record => record.TradingAccountIdAtImport == accountId)
+            .ToArrayAsync(cancellationToken);
 
     public async Task<TradovateImportResult> ImportAsync(
         TradovateImportRequest request,
@@ -39,10 +54,9 @@ public sealed class TradovateImportStore : ITradovateImportStore
             await context.Database.BeginTransactionAsync(cancellationToken);
 
         Guid accountId = request.Preparation.AccountSnapshot.TradingAccountId;
-        bool accountExists = await context.TradingAccounts
-            .AsNoTracking()
-            .AnyAsync(record => record.Id == accountId, cancellationToken);
-        if (!accountExists)
+        var currentAccount = await context.TradingAccounts.AsNoTracking()
+            .SingleOrDefaultAsync(record => record.Id == accountId, cancellationToken);
+        if (currentAccount is null)
         {
             await transaction.RollbackAsync(CancellationToken.None);
             return TradovateImportResult.Blocked(
@@ -50,16 +64,12 @@ public sealed class TradovateImportStore : ITradovateImportStore
                 $"Trading Account '{accountId}' no longer exists.");
         }
 
-        TradovateImportedExecutionRecord[] persistedIdentities = await context
-            .TradovateImportedExecutions
-            .AsNoTracking()
-            .Where(record => record.TradingAccountIdAtImport == accountId)
-            .ToArrayAsync(cancellationToken);
+        var persistedIdentities = await ReadIdentitiesAsync(context, accountId, cancellationToken);
 
         Classification classification = ClassifyCandidates(
             request.Preparation.PreparedCandidates,
             persistedIdentities,
-            accountId);
+            accountId, verifiedTimes: request.CostSources is not null);
         if (classification.ConflictMessage is not null)
         {
             await transaction.RollbackAsync(CancellationToken.None);
@@ -68,7 +78,27 @@ public sealed class TradovateImportStore : ITradovateImportStore
                 classification.ConflictMessage);
         }
 
-        if (classification.NewCandidates.Count == 0)
+        TradovateVerifiedCosts? costs = null;
+        int updatedCostTrades = 0;
+        if (request.CostSources is not null)
+        {
+            try
+            {
+                if (currentAccount.ExternalAccountId != request.Preparation.AccountSnapshot.ExternalAccountId ||
+                    currentAccount.Currency != request.Preparation.AccountSnapshot.Currency)
+                    throw new TradovateCostSourceException("Account identity or currency changed; rebuild the preview.");
+                costs = TradovateCostReconciler.Reconcile(request.Preparation, request.MatchedPairs ?? [], request.CostSources);
+                updatedCostTrades = await UpdateExistingCostsAsync(context, request, classification.DuplicateTradeIds,
+                    persistedIdentities, costs, cancellationToken);
+            }
+            catch (TradovateCostSourceException error)
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+                return TradovateImportResult.Blocked("COST_RECONCILIATION_BLOCKED", error.Message);
+            }
+        }
+
+        if (classification.NewCandidates.Count == 0 && updatedCostTrades == 0)
         {
             await transaction.RollbackAsync(CancellationToken.None);
             return new TradovateImportResult(
@@ -131,8 +161,10 @@ public sealed class TradovateImportStore : ITradovateImportStore
                 candidate,
                 accountId,
                 instrument,
-                request.ImportedAtUtc);
+                request.ImportedAtUtc, costs);
 
+            if (costs is not null && trade.GrossPnL != request.MatchedPairs!.Where(p => candidate.SourceRecordIndices.Contains(p.SourceRecordIndex)).Sum(p => p.SourceReportedPnL))
+                return TradovateImportResult.Blocked("COST_RECONCILIATION_BLOCKED", "Current Instrument economics differ from verified Gross.");
             importedTradeIds.Add(trade.Id);
             tradeRecords.Add(TradePersistenceMapper.ToRecord(trade));
             browseRecords.Add(TradeBrowsePersistenceMapper.ToRecord(trade));
@@ -179,19 +211,19 @@ public sealed class TradovateImportStore : ITradovateImportStore
         return new TradovateImportResult(
             TradovateImportStatus.Imported,
             importedTradeIds.Count,
-            classification.DuplicateTradeIds.Count,
+            classification.DuplicateTradeIds.Count - updatedCostTrades,
             newInstrumentRecords.Count,
             importedTradeIds,
             newInstrumentRecords.Select(record => record.Id).ToArray(),
-            classification.DuplicateTradeIds);
+            classification.DuplicateTradeIds, UpdatedCostTradeCount: updatedCostTrades);
     }
 
     private static Classification ClassifyCandidates(
         IReadOnlyList<TradovatePreparedTradeCandidate> candidates,
         IReadOnlyList<TradovateImportedExecutionRecord> persisted,
-        Guid accountId)
+        Guid accountId, bool verifiedTimes)
     {
-        string? allocationConflict = ValidateAllocations(candidates, persisted, accountId);
+        string? allocationConflict = ValidateAllocations(candidates, persisted, accountId, verifiedTimes);
         if (allocationConflict is not null)
         {
             return Classification.Conflict(allocationConflict);
@@ -264,7 +296,7 @@ public sealed class TradovateImportStore : ITradovateImportStore
     private static string? ValidateAllocations(
         IReadOnlyList<TradovatePreparedTradeCandidate> candidates,
         IReadOnlyList<TradovateImportedExecutionRecord> persisted,
-        Guid accountId)
+        Guid accountId, bool verifiedTimes)
     {
         if (candidates.Any(candidate => candidate.TradingAccountId != accountId))
         {
@@ -309,14 +341,29 @@ public sealed class TradovateImportStore : ITradovateImportStore
                     (record.SourceFillQuantity is null ||
                         (record.SourceFillQuantity == sourceQuantity &&
                          record.AllocatedQuantity == part.Execution.Quantity &&
-                         record.SourceFillPrice == source.Price &&
-                         record.SourceFillExecutedAtUtc == source.ExecutedAtUtc)))))
+                         record.SourceFillPrice == source.Price)))))
             {
                 return "The import overlaps a partial or changed broker fill allocation set. Reuse the complete original source.";
             }
+
+            if (verifiedTimes && existing.Any(record => record.SourceFillExecutedAtUtc is null))
+                return "An existing Trade lacks original fill timestamp evidence. Review its executions separately before importing verified costs.";
+            if (existing.Any(record => record.SourceFillQuantity is not null &&
+                !MatchesRecordedTime(record.SourceFillExecutedAtUtc, source.ExecutedAtUtc, verifiedTimes)))
+                return verifiedTimes
+                    ? "An existing Trade was imported with a different timestamp for the same fill ID. Review the saved Trade against Fills UTC before importing. The importer preserves the saved Trade."
+                    : "The import overlaps a partial or changed broker fill allocation set. Reuse the complete original source.";
         }
 
         return null;
+    }
+
+    private static bool MatchesRecordedTime(DateTimeOffset? recorded, DateTimeOffset incoming, bool verifiedTimes)
+    {
+        // Performance exports recorded whole seconds. A verified cost update may use that
+        // same second, while keeping the original persisted timestamp and precision intact.
+        return recorded == incoming || (verifiedTimes &&
+            recorded == incoming.AddTicks(-(incoming.Ticks % TimeSpan.TicksPerSecond)));
     }
 
     private static InstrumentResolution ResolveInstrument(
@@ -413,7 +460,7 @@ public sealed class TradovateImportStore : ITradovateImportStore
         TradovatePreparedTradeCandidate candidate,
         Guid accountId,
         InstrumentRecord instrument,
-        DateTimeOffset importedAtUtc)
+        DateTimeOffset importedAtUtc, TradovateVerifiedCosts? costs = null)
     {
         Guid tradeId = Guid.NewGuid();
         TradeExecution[] executions = candidate.OrderedExecutions
@@ -424,8 +471,8 @@ public sealed class TradovateImportStore : ITradovateImportStore
                 execution.Side,
                 execution.Quantity,
                 execution.Price,
-                commission: null,
-                fees: null,
+                commission: costs?.For(execution),
+                fees: costs is null ? null : 0m,
                 execution.ExternalFillId,
                 externalOrderId: null,
                 execution.BrokerSymbol))

@@ -12,6 +12,8 @@ namespace PersonalTradingJournal.Application.Trades;
 /// </summary>
 public sealed class UpdateTradeUseCase
 {
+    public const string ImportedTradeMessage = "Imported Trade economics are read-only. Use Edit Description in Trade Details.";
+
     public const string InactiveAccountMessage =
         "The selected trading account is inactive.";
     public const string InactiveInstrumentMessage =
@@ -68,6 +70,11 @@ public sealed class UpdateTradeUseCase
         {
             throw new KeyNotFoundException(
                 $"Trade '{command.TradeId}' could not be found.");
+        }
+
+        if (trade.IsImported)
+        {
+            throw new InvalidOperationException(ImportedTradeMessage);
         }
 
         if (trade.Executions.Count > 2)
@@ -157,6 +164,7 @@ public sealed class UpdateTradeUseCase
             executions,
             _timeProvider.GetUtcNow());
 
+        wasChanged |= trade.SetDescription(command.Description, _timeProvider.GetUtcNow());
         if (wasChanged)
         {
             await _tradeStore.SaveAsync(trade, cancellationToken);

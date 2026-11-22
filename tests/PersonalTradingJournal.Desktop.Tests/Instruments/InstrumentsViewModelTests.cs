@@ -16,6 +16,77 @@ public sealed class CultureSensitiveCollection
 public sealed class InstrumentsViewModelTests
 {
     [Fact]
+    public void AddCurrencyDefaultsToUsdAfterCancelAndNavigationReset()
+    {
+        InstrumentsViewModel viewModel = CreateViewModel();
+        Assert.Equal("USD", viewModel.Currency);
+        viewModel.ShowCreateFormCommand.Execute(null);
+        Assert.Equal("USD", viewModel.Currency);
+        viewModel.Currency = "EUR";
+        viewModel.CancelCreateCommand.Execute(null);
+        viewModel.ShowCreateFormCommand.Execute(null);
+        Assert.Equal("USD", viewModel.Currency);
+        viewModel.Currency = "JPY";
+        viewModel.ResetTransientState();
+        viewModel.ShowCreateFormCommand.Execute(null);
+        Assert.Equal("USD", viewModel.Currency);
+    }
+
+    [Theory]
+    [InlineData("USD")]
+    [InlineData("EUR")]
+    public async Task AddUsesDefaultCurrencyOrUserOverrideAndResetsToUsd(string currency)
+    {
+        var store = new FakeInstrumentStore();
+        InstrumentsViewModel viewModel = CreateViewModel(store: store);
+        OpenValidCreateForm(viewModel);
+        Assert.Equal("USD", viewModel.Currency);
+        if (currency != "USD") viewModel.Currency = currency;
+
+        await viewModel.CreateInstrumentCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, store.AddCallCount);
+        Assert.Equal(currency, store.AddedInstrument!.Currency);
+        Assert.False(viewModel.IsCreateFormVisible);
+        AssertCreateFormIsReset(viewModel);
+        viewModel.ShowCreateFormCommand.Execute(null);
+        Assert.Equal("USD", viewModel.Currency);
+    }
+
+    [Theory]
+    [InlineData("EUR", null)]
+    [InlineData("JPY", null)]
+    [InlineData("EUR", "GBP")]
+    public async Task EditRetainsSavedNonUsdCurrencyUnlessUserChangesIt(string savedCurrency, string? chosenCurrency)
+    {
+        InstrumentDetails details = CreateDetails() with { Currency = savedCurrency };
+        string expected = chosenCurrency ?? savedCurrency;
+        var reader = new FakeInstrumentReader { DetailsToReturn = details };
+        reader.EnqueueResult([CreateListItem(true) with { Id = details.Id, Currency = expected, DisplayName = "Revised name" }]);
+        var store = new FakeInstrumentStore { InstrumentToReturn = CreateAggregate(details.Id, true, savedCurrency) };
+        InstrumentsViewModel viewModel = CreateViewModel(reader, store);
+
+        await viewModel.EditInstrumentCommand.ExecuteAsync(details.Id);
+
+        Assert.Equal(savedCurrency, viewModel.EditCurrency);
+        Assert.Equal("USD", viewModel.Currency);
+        viewModel.EditDisplayName = "Revised name";
+        if (chosenCurrency is not null) viewModel.EditCurrency = chosenCurrency;
+        await viewModel.SaveChangesCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.IsEditFormVisible);
+        Assert.Null(viewModel.EditErrorMessage);
+        Assert.Equal(1, store.UpdateCallCount);
+        Assert.Equal(expected, store.UpdatedInstrument!.Currency);
+        Assert.Equal(expected, viewModel.SelectedInstrument!.Currency);
+        Assert.Equal(details.TickSize, store.UpdatedInstrument.TickSize);
+        Assert.Equal(details.TickValue, store.UpdatedInstrument.TickValue);
+        Assert.Equal(details.PointValue, store.UpdatedInstrument.PointValue);
+        viewModel.ShowCreateFormCommand.Execute(null);
+        Assert.Equal("USD", viewModel.Currency);
+    }
+
+    [Fact]
     public async Task EnsureLoadedAsync_AfterSuccessfulLoad_DoesNotQueryReaderAgain()
     {
         var instruments = new[] { CreateListItem(isActive: true) };
@@ -513,7 +584,6 @@ public sealed class InstrumentsViewModelTests
         viewModel.DisplayName = "E-mini S&P 500";
         viewModel.SelectedAssetClass = AssetClass.Futures;
         viewModel.Exchange = "CME";
-        viewModel.Currency = "USD";
         viewModel.TickSizeText = "1";
         viewModel.TickValueText = "10";
     }
@@ -524,7 +594,7 @@ public sealed class InstrumentsViewModelTests
         Assert.Equal(string.Empty, viewModel.DisplayName);
         Assert.Equal(AssetClass.Futures, viewModel.SelectedAssetClass);
         Assert.Equal(string.Empty, viewModel.Exchange);
-        Assert.Equal(string.Empty, viewModel.Currency);
+        Assert.Equal("USD", viewModel.Currency);
         Assert.Equal(string.Empty, viewModel.TickSizeText);
         Assert.Equal(string.Empty, viewModel.TickValueText);
     }
@@ -562,7 +632,7 @@ public sealed class InstrumentsViewModelTests
             createdAtUtc);
     }
 
-    private static Instrument CreateAggregate(Guid id, bool isActive)
+    private static Instrument CreateAggregate(Guid id, bool isActive, string currency = "USD")
     {
         DateTimeOffset createdAtUtc = FixedTimeProvider.FixedUtcNow.AddDays(-2);
         DateTimeOffset updatedAtUtc = FixedTimeProvider.FixedUtcNow.AddDays(-1);
@@ -573,7 +643,7 @@ public sealed class InstrumentsViewModelTests
             "E-mini S&P 500",
             AssetClass.Futures,
             "CME",
-            "USD",
+            currency,
             0.25m,
             12.50m,
             isActive,

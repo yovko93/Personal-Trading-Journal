@@ -66,21 +66,29 @@
                 AutomationProperties.ItemStatus="{Binding DayStatusMessage}"
                 Background="{DynamicResource PtjSurfaceBrush}" BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1">
             <StackPanel>
-                <TextBlock Text="Day Performance" Style="{DynamicResource PtjSectionTitleTextStyle}" />
-                <Button Content="Assess day Rules…" Command="{Binding AssessDayRulesCommand}" HorizontalAlignment="Left" Margin="0,8" Style="{DynamicResource PtjSecondaryButtonStyle}" AutomationProperties.Name="Manual assessments and deterministic checks for selected New York date and explicit Account scope" />
                 <TextBlock Text="{Binding SelectedDateLabel}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"
                            Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.LiveSetting="Polite" />
-                <TextBlock Text="{Binding DayTradeCountText}" Margin="0,4,0,0" Foreground="{DynamicResource PtjTextSecondaryBrush}" />
-                <WrapPanel Margin="0,8">
-                    <TextBlock Text="{Binding DayStatusMessage}" VerticalAlignment="Center"
+                <WrapPanel x:Name="DayReadFeedback" Margin="0,8">
+                    <WrapPanel.Style>
+                        <Style TargetType="WrapPanel">
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding DayStatusMessage}" Value="{x:Null}" />
+                                        <Condition Binding="{Binding DayErrorMessage}" Value="{x:Null}" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </WrapPanel.Style>
+                    <TextBlock Text="{Binding DayStatusMessage}" MaxWidth="400" TextWrapping="Wrap" VerticalAlignment="Center"
                                Foreground="{DynamicResource PtjTextSecondaryBrush}" AutomationProperties.LiveSetting="Polite" />
                     <Button Content="Cancel" Margin="0,0,8,0" Command="{Binding CancelDayCommand}"
                             Visibility="{Binding IsDayLoading, Converter={StaticResource BoolVisibility}}"
                             Style="{DynamicResource PtjSecondaryButtonStyle}" AutomationProperties.Name="Cancel day Trades loading" />
                     <TextBlock Text="{Binding DayErrorMessage}" MaxWidth="400" TextWrapping="Wrap" VerticalAlignment="Center"
                                Foreground="{DynamicResource PtjWarningBrush}" AutomationProperties.LiveSetting="Assertive" />
-                    <Button Content="Retry" Margin="8,0,0,0" Command="{Binding RetryDayCommand}"
-                            Style="{DynamicResource PtjSecondaryButtonStyle}" AutomationProperties.Name="Reload selected date Trades" />
                 </WrapPanel>
                 <ItemsControl ItemsSource="{Binding DaySummaries}" ItemTemplate="{StaticResource CalendarPnlTemplate}" Margin="0,0,0,12">
                     <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>

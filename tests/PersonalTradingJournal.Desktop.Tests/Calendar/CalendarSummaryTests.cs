@@ -142,10 +142,11 @@ internal static class CalendarSummaryFixture
         PersonalTradingJournal.Desktop.ViewModels.Trades.TradesViewModel? editor = null,
         PersonalTradingJournal.Application.Journals.IDailyJournalStatusReader? journalStatusReader = null,
         PersonalTradingJournal.Application.Journals.IDailyJournalRepository? journalRepository = null,
-        PersonalTradingJournal.Desktop.Dialogs.IDialogService? journalDialogs = null)
+        PersonalTradingJournal.Desktop.Dialogs.IDialogService? journalDialogs = null,
+        TradeAnalyticsFact? additionalFact = null)
     {
         using var timing = CalendarStaTest.Timing("fixture create and activate");
-        var reader = new TradingCalendarReader(new FactsReader());
+        var reader = new TradingCalendarReader(new FactsReader(additionalFact));
         var vm = new CalendarViewModel(reader, new Clock(), dayReader ?? new FakeTradingCalendarDayReader(), new FakeTradingAccountReader(),
             tradeEditor: editor, journalStatusReader: journalStatusReader,
             journalRepository: journalRepository ?? new FakeDailyJournalRepository(), journalDialogs: journalDialogs ?? new FakeDialogService());
@@ -158,7 +159,7 @@ internal static class CalendarSummaryFixture
         public override DateTimeOffset GetUtcNow() => new(2026, 9, 9, 12, 0, 0, TimeSpan.Zero);
     }
 
-    private sealed class FactsReader : IDashboardAnalyticsReader
+    private sealed class FactsReader(TradeAnalyticsFact? additionalFact) : IDashboardAnalyticsReader
     {
         public Task<DashboardAnalyticsSnapshot> GetAsync(DashboardAnalyticsQuery query, CancellationToken cancellationToken = default)
         {
@@ -169,8 +170,10 @@ internal static class CalendarSummaryFixture
                 Fact(9, 7, null, null), Fact(9, 8, 10m), Fact(9, 8, -20m, currency: "EUR"),
                 Fact(9, 9, -5m), Fact(9, 30, 4m), Fact(10, 4, 6m),
             ];
+            if (additionalFact is not null)
+                facts = [.. facts, additionalFact];
             return Task.FromResult(DashboardMetricCalculator.Calculate(facts.Where(f =>
-                f.ClosedAtUtc >= query.ClosedFromUtc && f.ClosedAtUtc < query.ClosedBeforeUtc), cancellationToken));
+                f.ClosedAtUtc >= query.ClosedFromUtc && f.ClosedAtUtc < query.ClosedBeforeUtc), cancellationToken, query.GetCloseDate));
         }
         private static TradeAnalyticsFact Fact(int month, int day, decimal? gross, decimal? costs = 0m, string currency = "USD")
         {

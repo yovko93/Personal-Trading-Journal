@@ -35,13 +35,15 @@ The guiding principle is simple: **process quality and financial outcome are sep
 
 ## Project Status
 
+Accounts show cumulative payouts in the Account currency and deduct them from Current Balance. Status and Current Balance are vertically centered. The Actions heading is centered over the equal-height View and overflow controls at the right edge. The red Remove button in payout history asks for confirmation. See [Account payouts](docs/account-payouts.md) for persistence and verification.
+
 **In development.** The repository contains a working desktop application with the features below. Release acceptance is still in progress.
 
 | Area | Status |
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Latest complete local test execution: **5,542 passed / 0 failed / 1 skipped**. One compiled Rules-view acceptance test is temporarily quarantined after a hosted CLR crash. Corrected gate-result validation passes against the retained results; hosted confirmation is pending. See the [quarantine record](docs/rules-view-quarantine.md) for coverage limits, runner accounting and restoration criteria. |
+| Verification | Latest local Release gate finished in 14m 01s with **5,636 passed, 0 failed and 1 existing Rules-view quarantine skip**. See the [September Tradovate reporting mismatch verification](docs/tradovate-verified-costs.md#september-reporting-mismatch). The [Calendar day verification](docs/trading-calendar.md#calendar-day-scope-correction-20-november-2026) records the compiled Light/Dark layouts, focused tests and remaining live checks. The prior Instruments and Notebook failures shared a native window ownership mismatch. Its trigger remains unresolved. See the [native window investigation](docs/ci-wpf-tests.md#native-window-ownership-during-accounts-verification) and the [Accounts alignment verification](docs/account-payouts.md#accounts-row-alignment). Live Accounts inspection remains pending. The earlier gate took 14m 22s after a 23m 16s run. The earlier slowdown’s cause and matching hosted timing remain unverified. See the [Release gate timing comparison](docs/ci-wpf-tests.md#trades-release-gate-timing-on-19-november-2026). The prior Journal History failure did not recur with the added test diagnostics. Its cause remains unresolved. See [Journal History investigation](docs/ci-wpf-tests.md#journal-history-zero-row-assertion--17-november-2026). |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
@@ -51,19 +53,36 @@ The CI badge tracks `main`; it does not certify every development change. The [N
 
 | Workflow | What you can do |
 | --- | --- |
-| **Trade tracking** | Manage accounts and instruments; record entries, scale-ins, partial exits, and closures; attach screenshots and classify trades by setup and mistake. |
-| **CSV import** | Preview and confirm supported Tradovate matched-fills and TopstepX Trades exports, with validation and duplicate detection. |
-| **Analytics** | Explore Dashboard metrics, Calendar results, and Breakdown groups with drill-down into the contributing trades. |
+| **Trade tracking** | Record executions and optional Trade descriptions, stage screenshots during manual creation, and browse compact image cards. Open Setup and Mistake editors only when needed. Trade Details adapts its summary to keep full New York timestamps readable on narrow windows. Scroll the page over execution data and use horizontal scrolling for extra columns on narrow windows. |
+| **CSV import** | Preview and confirm Tradovate matched fills and TopstepX Trades exports. Matching Tradovate Fills and Cash History verify costs and Net, including safe enrichment of unedited Performance imports. |
+| **Analytics** | Explore Dashboard metrics, Calendar results, and Breakdown groups with drill-down into the contributing trades. Calendar assigns Trades closed at or after 18:00 New York time to the next date. Open a date for daily P&L, the performance chart, Day Journal, and its Trades. |
 | **Daily journal** | Capture reflections, save drafts and completed entries, and revisit revision history by date and account. |
 | **Planning** | Maintain Playbook definitions, trading rules, daily principles, and Trading Plans with saved Ready revisions. |
 | **Reviews** | Review daily, weekly, and monthly evidence, retain saved analyses, and optionally use AI-assisted coaching or the manual ChatGPT prompt workflow. |
 | **Notebook** | Organize rich-text notes with folders, tags, images, templates, pinned notes, linked trades and setups, autosave, and recovery. |
 | **Data management** | Create complete backups, validate and restore compatible archives, and export data as JSON or CSV. |
+| **Reference data** | Instruments show Tick Value with its currency (for example, `5.00 USD`), left-aligned data columns, a centered Actions heading, right-aligned row buttons and narrow-window horizontal scrolling. Edit is in the row menu. Add defaults to editable USD; Edit retains the saved currency. Three-dot menus toggle open/closed; shared buttons have theme-aware hover highlights. |
 | **Appearance** | Choose System, Light, or Dark themes, with the Bull and Bear Trading Journal artwork, a distinct emerald sidebar header, and matching Windows application icons. |
 
 Analytics preserve currency boundaries and expose missing costs or incomplete evidence. Each view documents its Gross/Net policy; unavailable values are not silently treated as zero.
 
+Manual Trade entry exposes named Account, Instrument, position and execution inputs to assistive technology.
+
+| Trades acceptance | Evidence |
+| --- | --- |
+| Live in a synthetic journal | Checked entry-field names, saved Description, snapshot-based P/L and Setup save/cancel feedback. |
+| Automated | Checked five-second feedback expiry, screenshot staging, execution scrolling, row alignment and Light/Dark narrow layouts. |
+| Pending | Native picker and card walkthrough, physical mouse and high-DPI inspection, full keyboard and screen-reader coverage, and matching hosted CI. See the [detailed acceptance matrix](docs/trades-workspace.md#acceptance-on-18-november-2026). |
+
+Imported Trades support Description-only editing. Trades displays Gross and Net P&L to two decimals and uses distinct colors for Setup, Mistake and Screenshot actions. See [imported descriptions and verification](docs/trades-workspace.md#imported-descriptions-and-trades-presentation).
+
+See the [Trades workspace guide](docs/trades-workspace.md) for screenshot staging, association retirement, migration and current verification. Saved immutable reviews and historical Rule assessments remain readable.
+
+See [Instruments and action-menu verification](docs/instruments-ui.md) for menu coverage, Light/Dark layout checks, and the distinction between automated native input, rendered previews and pending live visual inspection. The [Notebook post-close hover investigation](docs/ci-menu-readiness.md#post-close-hover-precondition--8-november-2026) records the controlled native reproduction and explicit pointer preconditions; the original unrequested cursor movement remains unattributed.
+
 The selected Bull and Bear artwork uses the supplied PNG unchanged and a generated ten-resolution Windows ICO. The approved emerald sidebar layout is preserved. Its Release build, 40 focused header/theme checks, inspected renders at 100% and 250%, and built/published EXE icon inspections pass. Native visual acceptance remains pending. See [Application Branding](docs/application-branding.md) for current results and [Release lifecycle investigation](docs/release-gate-lifecycle.md) for earlier complete-gate evidence.
+
+The Calendar day dialog keeps the date, P&L summary, performance chart, Day Journal, and Trades table with **View** actions. The four removed controls are the **Day Performance** heading, **Assess day Rules…**, the standalone **N closed Trades** count, and **Retry**. [Calendar day details](docs/trading-calendar.md#selected-day-read-path-and-modal-m134-and-refinements)
 
 ## Quickstart
 
@@ -107,6 +126,10 @@ On startup, the app creates its local data directories and applies database migr
 ### Tradovate and TopstepX desktop import
 
 Import supports two distinct formats: [Tradovate matched fills](docs/tradovate-csv-import.md) and [TopstepX Trades exports](docs/topstep-csv-import.md). Select the appropriate account and review the preview before confirming. Tradovate reconstructs trades from matched fills; each supported TopstepX row represents one journal trade.
+
+For verified Tradovate Net P/L, select the Performance CSV, then its **Fills** and **Cash History** exports. The selected Account's external ID must match the exports exactly. Verified Fills may use Europe/Sofia or a consistent UTC+02:00 display, including a single season. Every Performance fill ID must match. Extra fills may be excluded only on dates with no Performance or Cash History activity and no ambiguous positions. The preview and confirmation identify the excluded fills and their Fills-column commissions. Verified Trades use the exact UTC timestamps from the matched fills. Preview and Calendar derive New York times from those instants. A conflicting timestamp on an existing Trade blocks verified import before confirmation. Review Gross, allocated commissions and Trade Net before confirmation. A contractless **Manual Adjustment** appears separately with total cash movement. The importer leaves it out of Trades and Account Current Balance. Each matched fill is charged once, including split allocations. Replaying the same evidence is idempotent; conflicting known costs or edited historical Trades block enrichment. Performance-only imports retain unknown costs. See the [September reporting mismatch verification](docs/tradovate-verified-costs.md#september-reporting-mismatch).
+
+The Tradovate source panel shows each supporting filename and its status. Select **Build Preview** to reconcile the three exports for the selected Account. Both rows show **Verified** when that preview succeeds. **Use Performance only** clears the supporting files and returns to the unknown-cost workflow. See the [Tradovate source panel guide](docs/tradovate-csv-import.md#source-panel).
 
 Shared limits are 16 MiB per source file, 64 KiB for header detection, 50,000 CSV records including headers and blank records, 32 fields per record, 4,096 decoded UTF-16 code units per field, and 16,384 raw UTF-16 code units per record. Oversized files are rejected without truncation; export a smaller date range and rebuild the preview.
 

@@ -492,13 +492,14 @@ public sealed class CalendarViewLayoutTests
     [Theory]
     [InlineData("Light", 1100, 96, Key.Enter)]
     [InlineData("Dark", 1100, 96, Key.Space)]
-    [InlineData("Light", 640, 240, Key.Space)]
-    [InlineData("Dark", 640, 240, Key.Enter)]
+    [InlineData("Light", 480, 240, Key.Space)]
+    [InlineData("Dark", 480, 240, Key.Enter)]
     public async Task DaySelectionByKeyboardAndMouseRendersResponsiveDetailsAndExactViewTargets(string theme, int width, int dpi, Key key)
     {
         var reader = new FakeTradingCalendarDayReader
         {
             Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date,
+                q.Date == new DateOnly(2026, 8, 31) ? [] :
                 [CalendarDayDetailsTests.Row(q.Date, -285m, null), CalendarDayDetailsTests.Row(q.Date, 10m, 9m) with { Currency = "EUR" }], ct))
         };
         CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync(reader);
@@ -556,8 +557,16 @@ public sealed class CalendarViewLayoutTests
             panel.UpdateLayout();
             Assert.Equal(Visibility.Visible, panel.Visibility);
             Assert.True(panel.ActualWidth <= width);
-            Assert.Contains(Descendants(panel).OfType<TextBlock>(), t => t.Text == "2 closed Trades");
+            AssertDayChrome();
             Assert.Contains(Descendants(panel).OfType<TextBlock>(), t => t.Text == "Estimated");
+            Assert.Equal(new decimal?[] { 9m, -285m }, vm.DaySummaries.OrderBy(summary => summary.Currency).Select(summary => summary.Amount));
+            foreach (var summary in vm.DaySummaries)
+                Assert.Contains(Descendants(panel).OfType<TextBlock>(), t => t.Text == summary.AmountText);
+            Assert.Equal(new decimal?[] { 9m, -285m }, Descendants(panel).OfType<DayPerformanceChart>()
+                .OrderBy(chart => chart.Series!.Currency).Select(chart => Assert.Single(chart.Series!.Points).Value));
+            var trades = (ItemsControl)panel.FindName("DayTradesList");
+            Assert.Equal(vm.DayTrades, trades.Items.Cast<CalendarTradePresentation>());
+            Assert.Equal(9, ((Grid)panel.FindName("DayTradesHeader")).ColumnDefinitions.Count);
             Button[] views = Descendants(panel).OfType<Button>().Where(b => b.Content?.ToString() == "View").ToArray();
             Assert.Equal(2, views.Length);
             Assert.All(views, b =>
@@ -592,16 +601,39 @@ public sealed class CalendarViewLayoutTests
             scroller.ScrollToBottom();
             panel.UpdateLayout();
             Assert.True(scroller.VerticalOffset > 0);
-            var bitmap = new RenderTargetBitmap(width * dpi / 96, 650 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
-            bitmap.Render(panel);
-            if (Environment.GetEnvironmentVariable("PTJ_CALENDAR_RENDER_DIRECTORY") is { Length: > 0 } output)
+            SaveRender("populated");
+            if (table.ScrollableWidth > 0) SaveRender("populated-actions", showActions: true);
+
+            void AssertDayChrome()
             {
+                Assert.Contains(Descendants(panel).OfType<TextBlock>(), t => t.Text == vm.SelectedDateLabel);
+                Assert.Contains(Descendants(panel).OfType<TextBlock>(), t => t.Text == "Day Journal");
+                Assert.DoesNotContain(Descendants(panel).OfType<TextBlock>(), t => t.Text == "Day Performance" || t.Text == vm.DayTradeCountText);
+                Assert.DoesNotContain(Descendants(panel).OfType<Button>(), button => Equals(button.Content, "Retry") ||
+                    button.Content is string label && label.StartsWith("Assess day Rules", StringComparison.Ordinal));
+                Assert.Equal(Visibility.Collapsed, ((WrapPanel)panel.FindName("DayReadFeedback")).Visibility);
+            }
+
+            void SaveRender(string scenario, bool showActions = false)
+            {
+                if (Environment.GetEnvironmentVariable("PTJ_CALENDAR_RENDER_DIRECTORY") is not { Length: > 0 } output) return;
+                const int height = 1060;
+                panel.Measure(new Size(width, height));
+                panel.Arrange(new Rect(0, 0, width, height));
+                panel.UpdateLayout();
+                scroller.ScrollToTop();
+                if (showActions) table.ScrollToRightEnd();
+                else table.ScrollToLeftEnd();
+                panel.UpdateLayout();
+                var bitmap = new RenderTargetBitmap(width * dpi / 96, height * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
+                bitmap.Render(panel);
                 Directory.CreateDirectory(output);
                 var encoder = new PngBitmapEncoder();
                 encoder.Frames.Add(BitmapFrame.Create(bitmap));
-                using var file = File.Create(Path.Combine(output, $"calendar-details-{theme}-{width}-{dpi}.png"));
+                using var file = File.Create(Path.Combine(output, $"calendar-day-{theme}-{width}-{dpi}-{scenario}.png"));
                 encoder.Save(file);
             }
+
             Border adjacent = Cell(8, 31);
             var mouse = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
                 { RoutedEvent = Mouse.MouseUpEvent };
@@ -612,6 +644,19 @@ public sealed class CalendarViewLayoutTests
             Assert.Equal(new DateOnly(2026, 8, 31), vm.SelectedDate);
             Assert.False(((CalendarDayCell)saturday.DataContext).IsSelected);
             Assert.Equal(2, reader.Calls.Count);
+            panel.UpdateLayout();
+            AssertDayChrome();
+            Assert.Empty(vm.DaySummaries);
+            Assert.Empty(trades.Items);
+            Assert.Empty(Descendants(panel).OfType<DayPerformanceChart>());
+            foreach (string message in new[] { "No closed Trades on this date.", "No closed Trades to chart." })
+            {
+                var text = Assert.Single(Descendants(panel).OfType<TextBlock>(), element => element.Text == message);
+                Assert.Equal(Visibility.Visible, text.Visibility);
+                Assert.True(text.ActualHeight > 0);
+            }
+            SaveRender("empty");
+
             TextBlock weekLabel = Assert.Single(Descendants(saturday).OfType<TextBlock>(), t => t.Text == "Week 1");
             var weeklyClick = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
                 { RoutedEvent = Mouse.MouseUpEvent };
@@ -640,7 +685,10 @@ public sealed class CalendarViewLayoutTests
     [InlineData("Dark", 640, 240)]
     public async Task PopulatedGridRendersSignsAndCenteredWeeklyOnlySaturdayAcrossThemes(string theme, int width, int dpi)
     {
-        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync();
+        var eveningClose = new DateTimeOffset(2026, 9, 23, 22, 12, 0, TimeSpan.Zero);
+        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync(additionalFact: new(Guid.NewGuid(),
+            PersonalTradingJournal.Domain.Trades.TradeStatus.Closed, eveningClose.AddHours(-1), eveningClose,
+            "USD", null, 12m, 0m, 12m));
         await OnSta(() =>
         {
             var view = new CalendarView { DataContext = vm };
@@ -678,6 +726,8 @@ public sealed class CalendarViewLayoutTests
             Assert.Equal(Brush("PtjSurfaceBrush"), ((SolidColorBrush)Cell(9, 5).Background).Color);
             Assert.Equal(Brush("PtjBorderBrush"), ((SolidColorBrush)Cell(9, 9).BorderBrush).Color);
             Assert.Equal(1d, Cell(9, 9).Opacity);
+            Assert.Empty(((CalendarDayCell)Cell(9, 23).DataContext).DailySummaries);
+            Assert.Contains(Descendants(Cell(9, 24)).OfType<TextBlock>(), t => t.Text == "12.00 USD");
             foreach (TextBlock amount in Descendants(view).OfType<TextBlock>().Where(t =>
                          t.DataContext is CalendarPnlSummary summary && t.Text == summary.AmountText))
             {
@@ -834,7 +884,8 @@ public sealed class CalendarViewLayoutTests
         foreach (var declaration in declarations) combined.Add(declaration.Elements());
         combined.Add(System.Xml.Linq.XDocument.Load(Path.Combine(resourcePath, "../Views/Trades/TradeEntryForm.xaml")).Root!.Elements());
         combined.SetAttributeValue(System.Xml.Linq.XNamespace.Xmlns + "system", "clr-namespace:System;assembly=System.Runtime");
-        foreach (string prefix in new[] { "converters", "validation" })
+        combined.SetAttributeValue(System.Xml.Linq.XNamespace.Xmlns + "trades", "clr-namespace:PersonalTradingJournal.Desktop.Views.Trades");
+        foreach (string prefix in new[] { "converters", "validation", "trades" })
         {
             var attribute = combined.Attribute(System.Xml.Linq.XNamespace.Xmlns + prefix)!;
             string oldNamespace = attribute.Value;

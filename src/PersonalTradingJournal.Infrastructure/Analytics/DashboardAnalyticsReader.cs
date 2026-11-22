@@ -47,6 +47,6 @@ public sealed class DashboardAnalyticsReader(IDbContextFactory<JournalDbContext>
         // Metadata and facts come from the same SQL snapshot; no per-Setup or per-point queries.
         TradingSetupAnalyticsReference[] references = selected.Where(row => row.Setup is not null)
             .Select(row => row.Setup!).DistinctBy(setup => setup.TradingSetupId).ToArray();
-        return DashboardMetricCalculator.Calculate(selected.Select(row => row.Fact), references, cancellationToken);
+        return DashboardMetricCalculator.Calculate(selected.Select(row => row.Fact), references, cancellationToken, query.GetCloseDate);
     }
 }

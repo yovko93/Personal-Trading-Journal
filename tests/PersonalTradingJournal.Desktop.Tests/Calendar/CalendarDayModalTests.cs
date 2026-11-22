@@ -487,7 +487,7 @@ public sealed partial class CalendarDayModalTests
                         Assert.Equal(empty ? 0 : 2, vm.DayDetails!.ClosedTradeCount);
                         Assert.Null(view.FindName("DayDetailsPanel"));
                         var content = (CalendarDayDetailsView)dialog.FindName("DayContent");
-                        Assert.Contains(Descendants(content).OfType<TextBlock>(), t => t.Text == "Day Performance");
+                        Assert.Contains(Descendants(content).OfType<TextBlock>(), t => t.Text == vm.SelectedDateLabel);
                         Button journal = Assert.Single(Descendants(content).OfType<Button>(), b => Equals(b.Content, "Add Journal"));
                         // Day content and Add do not depend on the grid-status service.
                         Assert.True(journal.IsEnabled);

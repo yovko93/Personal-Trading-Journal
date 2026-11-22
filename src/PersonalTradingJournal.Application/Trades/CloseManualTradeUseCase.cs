@@ -28,6 +28,8 @@ public sealed class CloseManualTradeUseCase
         Trade? trade = await _tradeMutationStore.GetByIdAsync(
             command.TradeId,
             cancellationToken);
+        if (trade is { IsImported: true }) throw new InvalidOperationException(UpdateTradeUseCase.ImportedTradeMessage);
+
         if (trade is null)
         {
             throw new KeyNotFoundException(

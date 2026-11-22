@@ -12,5 +12,7 @@ public sealed record AccountListItem(
     decimal? StartingBalance,
     bool IsActive)
 {
+    public decimal PayoutTotal { get; init; }
+
     public AccountCurrentBalance? CurrentBalance { get; init; }
 }

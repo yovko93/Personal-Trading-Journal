@@ -32,12 +32,18 @@
 
     <SolidColorBrush x:Key="PtjBackgroundBrush" Color="{StaticResource PtjColorBackground}" />
     <SolidColorBrush x:Key="PtjSurfaceBrush" Color="{StaticResource PtjColorSurface}" />
+    <SolidColorBrush x:Key="PtjPerformanceSourceBrush" Color="#214E49" />
+    <SolidColorBrush x:Key="PtjFillsSourceBrush" Color="#283E60" />
+    <SolidColorBrush x:Key="PtjCashSourceBrush" Color="#473455" />
+    <SolidColorBrush x:Key="PtjPerformanceOnlyBrush" Color="#4F402A" />
     <SolidColorBrush x:Key="PtjSurfaceElevatedBrush" Color="{StaticResource PtjColorSurfaceElevated}" />
     <SolidColorBrush x:Key="PtjPageHeaderSurfaceBrush" Color="#293F45" />
     <SolidColorBrush x:Key="PtjPageHeaderBorderBrush" Color="#507176" />
     <SolidColorBrush x:Key="PtjJournalReviewSurfaceBrush" Color="#293F45" />
     <SolidColorBrush x:Key="PtjJournalReviewBorderBrush" Color="#507176" />
     <SolidColorBrush x:Key="PtjBorderBrush" Color="{StaticResource PtjColorBorder}" />
+    <SolidColorBrush x:Key="PtjButtonHoverTintBrush" Color="#D9FFF5" />
+    <SolidColorBrush x:Key="PtjButtonHoverBorderBrush" Color="#86C6B6" />
     <SolidColorBrush x:Key="PtjTextPrimaryBrush" Color="{StaticResource PtjColorTextPrimary}" />
     <SolidColorBrush x:Key="PtjTextSecondaryBrush" Color="{StaticResource PtjColorTextSecondary}" />
     <SolidColorBrush x:Key="PtjTextMutedBrush" Color="{StaticResource PtjColorTextMuted}" />
@@ -95,4 +101,6 @@
     <SolidColorBrush x:Key="PtjPlaybookCreatePressedBrush" Color="#C1E6E0" />
     <SolidColorBrush x:Key="PtjPlaybookRemoveHoverBrush" Color="#F1A8B4" />
     <SolidColorBrush x:Key="PtjPlaybookRemovePressedBrush" Color="#F7BCC5" />
+    <SolidColorBrush x:Key="PtjTradeExecutionFactsBrush" Color="#172D42" />
+    <SolidColorBrush x:Key="PtjTradeExecutionSourceBrush" Color="#30253D" />
 </ResourceDictionary>

@@ -124,6 +124,7 @@ public sealed class TradeScreenshotWorkflowTests
         fixture.ScreenshotReader.EnqueueResult([CreateScreenshot(item.Id)]);
         await fixture.ViewModel.ShowTradeDetailCommand.ExecuteAsync(item);
         fixture.ViewModel.ShowAddScreenshotCommand.Execute(null);
+        await fixture.ViewModel.UploadScreenshotCommand.ExecuteAsync(null);
         await fixture.ViewModel.SaveScreenshotCommand.ExecuteAsync(null);
         Assert.True(fixture.ViewModel.HasScreenshotValidationError);
 
@@ -239,6 +240,7 @@ public sealed class TradeScreenshotWorkflowTests
         fixture.ViewModel.ScreenshotCapturedAtUtcText = "invalid";
         fixture.ViewModel.ScreenshotTimeframeText = "5m";
         fixture.ViewModel.ScreenshotDescriptionText = "Draft";
+        await fixture.ViewModel.UploadScreenshotCommand.ExecuteAsync(null);
         await fixture.ViewModel.SaveScreenshotCommand.ExecuteAsync(null);
 
         fixture.ViewModel.CancelAddScreenshotCommand.Execute(null);
@@ -277,6 +279,7 @@ public sealed class TradeScreenshotWorkflowTests
         fixture.ViewModel.SelectedScreenshotType = TradeScreenshotType.Entry;
         fixture.ViewModel.ScreenshotCapturedAtUtcText = "   ";
 
+        await fixture.ViewModel.UploadScreenshotCommand.ExecuteAsync(null);
         await fixture.ViewModel.SaveScreenshotCommand.ExecuteAsync(null);
 
         Assert.Null(Assert.IsType<TradeScreenshot>(
@@ -288,41 +291,30 @@ public sealed class TradeScreenshotWorkflowTests
     [InlineData("2026-09-10 13:30")]
     [InlineData("2026-09-10T13:30:00Z")]
     [InlineData("2026-09-10T13:30Z")]
-    public async Task StrictUtcCapturedTimeFormatsParse(string text)
+    public async Task LegacyCapturedTimeInputIsNotAppliedBySimplifiedWorkflow(string text)
     {
         ScreenshotFixture fixture = CreateFixtureWithSelection();
         await LoadDetailAndOpenFormAsync(fixture);
         fixture.ViewModel.SelectedScreenshotType = TradeScreenshotType.Exit;
         fixture.ViewModel.ScreenshotCapturedAtUtcText = text;
 
+        await fixture.ViewModel.UploadScreenshotCommand.ExecuteAsync(null);
         await fixture.ViewModel.SaveScreenshotCommand.ExecuteAsync(null);
 
-        Assert.Equal(
-            new DateTimeOffset(2026, 9, 10, 13, 30, 0, TimeSpan.Zero),
-            Assert.IsType<TradeScreenshot>(
-                fixture.ScreenshotStore.AddedScreenshot).CapturedAtUtc);
+        Assert.Null(Assert.IsType<TradeScreenshot>(fixture.ScreenshotStore.AddedScreenshot).CapturedAtUtc);
     }
 
     [Fact]
-    public async Task InvalidCapturedTimeBlocksPickerAndRetainsDraft()
+    public async Task SaveWithoutUploadKeepsFormAndDoesNotOpenPicker()
     {
-        ScreenshotFixture fixture = CreateFixtureWithSelection();
+        var fixture = CreateFixtureWithSelection();
         await LoadDetailAndOpenFormAsync(fixture);
-        fixture.ViewModel.SelectedScreenshotType = TradeScreenshotType.PreTrade;
-        fixture.ViewModel.ScreenshotCapturedAtUtcText =
-            "2026-09-10T13:30:00+03:00";
-
+        fixture.ViewModel.SelectedScreenshotType = TradeScreenshotType.Entry;
         await fixture.ViewModel.SaveScreenshotCommand.ExecuteAsync(null);
-
         Assert.Equal(0, fixture.FilePicker.CallCount);
         Assert.Equal(0, fixture.ScreenshotStore.AddCallCount);
         Assert.True(fixture.ViewModel.IsAddScreenshotVisible);
-        Assert.Equal(
-            "2026-09-10T13:30:00+03:00",
-            fixture.ViewModel.ScreenshotCapturedAtUtcText);
-        Assert.Equal(
-            "Captured time must be a valid UTC timestamp.",
-            fixture.ViewModel.ScreenshotValidationErrorMessage);
+        Assert.Equal("Upload a screenshot before saving.", fixture.ViewModel.ScreenshotValidationErrorMessage);
     }
 
     [Fact]
@@ -334,6 +326,7 @@ public sealed class TradeScreenshotWorkflowTests
         fixture.ViewModel.ScreenshotTimeframeText = "Daily";
         fixture.ViewModel.ScreenshotDescriptionText = "Keep this";
 
+        await fixture.ViewModel.UploadScreenshotCommand.ExecuteAsync(null);
         await fixture.ViewModel.SaveScreenshotCommand.ExecuteAsync(null);
 
         Assert.Equal(1, fixture.FilePicker.CallCount);
@@ -367,6 +360,7 @@ public sealed class TradeScreenshotWorkflowTests
         fixture.ViewModel.ScreenshotTimeframeText = "  5m  ";
         fixture.ViewModel.ScreenshotDescriptionText = "  Breakout  ";
 
+        await fixture.ViewModel.UploadScreenshotCommand.ExecuteAsync(null);
         await fixture.ViewModel.SaveScreenshotCommand.ExecuteAsync(null);
 
         TradeScreenshot saved = Assert.IsType<TradeScreenshot>(
@@ -375,8 +369,8 @@ public sealed class TradeScreenshotWorkflowTests
         Assert.Equal(TradeScreenshotType.Entry, saved.Type);
         Assert.Equal("entry-chart.JPEG", saved.FileName);
         Assert.Equal("5m", saved.Timeframe);
-        Assert.Equal("Breakout", saved.Description);
-        Assert.Same(stream, fixture.FileStorage.StoredContent);
+        Assert.Null(saved.Description);
+        Assert.NotSame(stream, fixture.FileStorage.StoredContent); // Upload owns and disposes the original; Save uses the staged bytes.
         Assert.Equal(".JPEG", fixture.FileStorage.StoredExtension);
         Assert.True(stream.IsDisposed);
         Assert.Same(authoritative, fixture.ViewModel.TradeScreenshots);
@@ -404,6 +398,7 @@ public sealed class TradeScreenshotWorkflowTests
         fixture.ViewModel.ShowAddScreenshotCommand.Execute(null);
         fixture.ViewModel.SelectedScreenshotType = TradeScreenshotType.PostTrade;
 
+        await fixture.ViewModel.UploadScreenshotCommand.ExecuteAsync(null);
         await fixture.ViewModel.SaveScreenshotCommand.ExecuteAsync(null);
 
         Assert.Equal(1, fixture.ScreenshotStore.AddCallCount);
@@ -429,6 +424,7 @@ public sealed class TradeScreenshotWorkflowTests
         fixture.ViewModel.ScreenshotTimeframeText = "15m";
         fixture.ViewModel.ScreenshotDescriptionText = "Draft context";
 
+        await fixture.ViewModel.UploadScreenshotCommand.ExecuteAsync(null);
         await fixture.ViewModel.SaveScreenshotCommand.ExecuteAsync(null);
 
         Assert.True(stream.IsDisposed);
@@ -452,6 +448,7 @@ public sealed class TradeScreenshotWorkflowTests
         fixture.ViewModel.SelectedScreenshotType = TradeScreenshotType.Entry;
         fixture.ViewModel.ScreenshotDescriptionText = "Still useful";
 
+        await fixture.ViewModel.UploadScreenshotCommand.ExecuteAsync(null);
         await fixture.ViewModel.SaveScreenshotCommand.ExecuteAsync(null);
 
         Assert.Equal(
@@ -471,6 +468,7 @@ public sealed class TradeScreenshotWorkflowTests
         await LoadDetailAndOpenFormAsync(fixture);
         fixture.ViewModel.SelectedScreenshotType = TradeScreenshotType.Exit;
 
+        await fixture.ViewModel.UploadScreenshotCommand.ExecuteAsync(null);
         Task saveTask = fixture.ViewModel.SaveScreenshotCommand.ExecuteAsync(null);
         await fixture.ScreenshotStore.AddStarted;
         fixture.ViewModel.SaveScreenshotCommand.Cancel();
@@ -491,9 +489,9 @@ public sealed class TradeScreenshotWorkflowTests
         fixture.ScreenshotStore.HoldAdd = true;
         TradeListItem current = await LoadDetailAndOpenFormAsync(fixture);
         fixture.ViewModel.SelectedScreenshotType = TradeScreenshotType.PreTrade;
-        fixture.ViewModel.ShowManualEntryCommand.Execute(null);
-        Assert.True(fixture.ViewModel.SaveManualTradeCommand.CanExecute(null));
+        Assert.False(fixture.ViewModel.ShowManualEntryCommand.CanExecute(null));
 
+        await fixture.ViewModel.UploadScreenshotCommand.ExecuteAsync(null);
         Task saveTask = fixture.ViewModel.SaveScreenshotCommand.ExecuteAsync(null);
         await fixture.ScreenshotStore.AddStarted;
 
@@ -531,6 +529,7 @@ public sealed class TradeScreenshotWorkflowTests
         fixture.ViewModel.ShowAddScreenshotCommand.Execute(null);
         fixture.ViewModel.SelectedScreenshotType = TradeScreenshotType.Other;
 
+        await fixture.ViewModel.UploadScreenshotCommand.ExecuteAsync(null);
         await fixture.ViewModel.SaveScreenshotCommand.ExecuteAsync(null);
 
         Assert.True(fixture.ViewModel.IsManualEntryVisible);
@@ -541,9 +540,9 @@ public sealed class TradeScreenshotWorkflowTests
         Assert.Same(recentTrades, fixture.ViewModel.RecentTrades);
         Assert.Equal(1, fixture.TradeListReader.CallCount);
         Assert.Null(fixture.ViewModel.SuccessMessage);
-        Assert.Equal(
-            "Screenshot added successfully.",
-            fixture.ViewModel.ScreenshotSuccessMessage);
+        Assert.Single(fixture.ViewModel.StagedScreenshots);
+        Assert.Equal(0, fixture.ScreenshotStore.AddCallCount);
+        Assert.Null(fixture.ViewModel.ScreenshotSuccessMessage);
     }
 
     [Fact]
@@ -553,6 +552,7 @@ public sealed class TradeScreenshotWorkflowTests
         await LoadDetailAndOpenFormAsync(fixture);
         fixture.ViewModel.SelectedScreenshotType = TradeScreenshotType.Entry;
         fixture.ViewModel.ScreenshotDescriptionText = "First";
+        await fixture.ViewModel.UploadScreenshotCommand.ExecuteAsync(null);
         await fixture.ViewModel.SaveScreenshotCommand.ExecuteAsync(null);
         Assert.True(fixture.ViewModel.HasScreenshotSuccessMessage);
         fixture.ViewModel.SelectedScreenshotType = TradeScreenshotType.Other;

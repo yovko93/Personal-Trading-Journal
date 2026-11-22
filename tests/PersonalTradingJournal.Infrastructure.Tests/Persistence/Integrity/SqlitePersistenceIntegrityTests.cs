@@ -49,6 +49,7 @@ public sealed class SqlitePersistenceIntegrityTests
         using JournalDbContext context = CreateModelContext();
         Type[] expectedRecordTypes =
         [
+            typeof(AccountPayoutRecord),
             typeof(NotebookNoteRecord),
             typeof(NotebookRecoveryRecord),
             typeof(NotebookOwnedImageRecord),
@@ -225,7 +226,8 @@ public sealed class SqlitePersistenceIntegrityTests
         AssertForeignKey(model, typeof(NotebookLinkRecord), nameof(NotebookLinkRecord.NoteId), typeof(NotebookNoteRecord), true, DeleteBehavior.Restrict);
         AssertForeignKey(model, typeof(NotebookTagAssignmentRecord), nameof(NotebookTagAssignmentRecord.NoteId), typeof(NotebookNoteRecord), true, DeleteBehavior.Restrict);
         AssertForeignKey(model, typeof(NotebookTagAssignmentRecord), nameof(NotebookTagAssignmentRecord.TagId), typeof(NotebookTagRecord), true, DeleteBehavior.Restrict);
-        Assert.Equal(34, foreignKeys.Count);
+        AssertForeignKey(model, typeof(AccountPayoutRecord), nameof(AccountPayoutRecord.AccountId), typeof(TradingAccountRecord), true, DeleteBehavior.Restrict);
+        Assert.Equal(35, foreignKeys.Count);
 
         IForeignKey[] cascades = foreignKeys
             .Where(foreignKey =>

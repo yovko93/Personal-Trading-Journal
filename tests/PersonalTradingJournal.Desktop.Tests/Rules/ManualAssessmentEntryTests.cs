@@ -33,19 +33,10 @@ public sealed class ManualAssessmentEntryTests
     }
 
     [Fact]
-    public async Task TradeEntryUsesAuthoritativeLoadedTradeAndDoesNotDiscardUnfinishedEditor()
+    public void TradeAssessmentEntryIsRetiredWhileCatalogHistoryRemains()
     {
-        var row = CalendarDayDetailsTests.Row(new(2026, 9, 5), 20, 18);
-        var detail = TradesViewModelTests.CreateEditableTradeDetail(row, null);
-        var reader = new FakeTradeDetailReader(); reader.EnqueueResult(detail); reader.EnqueueResult(detail);
-        var dialogs = new RecordingDialog();
-        var vm = TradesViewModelTests.CreateViewModel(tradeDetailReader: reader, reader: TradesViewModelTests.CreateEditReferenceReader(detail), ruleAssessments: dialogs);
-        vm.AssessRulesCommand.Execute(null); Assert.Empty(dialogs.Targets);
-        await vm.ShowTradeDetailCommand.ExecuteAsync(row); await vm.ShowSelectedTradeEditCommand.ExecuteAsync(null);
-        vm.QuantityText = "unsaved invalid quantity";
-        vm.AssessRulesCommand.Execute(null);
-        Assert.Equal(TradingRuleAssessmentTarget.ForTrade(detail.Id, detail.TradingAccountId), Assert.Single(dialogs.Targets));
-        Assert.True(vm.IsTradeEditVisible); Assert.Equal("unsaved invalid quantity", vm.QuantityText); Assert.Same(detail, vm.SelectedTradeDetail);
+        Assert.Null(typeof(PersonalTradingJournal.Desktop.ViewModels.Trades.TradesViewModel).GetProperty("AssessRulesCommand"));
+        Assert.NotNull(typeof(IRuleAssessmentDialog).GetMethod("ShowRuleHistory"));
     }
 
     internal sealed class RecordingDialog : IRuleAssessmentDialog

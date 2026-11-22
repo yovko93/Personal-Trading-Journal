@@ -18,6 +18,23 @@ public sealed class TradingCalendarDayTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new TradingCalendarDayQuery(DateOnly.MaxValue));
     }
 
+    [Theory]
+    [InlineData(2026, 3, 8, 23, 22)]
+    [InlineData(2026, 11, 1, 22, 23)]
+    public void TradingDayConvertsBothEveningsWithTheirOwnDstOffsets(int year, int month, int day,
+        int previousEveningUtcHour, int currentEveningUtcHour)
+    {
+        var date = new DateOnly(year, month, day);
+        var account = Guid.NewGuid();
+        var query = TradingCalendarDayQuery.ForTradingDate(date, account);
+
+        Assert.Equal(date, query.Date);
+        Assert.Equal(account, query.TradingAccountId);
+        Assert.Equal(new DateTimeOffset(date.AddDays(-1).ToDateTime(new(previousEveningUtcHour, 0), DateTimeKind.Utc)), query.ClosedFromUtc);
+        Assert.Equal(new DateTimeOffset(date.ToDateTime(new(currentEveningUtcHour, 0), DateTimeKind.Utc)), query.ClosedBeforeUtc);
+        Assert.Equal(query.ClosedBeforeUtc, TradingCalendarDayQuery.ForTradingDate(date.AddDays(1)).ClosedFromUtc);
+    }
+
     [Fact]
     public void DetailsUseSameRowsForMetricsCurrenciesAndStableClosureOrder()
     {

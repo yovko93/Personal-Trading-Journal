@@ -80,7 +80,7 @@ public sealed class CalendarDayDetailsTests
     }
 
     [Fact]
-    public async Task CancellationFailureEmptyAndRetryKeepCurrentDateUsable()
+    public async Task CancellationFailureAndReopeningKeepCurrentDateUsable()
     {
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var result = new TaskCompletionSource<TradingCalendarDayDetails>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -97,11 +97,11 @@ public sealed class CalendarDayDetailsTests
         Assert.Null(vm.DayDetails);
         Assert.True(reader.Calls.First().Token.IsCancellationRequested);
         reader.Handler = (_, _) => throw new IOException("Synthetic day read failure");
-        await vm.RetryDayCommand.ExecuteAsync(null);
-        Assert.Contains("Retry", vm.DayErrorMessage);
+        await vm.SelectDayCommand.ExecuteAsync(Cell(vm, date));
+        Assert.Contains("Reopen this date", vm.DayErrorMessage);
         Assert.Empty(vm.DayTrades);
         reader.Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date, [], ct));
-        await vm.RetryDayCommand.ExecuteAsync(null);
+        await vm.SelectDayCommand.ExecuteAsync(Cell(vm, date));
         Assert.Null(vm.DayErrorMessage);
         Assert.True(vm.IsSelectedDayEmpty);
         Assert.Equal("0 closed Trades", vm.DayTradeCountText);

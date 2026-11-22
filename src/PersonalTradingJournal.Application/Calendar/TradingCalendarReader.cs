@@ -11,7 +11,7 @@ public sealed class TradingCalendarReader(IDashboardAnalyticsReader analyticsRea
         ArgumentNullException.ThrowIfNull(query);
         cancellationToken.ThrowIfCancellationRequested();
         DashboardAnalyticsSnapshot snapshot = await analyticsReader.GetAsync(
-            new DashboardAnalyticsQuery(query.TradingAccountId, null, query.GridStart, query.GridEnd), cancellationToken);
+            DashboardAnalyticsQuery.ForCalendarTradingDays(query.TradingAccountId, query.GridStart, query.GridEnd), cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
         DateOnly[] gridDates = Enumerable.Range(0, query.GridEnd.DayNumber - query.GridStart.DayNumber + 1)

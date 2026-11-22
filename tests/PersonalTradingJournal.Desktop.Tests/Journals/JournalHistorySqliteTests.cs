@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Accounts;
@@ -7,10 +10,11 @@ using PersonalTradingJournal.Desktop.ViewModels.Journals;
 using PersonalTradingJournal.Domain.Journals;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Infrastructure.Persistence;
+using Xunit.Abstractions;
 
 namespace PersonalTradingJournal.Desktop.Tests.Journals;
 
-public sealed class JournalHistorySqliteTests
+public sealed class JournalHistorySqliteTests(ITestOutputHelper output)
 {
     [Fact]
     public async Task AllScopesHistoryOpensEditsAndDeletesOriginalAccountWithoutChangingOtherEntries()
@@ -25,13 +29,19 @@ public sealed class JournalHistorySqliteTests
         DateOnly date = new(2026, 9, 9);
         var global = (await db.Repository.CreateAsync(new(date, null, "Global"))).Journal!.Entry;
         var scoped = (await db.Repository.CreateAsync(new(date, p21.Id, "P21 original"))).Journal!.Entry;
-        await db.Repository.CreateAsync(new(date, other.Id, "Other"));
+        var otherEntry = (await db.Repository.CreateAsync(new(date, other.Id, "Other"))).Journal!.Entry;
+        Assert.Equal(3, new[] { global.Id, scoped.Id, otherEntry.Id }.Distinct().Count());
+        var history = new HistoryActivationProbe(db.Provider.GetRequiredService<IDailyJournalHistoryReader>());
         var dialogs = new FakeDialogService();
         var vm = new JournalViewModel(db.Repository, db.Provider.GetRequiredService<ITradingAccountReader>(), dialogs,
-            db.CreateTradeContext(), new JournalHistoryViewModelTests.Clock(), db.Provider.GetRequiredService<IDailyJournalHistoryReader>());
+            db.CreateTradeContext(), new JournalHistoryViewModelTests.Clock(), history);
         try
         {
             await vm.ActivateAsync();
+            output.WriteLine($"After activation: seeded=3; published={vm.History!.Entries.Count}; " +
+                $"scope={(vm.SelectedAccount.Id is null ? "all" : "account")}; history task={vm.History.LoadTask.Status}; " +
+                $"status={vm.History.StatusText}; page={vm.History.PageText}; open connections={db.Connections.ActiveCount}");
+            foreach (string observation in history.Observations) output.WriteLine(observation);
             Assert.Null(vm.SelectedAccount.Id);
             Assert.False(vm.IsExisting);
             Assert.Contains("Account-specific", vm.EmptyReviewText);
@@ -86,6 +96,57 @@ public sealed class JournalHistorySqliteTests
             Assert.Equal(2, vm.History.Entries.Count);
         }
         finally { vm.Deactivate(); }
+    }
+
+    // Capture the real reader's outcome before History maps an exception to UI status.
+    // Bound the trace to the initial activation and omit SQL, paths, IDs and journal content.
+    private sealed class HistoryActivationProbe(IDailyJournalHistoryReader reader) : IDailyJournalHistoryReader
+    {
+        private readonly long _started = Stopwatch.GetTimestamp();
+        private readonly ConcurrentQueue<string> _observations = new();
+        private int _calls;
+        internal IReadOnlyCollection<string> Observations => _observations.ToArray();
+
+        public async Task<JournalHistoryPage<JournalHistoryItem>> BrowseAsync(Guid? accountId, int page = 1,
+            int pageSize = 20, CancellationToken cancellationToken = default)
+        {
+            int call = Interlocked.Increment(ref _calls);
+            Observe($"entry; scope={(accountId.HasValue ? "account" : "all")}; page={page}; size={pageSize}");
+            try
+            {
+                var result = await reader.BrowseAsync(accountId, page, pageSize, cancellationToken);
+                Observe($"returned; rows={result.Items.Count}; total={result.TotalCount}");
+                return result;
+            }
+            catch (Exception error)
+            {
+                int depth = 0;
+                for (Exception? current = error; current is not null && depth < 3; current = current.InnerException, depth++)
+                {
+                    string sqlite = current is SqliteException dbError
+                        ? $"; SQLite code={dbError.SqliteErrorCode}; extended={dbError.SqliteExtendedErrorCode}"
+                        : "";
+                    string frames = string.Join(" | ", (new StackTrace(current).GetFrames() ?? [])
+                        .Take(6).Select(frame => frame.GetMethod()?.Name));
+                    Observe($"threw {current.GetType().Name}{sqlite}; frames={frames}");
+                }
+                throw;
+            }
+
+            void Observe(string detail)
+            {
+                if (call <= 4)
+                    _observations.Enqueue($"History read {call} at {Stopwatch.GetElapsedTime(_started).TotalMilliseconds:F1}ms: " +
+                        $"{detail}; cancellation={cancellationToken.IsCancellationRequested}");
+            }
+        }
+
+        public Task<JournalHistoryPage<JournalRevisionItem>> BrowseRevisionsAsync(Guid journalId, int page = 1,
+            int pageSize = 20, CancellationToken cancellationToken = default) =>
+            reader.BrowseRevisionsAsync(journalId, page, pageSize, cancellationToken);
+
+        public Task<DailyJournalRevision?> GetRevisionAsync(Guid journalId, long revision, CancellationToken cancellationToken = default) =>
+            reader.GetRevisionAsync(journalId, revision, cancellationToken);
     }
 
     [Fact]

@@ -181,3 +181,63 @@ Reproduction used the existing Release binaries; no new build result is claimed 
 If this case fails again, retain the automatic boundary JSON alongside `input-sequence.log`, the matching child TRX and phase/supervisor logs. Optional menu diagnostics can supplement this evidence, but are no longer needed to enable the terminal snapshot. A failure under these observations, preferably on the matching hosted runtime/desktop, can distinguish managed hover/capture, geometry, popup behavior and external ownership before choosing a correction. The original CI trace still lacks those observations; adding instrumentation does not fill its historical gaps.
 
 The original investigation changed only `README.md` and this note. The subsequent instrumentation added `NotebookMouseReadinessEvidence.cs` and its contract tests, and updated `NotebookHeaderViewTests.Menus.cs` plus these two documentation files. Those earlier tasks performed no product correction, complete gate, workflow rerun, asset modification, push, PR or merge. The later scheduling-contract correction and its complete gate are recorded above.
+
+## Post-close hover precondition — 8 November 2026
+
+This is separate from the historical DuplicateNoteButton readiness/cached-capture investigation. The Instruments complete gate, `release-20261108-175211-d7a84cfd28b14d4c87c3fcee22e0bc08`, completed with **5,546 passed / 1 failed / 1 existing Rules skip**, exit 1. Its Light/480/240 overflow child, `notebook-menus-20261108-175641-6d446255e04840e9aaf1e161b0ffa4ae`, passed the second-click `IsOpen=false` assertion, then failed the unconditional hover-color assertion at Menus.cs:103. Expected **#FF205B55**, actual **#FF28655F**. Parent and child represent one failed case.
+
+Evidence is retained beneath `TestResults/instruments-ui/complete-final/<run>/exclusive-wpf/<child>/menu-evidence/`: `input-sequence.log`, `mouse-movement.log` and matching `../notebook-menus.trx`. The trace requests **1096,514**; actual native cursor positions subsequently include **1121,569** and **1141,597**. WPF processes the final move over `Border#ContentPanel`, target-relative **40.09,58.67**, outside the 36×36-DIP trigger; capture is null and hover false. The normal brush matches this state. This is a color assertion, not a menu-toggle failure, readiness timeout, cancellation or crash.
+
+### Reproduction and causal boundary
+
+Follow-up base: clean `develop`, **36b7d8169599e73c8f910737589c31712ec79c78** (the committed Instruments change). No product source or test scheduling changes are made in this follow-up.
+
+An initial sandboxed launch stops at `SetCursorPos=false` / `GetCursorPos=false` before the first click (`TestResults/notebook-post-close/original/`); it is not a reproduction of the hover failure. The exact case then passes unchanged with normal native desktop access (`original-desktop/`, 1 parent / 1 child passed). A prematurely launched comparison used the older binary while its build was finishing (`controlled-original-assertion/`); its pass is excluded from controlled evidence.
+
+After confirming the comparison build completed, one deliberate native move outside is inserted after the actual second click, before the original hover assertion. This controlled comparison fails with the **same expected/actual brushes** (`controlled-red/`, 1 parent / 1 child failed). Its trace verifies pointer **680,144**, inside the owned outside button's screen bounds **193,112–1167,177**, WPF hit TextBlock, capture null and DPI scale **2.5**. The menu has already closed. This reproduces the incorrect assertion under a known pointer departure; it does **not** identify what produced the original unrequested movement.
+
+The demonstrated fixture error is equating "native click completed" with "cursor remains hovering the trigger after subsequent dispatcher/layout work." The helper establishes a click position before input, but gives no post-click stationary-pointer guarantee. Source inspection finds no production native cursor-position call; Notebook's toggle code changes menu state, not cursor position. The unchanged native run reaches the intended button with matching HWND and processed coordinates. No DPI-conversion or product cursor-warp defect is demonstrated. Physical input, another input producer or another cause of the original departure cannot be distinguished by the retained hook, which does not identify the input producer. Do not label that unknown origin fixed or environmental.
+
+### Correction and regression
+
+The existing four-parameter overflow acceptance test now checks close immediately after the second real click, then explicitly exercises **both** post-close pointer states:
+
+1. One native move to the owned outside button; require trigger hover false, capture null, normal brush and menu still closed.
+2. One native move back to the trigger; require native cursor readback at the requested center, correct foreground/point HWND, WPF position inside the target, explicit WPF hit ancestry and real `IsMouseOver=true`, then the original exact hover brush and ≥4.5:1 contrast assertions.
+
+The Refresh hover assertion likewise establishes its pointer precondition after its native command/count assertions. Each movement issues SetCursorPos once; a bounded observation loop waits for processed input. It does not keep repositioning, force foreground, synthesize WPF mouse events, release capture or invoke a command. The existing three-second input bounds, 30-second case watchdog and 90-second isolation deadline remain. Menu-item readiness, the bounded distinct menu approach, duplicate count/write assertions, keyboard/focus and accessibility checks are unchanged. A pinned hover style now fails the outside check; missing hover fails the return check; reopening on the second click still fails before either movement.
+
+### Follow-up verification
+
+Release build: **0 warnings / 0 errors**, `TestResults/notebook-post-close-build.log`.
+
+- Corrected exact Light/480/240: **1 parent / 1 matching child passed**, `TestResults/notebook-post-close/corrected-exact/` and `notebook-post-close-corrected-exact.log`.
+- Focused Notebook/shared-menu checks: **34 top-level passed / 0 failed / 0 skipped**, plus **12 matching isolated children passed**, `TestResults/notebook-post-close/focused/` and `notebook-post-close-focused.log`. Includes all four overflow parameters, both tag menus, readiness evidence/controlled approach, layout/crop, shared menu resources, four Instruments parameters and the scheduling guard. Children are supporting evidence, not additional top-level cases.
+- The regression is incorporated into all four existing overflow parameters; no new test identity or scheduling classification is added.
+- One complete gate after these focused passes: **5,547 passed / 0 failed / 1 skipped**, **exit 0**, run `TestResults/notebook-post-close/complete/release-20261108-203848-e35ead66372f4d249a796e2430c99ff5`; console `TestResults/notebook-post-close-complete.log`. The original failing gate above remains historical evidence.
+
+| Complete stage / project | Passed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| ExclusiveWpf / Desktop | 151 | 0 | 0 |
+| Parallel / Desktop | 2,136 | 0 | 1 |
+| Domain | 602 | 0 | 0 |
+| Application | 1,050 | 0 | 0 |
+| Infrastructure | 1,608 | 0 | 0 |
+| **Top-level total** | **5,547** | **0** | **1** |
+
+The inventory remains **5,548** top-level cases, with no duplicate test-ID/display-name identities across partitions (`TestResults/notebook-post-close/complete-audit.json`), using the runner's ordinal identity comparison. Display names alone can collide through truncated parameter values or differ only in case. The only skipped identity is the unchanged quarantine `PersonalTradingJournal.Desktop.Tests.Rules.RulesViewTests.CompiledThemesNarrowHighDpiBindingsValidationHistoryAndWindowClose`; its acceptance coverage and CLR-crash investigation remain unavailable/pending as described in [the quarantine record](rules-view-quarantine.md). No other tests are skipped, and the gate still propagates failures.
+
+All four overflow children pass in the complete gate. Each retains three explicit pointer phases (outside, return, Refresh), and exactly one native down and one native up for DuplicateNoteButton, with its count/write assertions passing (`TestResults/notebook-post-close/complete-notebook-audit.json`). These child cases substantiate four parent results and are not added to the totals. Focused audit: `focused-audit.json`; tested source/assembly hashes and final fixture patch: `source-evidence.json`, `test-source.patch`, all under `TestResults/notebook-post-close/`. No unchanged full-gate rerun was performed. Hosted verification of this local correction remains pending; the original input producer is still unknown.
+
+Focused command:
+
+```powershell
+$env:PTJ_NOTEBOOK_MENU_DIAGNOSTICS = '1'
+$env:PTJ_TEST_RESULTS_DIRECTORY = Join-Path $PWD 'TestResults/notebook-post-close/focused'
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~OverflowTriggersToggleThroughNativeMouseAndOwnedKeyboard|FullyQualifiedName~TagMenuRoutedToggleDismissalAndCapturedOwnership|FullyQualifiedName~NotebookMouseReadinessEvidenceTests|FullyQualifiedName~NotebookMenuLayoutTests|FullyQualifiedName~EntityActionResourceTests|FullyQualifiedName~InstrumentsViewTests|FullyQualifiedName~ReleaseSchedulingTests' --logger trx --results-directory TestResults/notebook-post-close/focused
+pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults/notebook-post-close/complete
+```
+
+No live visual inspection is claimed; the prior Computer Use initialization failure remains unresolved. These are native automated fixtures using disposable in-memory data, not production app verification. The 96/240 theory DPI controls render density; it does not change the Windows desktop DPI, recorded locally as 2.5 in the native pointer trace.
+
+Exact changed files: `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookHeaderViewTests.Menus.cs`, `README.md`, `docs/instruments-ui.md`, `docs/ci-menu-readiness.md`. Calendar ownership, Notebook menu approach, Rules quarantine, single-case dispatch, scheduling, workflow budget and branding/assets are preserved. No commit, push or merge is performed.

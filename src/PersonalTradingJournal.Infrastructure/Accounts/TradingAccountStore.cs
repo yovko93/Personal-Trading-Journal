@@ -57,7 +57,12 @@ public sealed class TradingAccountStore : ITradingAccountStore
         await using JournalDbContext context =
             await _contextFactory.CreateDbContextAsync(cancellationToken);
 
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var previous = await context.TradingAccounts.AsNoTracking().SingleAsync(x => x.Id == account.Id, cancellationToken);
+        if (previous.Currency != account.Currency && await context.AccountPayouts.AnyAsync(x => x.AccountId == account.Id, cancellationToken))
+            throw new InvalidOperationException("Remove recorded payouts before changing the Account currency.");
         context.TradingAccounts.Update(TradingAccountPersistenceMapper.ToRecord(account));
         await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 }

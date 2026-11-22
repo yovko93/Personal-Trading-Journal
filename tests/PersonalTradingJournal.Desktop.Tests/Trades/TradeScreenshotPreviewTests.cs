@@ -336,6 +336,7 @@ public sealed class TradeScreenshotPreviewTests
                 new MemoryStream([1, 2, 3]));
         fixture.ScreenshotStore.HoldAdd = true;
         fixture.ViewModel.SelectedScreenshotType = TradeScreenshotType.Entry;
+        await fixture.ViewModel.UploadScreenshotCommand.ExecuteAsync(null);
         Task saveTask = fixture.ViewModel.SaveScreenshotCommand.ExecuteAsync(null);
         await fixture.ScreenshotStore.AddStarted;
 

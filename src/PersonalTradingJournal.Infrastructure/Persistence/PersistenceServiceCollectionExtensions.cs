@@ -82,6 +82,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<IBackupArchiveService>(provider => new BackupArchiveService(applicationPaths,
             provider.GetRequiredService<IDatabaseSnapshotService>()));
         services.AddTransient<TradeBrowseProjectionReconciler>();
+        services.AddTransient<IAccountPayoutStore, AccountPayoutStore>();
         services.AddTransient<ITradingAccountReader, TradingAccountReader>();
         services.AddTransient<ITradingAccountBalanceReader, TradingAccountReader>();
         services.AddTransient<ITradingAccountStore, TradingAccountStore>();
@@ -109,9 +110,6 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<ITradingSetupPlaybookStore, TradingSetupPlaybookStore>();
         services.AddTransient<ITradingSetupPlaybookHistoryReader, TradingSetupPlaybookStore>();
         services.AddTransient<IPlaybookRevisionDeletion, PlaybookRevisionDeletion>();
-        services.AddTransient<ITradePlaybookContextStore, TradePlaybookContextStore>();
-        services.AddTransient<ITradePlaybookAssociationStore, TradePlaybookAssociationStore>();
-        services.AddTransient<ConfirmTradePlaybookAssociation>();
         services.AddTransient<SaveTradingSetupPlaybookUseCase>();
         services.AddTransient<IPlaybookImageStorage>(provider => new PlaybookImageStorage(applicationPaths,
             provider.GetRequiredService<ITradeScreenshotFileStorage>()));
@@ -130,7 +128,9 @@ public static class PersistenceServiceCollectionExtensions
             IManualTradeReferenceDataReader,
             ManualTradeReferenceDataReader>();
         services.AddTransient<ITradeStore, TradeStore>();
+        services.AddTransient<IManualTradeScreenshotStore, TradeStore>();
         services.AddTransient<ITradeMutationStore, TradeMutationStore>();
+        services.AddTransient<IImportedTradeDescriptionStore, TradeMutationStore>();
         services.AddTransient<ITradeDeletionStore, TradeDeletionStore>();
         services.AddTransient<IAccountTradeDeletionStore, AccountTradeDeletionStore>();
         services.AddTransient<ITradeListReader, TradeListReader>();
