@@ -298,14 +298,14 @@
                         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                         <TextBlock Style="{StaticResource PtjDetailLabelTextStyle}" Text="File" /><TextBlock Grid.Column="1" Style="{StaticResource PtjDetailValueTextStyle}" Text="{Binding PreviewSummary.FileName}" />
                         <TextBlock Grid.Column="2" Style="{StaticResource PtjDetailLabelTextStyle}" Text="Account" /><TextBlock Grid.Column="3" Style="{StaticResource PtjDetailValueTextStyle}" Text="{Binding PreviewSummary.AccountName}" />
-                        <TextBlock Grid.Row="1" Margin="0,8,0,0" Style="{StaticResource PtjDetailLabelTextStyle}" Text="Time policy" /><TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Margin="0,8,0,0" Style="{StaticResource PtjDetailValueTextStyle}"><Run Text="Source: Europe/Sofia · Canonical: UTC · Preview: America/New_York" /></TextBlock>
+                        <TextBlock Grid.Row="1" Margin="0,8,0,0" Style="{StaticResource PtjDetailLabelTextStyle}" Text="Time policy" /><TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Margin="0,8,0,0" Style="{StaticResource PtjDetailValueTextStyle}"><Run Text="Source: " /><Run Text="{Binding PreviewSummary.SourceTimeZoneId, Mode=OneWay}" /><Run Text=" · Canonical: UTC · Preview: America/New_York" /></TextBlock>
                         <TextBlock Grid.Row="2" Margin="0,8,0,0" Style="{StaticResource PtjDetailLabelTextStyle}" Text="Period start" /><TextBlock Grid.Row="2" Grid.Column="1" Margin="0,8,0,0" Style="{StaticResource PtjDetailValueTextStyle}" Text="{Binding PreviewSummary.PeriodStartNewYork, Converter={StaticResource TradingTimestamp}, ConverterParameter='yyyy-MM-dd HH:mm:ss'}" />
                         <TextBlock Grid.Row="2" Grid.Column="2" Margin="0,8,0,0" Style="{StaticResource PtjDetailLabelTextStyle}" Text="Period end" /><TextBlock Grid.Row="2" Grid.Column="3" Margin="0,8,0,0" Style="{StaticResource PtjDetailValueTextStyle}" Text="{Binding PreviewSummary.PeriodEndNewYork, Converter={StaticResource TradingTimestamp}, ConverterParameter='yyyy-MM-dd HH:mm:ss'}" />
                         <TextBlock Grid.Row="3" Margin="0,8,0,0" Style="{StaticResource PtjDetailLabelTextStyle}" Text="Diagnostics" /><TextBlock Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3" Margin="0,8,0,0" Style="{StaticResource PtjDetailValueTextStyle}"><Run Text="{Binding PreviewSummary.WarningCount}" /><Run Text=" warnings · " /><Run Text="{Binding PreviewSummary.ErrorCount}" /><Run Text=" errors" /></TextBlock>
                     </Grid>
                     <TextBlock Margin="0,14,0,0" Foreground="{DynamicResource PtjWarningBrush}"
                                Style="{StaticResource PtjBodyTextStyle}"
-                               Text="Performance alone has unknown costs and Net P&amp;L. With matching Fills and Cash History, review the verified Gross, costs and Net above before confirmation."
+                               Text="Performance alone assumes Sofia time and leaves costs and Net P&amp;L unknown. With matching Fills and Cash History, review the verified times, Gross, costs and Net before confirmation."
                                TextWrapping="Wrap" />
                 </StackPanel>
             </Border>

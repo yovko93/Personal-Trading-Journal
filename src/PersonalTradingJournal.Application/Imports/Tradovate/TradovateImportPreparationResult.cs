@@ -25,7 +25,8 @@ public sealed class TradovateImportPreparationResult
 
     public TradovateImportAccountSnapshot? AccountSnapshot { get; }
 
-    public string SourceTimeZoneId => Common.Time.TradingTimePolicy.TradovateSourceTimeZoneId;
+    public string SourceTimeZoneId => PreparedExecutions.FirstOrDefault()?.SourceTimeZoneId ??
+        Common.Time.TradingTimePolicy.TradovateSourceTimeZoneId;
 
     public string TradingTimeZoneId => Common.Time.TradingTimePolicy.TradingTimeZoneId;
 

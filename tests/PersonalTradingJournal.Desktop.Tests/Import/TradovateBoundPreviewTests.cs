@@ -218,6 +218,8 @@ public sealed class TradovateBoundPreviewTests
                                 Assert.Contains("Costs 2.08", vm.VerifiedCostSummary);
                                 Assert.Contains("Net 1.92", vm.VerifiedCostSummary);
                                 Assert.Equal(existing, vm.VerifiedCostSummary!.Contains("UTC+02:00 throughout"));
+                                Assert.Equal("Fills UTC", vm.PreviewSummary!.SourceTimeZoneId);
+                                Assert.Equal(existing ? 10 : 9, vm.PreviewSummary.PeriodStartNewYork!.Value.Hour);
                                 var verifiedText = Assert.IsType<TextBlock>(view.FindName("VerifiedCostPreview"));
                                 Assert.Equal(vm.VerifiedCostSummary, verifiedText.Text);
                                 CheckRow("FillsDetails", "✓ Verified");

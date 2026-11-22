@@ -27,6 +27,8 @@ public sealed partial class TradovateImportStore
                     i.SourceFillExecutedAtUtc == e.ExecutedAtUtc && i.Side == e.Side && i.BrokerSymbol == e.BrokerSymbol &&
                     i.ExternalExecutionId == e.ExternalExecutionId)))
                 throw new TradovateCostSourceException("Previously imported executions or Account were edited, or immutable source facts are missing. Costs were not changed.");
+            // Classification checks incoming UTC against the ledger. The equality check above
+            // protects the actual saved execution from having changed since the original import.
             var original = TradePersistenceMapper.ToDomain(record, executions);
             decimal expectedGross = request.MatchedPairs!.Where(p => candidate.SourceRecordIndices.Contains(p.SourceRecordIndex)).Sum(p => p.SourceReportedPnL);
             if (original.GrossPnL != expectedGross)

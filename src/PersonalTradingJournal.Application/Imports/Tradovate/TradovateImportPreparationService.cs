@@ -21,7 +21,8 @@ public sealed class TradovateImportPreparationService
         TradovateExecutionReconstructionResult reconstruction,
         TradovateInstrumentResolutionResult instrumentResolution,
         Guid selectedTradingAccountId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        TradovateCostSources? costSources = null)
     {
         ArgumentNullException.ThrowIfNull(reconstruction);
         ArgumentNullException.ThrowIfNull(instrumentResolution);
@@ -76,6 +77,11 @@ public sealed class TradovateImportPreparationService
                 "The selected Trading Account is inactive and is used without reactivation."));
         }
 
+        var fillsById = costSources is null ? null : TradovateCostReconciler.MatchFills(
+            costSources.Fills, reconstruction.Executions.Select(e => e.ExternalFillId));
+        if (costSources is not null)
+            TradovateCostReconciler.ValidateDisplayClock(costSources.Fills);
+        string sourceClock = fillsById is null ? TradingTimePolicy.TradovateSourceTimeZoneId : "Fills UTC";
         var preparedByKey = new Dictionary<ExecutionKey, TradovatePreparedExecution>();
         var preparedExecutions = new List<TradovatePreparedExecution>(
             reconstruction.Executions.Count);
@@ -83,9 +89,20 @@ public sealed class TradovateImportPreparationService
         foreach (TradovateReconstructedExecution execution in reconstruction.Executions)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            LocalTimeConversionResult conversion =
-                TradingTimePolicy.ConvertTradovateSourceToUtc(
-                    execution.SourceLocalTimestamp);
+            LocalTimeConversionResult conversion;
+            if (fillsById is not null)
+            {
+                var fill = fillsById[execution.ExternalFillId];
+                if (fill.Symbol != execution.BrokerSymbol || fill.Side != execution.Side ||
+                    fill.Price != execution.Price || fill.Quantity != execution.Quantity ||
+                    fill.LocalTimestamp != execution.SourceLocalTimestamp)
+                    throw new TradovateCostSourceException("Fill price, side, timestamp, symbol or complete matched quantity differs from Performance.");
+                conversion = new(LocalTimeConversionStatus.Success, fill.UtcTimestamp);
+            }
+            else
+            {
+                conversion = TradingTimePolicy.ConvertTradovateSourceToUtc(execution.SourceLocalTimestamp);
+            }
             if (!conversion.IsSuccess)
             {
                 bool isAmbiguous =
@@ -120,7 +137,7 @@ public sealed class TradovateImportPreparationService
                 execution.Quantity,
                 execution.Price,
                 execution.SourceLocalTimestamp,
-                TradingTimePolicy.TradovateSourceTimeZoneId,
+                sourceClock,
                 executedAtUtc,
                 tradingTimestamp.DateTime,
                 tradingTimestamp.Offset,
@@ -201,7 +218,8 @@ public sealed class TradovateImportPreparationService
                 diagnostics.Add(new TradovateImportPreparationDiagnostic(
                     TradovateReconstructionDiagnosticSeverity.Error,
                     TradovateImportPreparationDiagnosticCodes.UtcChronologyInvalid,
-                    "The reconstructed execution sequence is not chronological after UTC conversion.",
+                    fillsById is null ? "The reconstructed execution sequence is not chronological after UTC conversion." :
+                        "Fills UTC chronology conflicts with the Performance execution order. Verified import is blocked.",
                     candidate.BrokerSymbol,
                     candidate.SourceRecordIndices));
                 continue;

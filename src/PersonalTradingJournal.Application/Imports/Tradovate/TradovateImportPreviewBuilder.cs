@@ -51,7 +51,7 @@ public sealed class TradovateImportPreviewBuilder
             account?.Name ?? "No account selected",
             account?.Currency ?? "—",
             account?.IsActive ?? false,
-            TradingTimePolicy.TradovateSourceTimeZoneId,
+            preparation.SourceTimeZoneId,
             "UTC",
             TradingTimePolicy.TradingTimeZoneId,
             parseResult.SourceRecordCount,

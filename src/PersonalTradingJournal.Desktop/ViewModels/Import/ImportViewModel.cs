@@ -550,12 +550,14 @@ public sealed partial class ImportViewModel : ObservableObject
             }
 
             diagnosticStage = "ACCOUNT-PREPARATION";
+            var sources = GetCostSources();
             TradovateImportPreparationResult preparation =
                 await _preparationService.PrepareAsync(
                     _reconstruction!,
                     resolution,
                     accountId,
-                    cancellationToken);
+                    cancellationToken,
+                    sources);
             cancellationToken.ThrowIfCancellationRequested();
             if (version != _workflowVersion ||
                 previewVersion != _previewVersion ||
@@ -565,7 +567,17 @@ public sealed partial class ImportViewModel : ObservableObject
             }
 
             diagnosticStage = "PROJECTION";
-            VerifyCosts(preparation);
+            if (sources is not null && preparation.IsReadyForPreview)
+            {
+                var costs = TradovateCostReconciler.Reconcile(preparation, _reconstruction!.MatchedPairs, sources);
+                string? conflict = await _importUseCase.FindVerifiedImportConflictAsync(preparation, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (version != _workflowVersion || previewVersion != _previewVersion || SelectedAccount?.Id != accountId)
+                    return;
+                if (conflict is not null)
+                    throw new TradovateCostSourceException(conflict);
+                ShowVerifiedCosts(sources, costs);
+            }
             TradovateImportPreview preview = _previewBuilder.Build(
                 SelectedFileName!,
                 _parseResult!,

@@ -39,10 +39,8 @@ public static class TradovateCostReconciler
             f.Commission >= 0 && f.Commission == decimal.Round(f.Commission, 2)),
             "Fill quantity or commission is invalid; USD charges must be nonnegative whole cents.");
         bool usesFixedOffsetDisplay = ValidateDisplayClock(fills);
-        var byId = fills.ToDictionary(f => f.Id, StringComparer.Ordinal);
         var executions = preparation.PreparedCandidates.SelectMany((c, i) => c.OrderedExecutions.Select(e => (Execution: e, Candidate: i))).ToArray();
-        Require(executions.Select(e => e.Execution.ExternalFillId).ToHashSet(StringComparer.Ordinal).SetEquals(byId.Keys),
-            "Performance and Fills IDs do not match exactly. Partial or extra activity cannot verify Net.");
+        var byId = MatchFills(fills, executions.Select(e => e.Execution.ExternalFillId));
         Require(pairs.Count > 0 && pairs.Select(p => p.SourceRecordIndex).Distinct().Count() == pairs.Count,
             "Performance matched-row evidence is missing or duplicated.");
         var candidateRows = preparation.PreparedCandidates.SelectMany(c => c.SourceRecordIndices).ToArray();
@@ -59,6 +57,9 @@ public static class TradovateCostReconciler
                 a.Execution.Price == fill.Price && a.Execution.SourceLocalTimestamp == fill.LocalTimestamp) &&
                 group.Sum(a => a.Execution.Quantity) == fill.Quantity,
                 "Fill price, side, timestamp, symbol or complete matched quantity differs from Performance.");
+            Require(group.All(a => a.Execution.ExecutedAtUtc.Offset == TimeSpan.Zero &&
+                a.Execution.ExecutedAtUtc == fill.UtcTimestamp),
+                "Prepared execution times must use the matching Fills UTC instants. Rebuild the preview.");
             var matched = pairsByFill[fill.Id].ToArray();
             Require(matched.Sum(p => p.MatchedQuantity) == fill.Quantity && matched.All(p =>
                 p.BrokerSymbol == fill.Symbol && (fill.Side == ExecutionSide.Buy ? p.BuyFillId : p.SellFillId) == fill.Id),
@@ -120,7 +121,18 @@ public static class TradovateCostReconciler
         return verified;
     }
 
-    private static bool ValidateDisplayClock(IReadOnlyList<TradovateCostFill> fills)
+    internal static IReadOnlyDictionary<string, TradovateCostFill> MatchFills(
+        IReadOnlyList<TradovateCostFill> fills, IEnumerable<string> performanceIds)
+    {
+        if (fills.Select(f => f.Id).Distinct(StringComparer.Ordinal).Count() != fills.Count)
+            throw new TradovateCostSourceException("Duplicate fill IDs are ambiguous. Export each source once.");
+        var byId = fills.ToDictionary(f => f.Id, StringComparer.Ordinal);
+        if (!performanceIds.ToHashSet(StringComparer.Ordinal).SetEquals(byId.Keys))
+            throw new TradovateCostSourceException("Performance and Fills IDs do not match exactly. Partial or extra activity cannot verify Net.");
+        return byId;
+    }
+
+    internal static bool ValidateDisplayClock(IReadOnlyList<TradovateCostFill> fills)
     {
         // Check one convention for the whole export. Never choose a clock per row.
         var fixedOffset = TimeSpan.FromHours(2);

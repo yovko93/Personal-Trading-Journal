@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Analytics;
+using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Application.Common.Time;
 using PersonalTradingJournal.Application.Imports.Tradovate;
 using PersonalTradingJournal.Application.Instruments;
@@ -50,7 +51,8 @@ public sealed class TradovateVerifiedCostTests
         Guid[]? executionIds = null;
         if (existing)
         {
-            Assert.Equal(2, (await store.ImportAsync(request with { CostSources = null })).ImportedTradeCount);
+            var performanceOnly = await Prepare(db, useFillsTimes: false, accountId: request.Preparation.AccountSnapshot!.TradingAccountId);
+            Assert.Equal(2, (await store.ImportAsync(performanceOnly with { CostSources = null })).ImportedTradeCount);
             await using var before = await db.ContextFactory.CreateDbContextAsync();
             oldIds = await before.Trades.Select(t => t.Id).ToArrayAsync();
             executionIds = await before.TradeExecutions.Select(t => t.Id).ToArrayAsync();
@@ -66,7 +68,7 @@ public sealed class TradovateVerifiedCostTests
                 Assert.Equal(original.Executions, annotated.Executions);
                 Assert.Equal(original with { Description = "Imported annotation", Executions = annotated.Executions }, annotated);
             }
-            Assert.Equal(TradovateImportStatus.NoChanges, (await store.ImportAsync(request with { CostSources = null })).Status);
+            Assert.Equal(TradovateImportStatus.NoChanges, (await store.ImportAsync(performanceOnly with { CostSources = null })).Status);
         }
         var result = await store.ImportAsync(request with { ImportedAtUtc = Now.AddMinutes(1) });
         Assert.Equal(TradovateImportStatus.Imported, result.Status);
@@ -278,22 +280,110 @@ public sealed class TradovateVerifiedCostTests
         await Assert.ThrowsAsync<TradovateCostSourceException>(() => new TradovateCostCsvParser().ParseFillsAsync(stream));
     }
 
-    private static async Task<TradovateImportRequest> Prepare(ReaderTestDatabase db,
-        string performanceCsv = Performance, string fillsCsv = Fills, string cashCsv = Cash)
+    private const string CrossSeasonPerformance =
+        "symbol,_priceFormat,_priceFormatType,_tickSize,buyFillId,sellFillId,qty,buyPrice,sellPrice,pnl,boughtTimestamp,soldTimestamp,duration\n" +
+        "MNQZ6,-2,0,0.25,B1,S1,1,100,101,$2.00,10/23/2026 23:59:59,10/24/2026 00:00:00,1sec\n" +
+        "MNQZ6,-2,0,0.25,B2,S2,1,100,101,$2.00,10/26/2026 23:59:58,10/26/2026 23:59:59,1sec";
+    private const string CrossSeasonFills =
+        "_id,Fill ID,Account,Contract,B/S,Quantity,Price,Timestamp,_timestamp,_tradeDate,commission,_active\n" +
+        "B1,B1,SIM-COST,MNQZ6,Buy,1,100,10/23/2026 23:59:59,2026-10-23 21:59:59.123Z,2026-10-23,0.52,true\n" +
+        "S1,S1,SIM-COST,MNQZ6,Sell,1,101,10/24/2026 00:00:00,2026-10-23 22:00:00.234Z,2026-10-26,0.52,true\n" +
+        "B2,B2,SIM-COST,MNQZ6,Buy,1,100,10/26/2026 23:59:58,2026-10-26 21:59:58.345Z,2026-10-26,0.52,true\n" +
+        "S2,S2,SIM-COST,MNQZ6,Sell,1,101,10/26/2026 23:59:59,2026-10-26 21:59:59.456Z,2026-10-26,0.52,true";
+    private const string CrossSeasonCash =
+        "Account,Transaction ID,Timestamp,Date,Delta,Amount,Cash Change Type,Currency,Contract\n" +
+        "SIM-COST,C1,10/23/2026 23:59:59,2026-10-23,-0.52,99.48,Commission,USD,MNQZ6\n" +
+        "SIM-COST,C2,10/24/2026 00:00:01,2026-10-26,-0.52,98.96,Commission,USD,MNQZ6\n" +
+        "SIM-COST,P1,10/24/2026 00:00:01,2026-10-26,2.00,100.96,Trade Paired,USD,MNQZ6\n" +
+        "SIM-COST,C3,10/26/2026 23:59:58,2026-10-26,-0.52,100.44,Commission,USD,MNQZ6\n" +
+        "SIM-COST,C4,10/26/2026 23:59:59,2026-10-26,-0.52,99.92,Commission,USD,MNQZ6\n" +
+        "SIM-COST,P2,10/26/2026 23:59:59,2026-10-26,2.00,101.92,Trade Paired,USD,MNQZ6";
+
+    [Fact]
+    public async Task FixedDisplayClockPersistsMatchedUtcAndCalendarUsesEachNewYorkClose()
     {
-        var account = new TradingAccount("Synthetic", TradingAccountType.Personal, "Tradovate", "SIM-COST", "USD", 0m, Now);
-        await db.ServiceProvider.GetRequiredService<ITradingAccountStore>().AddAsync(account);
+        await using var db = await ReaderTestDatabase.CreateAsync();
+        var request = await Prepare(db, CrossSeasonPerformance, CrossSeasonFills, CrossSeasonCash);
+        var candidates = request.Preparation.PreparedCandidates.OrderBy(c => c.OpenedAtUtc).ToArray();
+        var firstClose = new DateTimeOffset(2026, 10, 23, 22, 0, 0, TimeSpan.Zero).AddMilliseconds(234);
+        var secondClose = new DateTimeOffset(2026, 10, 26, 21, 59, 59, TimeSpan.Zero).AddMilliseconds(456);
+        Assert.Equal(firstClose, candidates[0].ClosedAtUtc);
+        Assert.Equal(secondClose, candidates[1].ClosedAtUtc);
+        Assert.Equal(new TimeSpan(18, 0, 0).Add(TimeSpan.FromMilliseconds(234)), candidates[0].ClosedAtNewYork!.Value.TimeOfDay);
+        Assert.Equal(new TimeSpan(17, 59, 59).Add(TimeSpan.FromMilliseconds(456)), candidates[1].ClosedAtNewYork!.Value.TimeOfDay);
+        Assert.All(request.Preparation.PreparedExecutions, execution =>
+            Assert.Equal(request.CostSources!.Fills.Single(f => f.Id == execution.ExternalFillId).UtcTimestamp, execution.ExecutedAtUtc));
+
+        var costs = TradovateCostReconciler.Reconcile(request.Preparation, request.MatchedPairs!, request.CostSources!);
+        Assert.True(costs.UsesFixedOffsetDisplay);
+        Assert.Equal(1.92m, costs.Net);
+        var store = new TradovateImportStore(db.ContextFactory);
+        Assert.Null(await store.FindVerifiedImportConflictAsync(request.Preparation));
+        Assert.Equal(2, (await store.ImportAsync(request)).ImportedTradeCount);
+        Assert.Null(await store.FindVerifiedImportConflictAsync(request.Preparation));
+        Assert.Equal(TradovateImportStatus.NoChanges, (await store.ImportAsync(request)).Status);
+
+        Guid accountId = request.Preparation.AccountSnapshot!.TradingAccountId;
+        var calendar = db.ServiceProvider.GetRequiredService<ITradingCalendarDayReader>();
+        Assert.Empty((await calendar.GetAsync(TradingCalendarDayQuery.ForTradingDate(new(2026, 10, 23), accountId))).Trades);
+        foreach (var (day, close) in new[] { (24, firstClose), (26, secondClose) })
+        {
+            var result = await calendar.GetAsync(TradingCalendarDayQuery.ForTradingDate(new(2026, 10, day), accountId));
+            Assert.Equal(close, Assert.Single(result.Trades).ClosedAtUtc);
+            Assert.Equal(.96m, Assert.Single(result.Currencies).Metrics.EffectiveNet.Total);
+        }
+        Assert.Empty((await calendar.GetAsync(TradingCalendarDayQuery.ForTradingDate(new(2026, 10, 27), accountId))).Trades);
+    }
+
+    [Fact]
+    public async Task ShiftedPerformanceOnlyImportBlocksVerifiedPreviewAndWriteWithoutRewriting()
+    {
+        await using var db = await ReaderTestDatabase.CreateAsync();
+        var original = await Prepare(db, CrossSeasonPerformance, CrossSeasonFills, CrossSeasonCash, useFillsTimes: false);
+        var store = new TradovateImportStore(db.ContextFactory);
+        Assert.Equal(2, (await store.ImportAsync(original with { CostSources = null })).ImportedTradeCount);
+        Guid accountId = original.Preparation.AccountSnapshot!.TradingAccountId;
+        var details = db.ServiceProvider.GetRequiredService<ITradeDetailReader>();
+        await using var context = await db.ContextFactory.CreateDbContextAsync();
+        var originalTrades = await context.TradeBrowse.AsNoTracking().OrderBy(t => t.OpenedAtUtc).ToArrayAsync();
+        var descriptions = db.ServiceProvider.GetRequiredService<IImportedTradeDescriptionStore>();
+        await descriptions.SaveDescriptionAsync(originalTrades[0].TradeId, "Manual note");
+
+        var verified = await Prepare(db, CrossSeasonPerformance, CrossSeasonFills, CrossSeasonCash, accountId: accountId);
+        string? conflict = await store.FindVerifiedImportConflictAsync(verified.Preparation);
+        Assert.Contains("different timestamp for the same fill ID", conflict);
+        var result = await store.ImportAsync(verified);
+        Assert.Equal(TradovateImportStatus.Blocked, result.Status);
+        Assert.Equal(conflict, result.Message);
+        var after = await context.TradeBrowse.AsNoTracking().OrderBy(t => t.OpenedAtUtc).ToArrayAsync();
+        Assert.Equal(originalTrades.Select(t => (t.TradeId, t.ClosedAtUtc, t.NetPnL)),
+            after.Select(t => (t.TradeId, t.ClosedAtUtc, t.NetPnL)));
+        Assert.Equal("Manual note", (await details.GetByIdAsync(originalTrades[0].TradeId))!.Description);
+        Assert.All(await context.TradeExecutions.ToArrayAsync(), execution => Assert.Null(execution.Commission));
+    }
+
+    private static async Task<TradovateImportRequest> Prepare(ReaderTestDatabase db,
+        string performanceCsv = Performance, string fillsCsv = Fills, string cashCsv = Cash,
+        bool useFillsTimes = true, Guid? accountId = null)
+    {
+        if (accountId is null)
+        {
+            var account = new TradingAccount("Synthetic", TradingAccountType.Personal, "Tradovate", "SIM-COST", "USD", 0m, Now);
+            await db.ServiceProvider.GetRequiredService<ITradingAccountStore>().AddAsync(account);
+            accountId = account.Id;
+        }
         using var performance = Stream(performanceCsv);
         var parse = await new TradovateCsvParser().ParseAsync(performance);
         var reconstruction = new TradovateExecutionReconstructor().Reconstruct(parse);
         Assert.True(reconstruction.IsEligibleForAutomaticImport);
         var resolution = await new TradovateInstrumentResolver(db.ServiceProvider.GetRequiredService<IInstrumentReader>()).ResolveAsync(reconstruction);
-        var preparation = await new TradovateImportPreparationService(db.ServiceProvider.GetRequiredService<ITradingAccountReader>())
-            .PrepareAsync(reconstruction, resolution, account.Id);
         using var fills = Stream(fillsCsv);
         using var cash = Stream(cashCsv);
         var parser = new TradovateCostCsvParser();
-        return new(preparation, Now, new(await parser.ParseFillsAsync(fills), await parser.ParseCashAsync(cash)), reconstruction.MatchedPairs);
+        var sources = new TradovateCostSources(await parser.ParseFillsAsync(fills), await parser.ParseCashAsync(cash));
+        var preparation = await new TradovateImportPreparationService(db.ServiceProvider.GetRequiredService<ITradingAccountReader>())
+            .PrepareAsync(reconstruction, resolution, accountId.Value, costSources: useFillsTimes ? sources : null);
+        return new(preparation, Now, sources, reconstruction.MatchedPairs);
     }
 
     private static MemoryStream Stream(string csv) => new(Encoding.UTF8.GetBytes(csv));

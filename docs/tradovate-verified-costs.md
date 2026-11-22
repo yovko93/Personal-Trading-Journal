@@ -1,5 +1,44 @@
 # Tradovate verified costs
 
+## October timestamp correction
+
+The October exports were compared read-only against the earlier path in `9d985f9`. Performance parses `boughtTimestamp` and `soldTimestamp` as invariant `MM/dd/yyyy HH:mm:ss` wall times with unspecified kind. Fills uses the same parser for its display `Timestamp`, and separately parses `_timestamp` with its explicit `Z` and available fractions as zero-offset UTC. All 770 unique Fills IDs matched the Performance ID set and each matched display timestamp agreed to the second. Every display timestamp matched UTC+02:00, including 615 fills before the Sofia offset changed from UTC+03:00 to UTC+02:00. No machine-local offset is involved.
+
+Cash History parses its display timestamp as an unspecified wall time and its Date as an explicit statement trading date. Cash History supplies transaction IDs and has no fill IDs. Its timestamps govern posting order, while the cost verification compares commission multisets and paired Gross by broker trading date and contract. Posting times and statement dates do not determine Trade execution times or Calendar attribution.
+
+Verified preparation uses exact Fills UTC instants, checks that they preserve the reconstructed execution order, and projects the prepared opens and closes to New York. The cost reconciler checks that every allocation uses that exact UTC instant, including fractions. The store repeats verification at confirmation. Preview blocks incomplete or conflicting match/clock evidence. Performance-only mode names its Sofia assumption explicitly.
+
+The [previous October check](#october-exports) recorded the cost fix and the timestamp discrepancy. The new probe reproduced **615 whole-second errors** with the earlier Performance normalization. The corrected path had **zero UTC mismatches** across **770 unique fills and 775 allocations**. The **157 Trade groups** kept their original Performance row membership. Four Trade closes moved to another Calendar day under the existing 18:00 New York cutoff. Gross was **2,648.00 USD**, commissions **1,277.12 USD**, Trade Net **1,370.88 USD**, and total cash movement **853.88 USD** after the **−517.00 USD** Manual Adjustment. Preview reached Verified and the probe declined confirmation with writes disabled. Local evidence is saved under `TestResults/TradovateOctoberUtc/preview-probe/timestamp-result.log`.
+
+Verified preview checks the destination Account’s existing import identities before enabling confirmation. A timestamp conflict outside the same legacy whole second blocks the verified import as a whole. The user can compare the saved Trade’s executions with the matching Fills IDs in an isolated backup for separate review. This release includes no in-place timestamp repair. Enrichment for an otherwise eligible same-second legacy import keeps its saved precision and updates only unknown costs. The existing checks for edited executions and known costs still apply. Existing Trades with a genuine time shift keep their records, costs, descriptions and Calendar allocation until separately corrected.
+
+The final Release build had zero warnings and errors. Focused tests passed **269/269** (84 Application, 152 Infrastructure, 33 Desktop). They covered cross-season timestamps and fractional seconds, Calendar at 17:59:59 and 18:00 New York time, rejected mixed clocks, exact ID reconciliation, verified replay, legacy conflicts and retained same-second timestamps on enrichment. Focused TRX files are under `TestResults/TradovateOctoberUtc/focused-final/`.
+
+The complete local Release gate `release-20261122-130459-c86c0d010ca04eb18cc1cfb5298d950f` finished in **13m 53s**, exit **0**, with **5,624 passed, 0 failed and 1 skipped**. Exclusive WPF passed 151, Domain 602, Application 1,052, Infrastructure 1,664 and parallel Desktop 2,155. The only skip was the existing [Rules-view quarantine](rules-view-quarantine.md). Hosted CI and native interaction with the supplied files remain unverified.
+
+<details>
+<summary>Files changed for the timestamp correction</summary>
+
+ - `README.md`
+ - `docs/tradovate-csv-import.md`
+ - `docs/tradovate-verified-costs.md`
+ - `src/PersonalTradingJournal.Application/Imports/Tradovate/ITradovateImportStore.cs`
+ - `src/PersonalTradingJournal.Application/Imports/Tradovate/ImportTradovateTradesUseCase.cs`
+ - `src/PersonalTradingJournal.Application/Imports/Tradovate/TradovateCostReconciler.cs`
+ - `src/PersonalTradingJournal.Application/Imports/Tradovate/TradovateImportPreparationResult.cs`
+ - `src/PersonalTradingJournal.Application/Imports/Tradovate/TradovateImportPreparationService.cs`
+ - `src/PersonalTradingJournal.Application/Imports/Tradovate/TradovateImportPreviewBuilder.cs`
+ - `src/PersonalTradingJournal.Desktop/ViewModels/Import/ImportViewModel.Costs.cs`
+ - `src/PersonalTradingJournal.Desktop/ViewModels/Import/ImportViewModel.cs`
+ - `src/PersonalTradingJournal.Desktop/Views/Import/ImportView.xaml`
+ - `src/PersonalTradingJournal.Infrastructure/Imports/Tradovate/TradovateImportStore.Costs.cs`
+ - `src/PersonalTradingJournal.Infrastructure/Imports/Tradovate/TradovateImportStore.cs`
+ - `tests/PersonalTradingJournal.Desktop.Tests/Import/TradovateBoundPreviewTests.cs`
+ - `tests/PersonalTradingJournal.Desktop.Tests/Import/TradovateImportAcceptanceTests.cs`
+ - `tests/PersonalTradingJournal.Infrastructure.Tests/Imports/Tradovate/TradovateVerifiedCostTests.cs`
+
+</details>
+
 ## October exports
 
 On November 22, the read-only import probe reproduced the selection failure on develop at `fd7f5316b1da6fbd48f849ed167f3f8847cccd10`. On CSV line 1024 the October 27 Manual Adjustment had an empty Contract. The old `TradovateCostCsvParser.ReadAsync` rejected every empty required cell, before checking the movement type. The source panel replaced its diagnostic with “Invalid CSV”. The Contract header is still required. Commission and Trade Paired still need a contract. Manual Adjustment requires an empty Contract and a whole-cent Delta, and it participates in the same Account, currency, period, transaction ID, chronology and running-balance checks.
@@ -14,7 +53,7 @@ On November 22, the read-only import probe reproduced the selection failure on d
 | Cash History Manual Adjustment, October 27 | 1 | **−517.00** |
 | Total cash movement | 1,230 cash entries | **853.88** |
 
-After the row could be parsed, the original Sofia display-clock validation independently blocked cost verification. All 770 Fills displayed UTC+02:00 to the second. That matched Sofia for 155 fills and differed by one hour for 615 before the autumn clock change. Verified costs accept the standard Sofia convention or, for an export spanning both offsets, a consistent UTC+02:00 display on every fill. Each Performance wall-clock timestamp must still match its Fills row. Mixed clocks fail. The importer does not infer a machine timezone or rewrite Trade times. For the 615 pre-change fills the existing Performance interpretation gives a stored UTC instant one hour earlier than Fills UTC. The preview and confirmation disclose the convention.
+At that milestone, after the row could be parsed, the original Sofia display-clock validation independently blocked cost verification. All 770 Fills displayed UTC+02:00 to the second. That matched Sofia for 155 fills and differed by one hour for 615 before the autumn clock change. Verified costs accept the standard Sofia convention or, for an export spanning both offsets, a consistent UTC+02:00 display on every fill. Each Performance wall-clock timestamp must still match its Fills row. Mixed clocks fail. At that milestone, the Performance interpretation still gave a UTC instant one hour earlier than Fills UTC for 615 pre-change fills. The timestamp correction above supersedes that behavior for verified imports.
 
 The real parsers, reconstructor, resolver, preparation and reconciler accepted October 1–30 with 775 allocations and exactly 1,277.12 USD in commissions. The probe used in-memory Account metadata and had no database or write services. The Desktop source-selection commands showed both files as pending, then Verified at PreviewReady. The October confirmation contained the same figures and was declined. The read-only ViewModel evidence is in `TestResults/TradovateOctober/preview-probe/result.log`. Accepted writes, enrichment and replay used synthetic CSVs only. Manual adjustments are reconciliation evidence and do not create a Trade, execution cost, payout or balance entry.
 

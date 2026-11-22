@@ -24,6 +24,10 @@ public sealed class ImportTradovateTradesUseCase
         _timeProvider = timeProvider;
     }
 
+    public Task<string?> FindVerifiedImportConflictAsync(
+        TradovateImportPreparationResult preparation, CancellationToken cancellationToken) =>
+        _store.FindVerifiedImportConflictAsync(preparation, cancellationToken);
+
     public async Task<TradovateImportResult> ImportAsync(
         TradovateExecutionReconstructionResult reconstruction,
         TradovateInstrumentResolutionResult instrumentResolution,
@@ -34,12 +38,16 @@ public sealed class ImportTradovateTradesUseCase
         ArgumentNullException.ThrowIfNull(reconstruction);
         ArgumentNullException.ThrowIfNull(instrumentResolution);
 
-        TradovateImportPreparationResult preparation =
-            await _preparationService.PrepareAsync(
-                reconstruction,
-                instrumentResolution,
-                selectedTradingAccountId,
-                cancellationToken);
+        TradovateImportPreparationResult preparation;
+        try
+        {
+            preparation = await _preparationService.PrepareAsync(
+                reconstruction, instrumentResolution, selectedTradingAccountId, cancellationToken, costSources);
+        }
+        catch (TradovateCostSourceException error)
+        {
+            return TradovateImportResult.Blocked("COST_RECONCILIATION_BLOCKED", error.Message);
+        }
 
         if (!preparation.IsReadyForPreview)
         {

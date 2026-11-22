@@ -150,22 +150,25 @@ public sealed partial class ImportViewModel
         return new(label, fileName, "Pending · build preview to verify");
     }
 
-    private void VerifyCosts(TradovateImportPreparationResult preparation)
+    private TradovateCostSources? GetCostSources()
     {
         if (_costSourceError is not null) throw new TradovateCostSourceException(_costSourceError);
-        if (_costFills is null && _costCash is null) return;
+        if (_costFills is null && _costCash is null) return null;
         if (_costFills is null || _costCash is null)
             throw new TradovateCostSourceException("Select both Fills and Cash History for verified costs, or explicitly use Performance only with unknown Net.");
-        var sources = new TradovateCostSources(_costFills, _costCash);
-        var costs = TradovateCostReconciler.Reconcile(preparation, _reconstruction!.MatchedPairs, sources);
+        return new TradovateCostSources(_costFills, _costCash);
+    }
+
+    private void ShowVerifiedCosts(TradovateCostSources sources, TradovateVerifiedCosts costs)
+    {
         _verifiedSources = sources;
         string trading = FormattableString.Invariant($"Verified USD · {costs.Start:yyyy-MM-dd}–{costs.End:yyyy-MM-dd} · Gross {costs.Gross:N2} · Costs {costs.Costs:N2} · Trade Net {costs.Net:N2}.");
         string cash = costs.ManualAdjustmentCount == 0 ? string.Empty : Environment.NewLine +
             FormattableString.Invariant($"Manual Adjustment ({costs.ManualAdjustmentCount}): {costs.ManualAdjustmentTotal:N2} USD · Total cash movement {costs.TotalCashMovement:N2} USD. Adjustments are shown for reconciliation only and are excluded from Trades and Account Current Balance.");
         string clock = costs.UsesFixedOffsetDisplay ? Environment.NewLine +
-            "Fills display uses UTC+02:00 throughout this export. Trade timestamps retain the Performance import’s Europe/Sofia interpretation." : string.Empty;
+            "Fills display uses UTC+02:00 throughout this export. Trade times use the matched Fills UTC instants." : string.Empty;
         VerifiedCostSummary = trading + cash + clock + Environment.NewLine +
-            "Existing imports: fill unknown costs only; preserve known costs, block conflicts.";
+            "Existing imports keep their saved timestamps and precision. Eligible Trades receive unknown costs only; conflicts block import.";
     }
 }
 

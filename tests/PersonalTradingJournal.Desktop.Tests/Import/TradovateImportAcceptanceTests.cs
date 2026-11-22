@@ -234,8 +234,8 @@ public sealed class TradovateImportAcceptanceTests
                 await vm.SelectCsvCommand.ExecuteAsync(null);
                 vm.SelectedAccount = Assert.Single(vm.Accounts);
                 picker.Csv = "_id,Fill ID,Account,Contract,B/S,Quantity,Price,Timestamp,_timestamp,_tradeDate,commission,_active\n" +
-                    "M10-7-BUY,M10-7-BUY,SIM-COST,MNQU6,Buy,2,20123.125,09/10/2026 16:30:03,2026-09-10 13:30:03Z,2026-09-10,1.04,true\n" +
-                    "M10-7-SELL,M10-7-SELL,SIM-COST,MNQU6,Sell,2,20124.375,09/10/2026 16:30:15,2026-09-10 13:30:15Z,2026-09-10,1.04,true";
+                    "M10-7-BUY,M10-7-BUY,SIM-COST,MNQU6,Buy,2,20123.125,09/10/2026 16:30:03,2026-09-10 13:30:03.125Z,2026-09-10,1.04,true\n" +
+                    "M10-7-SELL,M10-7-SELL,SIM-COST,MNQU6,Sell,2,20124.375,09/10/2026 16:30:15,2026-09-10 13:30:15.250Z,2026-09-10,1.04,true";
                 await vm.SelectFillsCommand.ExecuteAsync(null);
                 picker.Csv = "Account,Transaction ID,Timestamp,Date,Delta,Amount,Cash Change Type,Currency,Contract\n" +
                     "SIM-COST,C1,09/10/2026 16:30:03,2026-09-10,-1.04,98.96,Commission,USD,MNQU6\n" +
