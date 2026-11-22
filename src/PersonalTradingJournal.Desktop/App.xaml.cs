@@ -175,6 +175,8 @@ public partial class App : System.Windows.Application
                 PersonalTradingJournal.Desktop.Screenshots.NotebookImagePresentation>();
             builder.Services.AddSingleton<PersonalTradingJournal.Desktop.ViewModels.Notebook.INotebookInteraction, PersonalTradingJournal.Desktop.Views.Notebook.NotebookLeaveInteraction>();
             builder.Services.AddTransient<PersonalTradingJournal.Desktop.ViewModels.Rules.RuleAssessmentViewModel>();
+            builder.Services.AddSingleton<IRuleAssessmentDialog>(s => new WpfRuleAssessmentDialog(
+                () => s.GetRequiredService<PersonalTradingJournal.Desktop.ViewModels.Rules.RuleAssessmentViewModel>()));
             builder.Services.AddSingleton(new PlaybookSaveDiagnostics(applicationPaths.LogsDirectory,
                 applicationPaths.DatabasePath, Environment.GetEnvironmentVariable("PTJ_PLAYBOOK_SAVE_DIAGNOSTICS") == "1"));
             builder.Services.AddTransient<IPlaybookExampleImages, PlaybookExampleImages>();

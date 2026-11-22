@@ -37,7 +37,7 @@ public sealed class JournalDraftCloseTests
                 editor.OpenEditorCommand.Execute(null);
             }
             var date = editor.SelectedDate;
-            var details = calendar.MonthData;
+            var details = calendar.DayDetails;
             editor.Text = text;
             await editor.SaveDraftAndCloseCommand.ExecuteAsync(null);
             Assert.False(editor.IsEditorOpen || editor.IsDirty);
@@ -46,7 +46,7 @@ public sealed class JournalDraftCloseTests
             Assert.Equal(text.Length != 0, editor.IsExisting);
             Assert.Equal(text, editor.Text);
             Assert.Equal(date, editor.SelectedDate);
-            Assert.Same(details, calendar.MonthData);
+            Assert.Same(details, calendar.DayDetails);
             if (inline) Assert.Same(editor, calendar.InlineJournal);
         }
         finally { editor?.Deactivate(); calendar.Deactivate(); }

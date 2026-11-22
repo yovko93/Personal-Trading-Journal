@@ -15,7 +15,7 @@ namespace PersonalTradingJournal.Desktop.Tests.Journals;
 public sealed class InlineJournalViewTests
 {
     [Fact]
-    public async Task InlineFormAndCompactReviewKeepJournalActionsReachableAcrossThemesAndSizes()
+    public async Task InlineFormAndCompactReviewKeepTradesReachableAcrossThemesAndSizes()
     {
         if (Environment.GetEnvironmentVariable("PTJ_INLINE_JOURNAL_TEST_HOST") != "1")
         {
@@ -61,6 +61,7 @@ public sealed class InlineJournalViewTests
                 var host = (ContentControl)view.FindName("DayJournalEditor");
                 var inline = Assert.IsType<InlineJournalView>(FindInlineView(host));
                 var section = (StackPanel)view.FindName("InlineJournalSection");
+                var table = (ScrollViewer)view.FindName("DayTradesScroller");
                 var page = (ScrollViewer)view.FindName("DayContentScroller");
                 var entries = (ItemsControl)view.FindName("DayJournalEntries");
                 Assert.Equal(3, entries.Items.Count);
@@ -87,7 +88,7 @@ public sealed class InlineJournalViewTests
                 Render(view, theme, width, dpi, "journals");
                 var form = (StackPanel)inline.FindName("InlineForm");
                 Assert.Equal(Visibility.Visible, section.Visibility);
-                Assert.Null(view.FindName("DayTradesScroller"));
+                Assert.True(section.TranslatePoint(new Point(0, section.ActualHeight), view).Y <= table.TranslatePoint(new Point(), view).Y);
                 Assert.Same(vm.InlineJournal, inline.DataContext);
                 var formAccount = (ComboBox)inline.FindName("InlineJournalAccount");
                 Assert.Same(vm.InlineJournal!.EditorAccount, formAccount.SelectedItem);
@@ -136,19 +137,19 @@ public sealed class InlineJournalViewTests
                 save.Command.Execute(null); Flush(); view.UpdateLayout();
                 var error = (TextBlock)inline.FindName("JournalTextError");
                 Assert.Contains("Journal text is required", error.Text);
-                var fieldSlot = System.Windows.Controls.Primitives.LayoutInformation.GetLayoutSlot(fieldText);
-                var errorSlot = System.Windows.Controls.Primitives.LayoutInformation.GetLayoutSlot(error);
-                Assert.True(errorSlot.Top >= fieldSlot.Bottom,
-                    $"The validation text starts at {errorSlot.Top:R} DIP; the field ends at {fieldSlot.Bottom:R} DIP.");
+                Assert.True(error.TranslatePoint(new Point(), inline).Y >= fieldText.TranslatePoint(new Point(0, fieldText.ActualHeight), inline).Y);
                 Assert.True(vm.InlineJournal.IsEditorOpen);
                 vm.InlineJournal.Text = keptText; Flush();
                 Assert.Empty(error.Text);
+                table.BringIntoView(new Rect(0, 0, table.ActualWidth, 80)); Flush();
+                Assert.InRange(table.TranslatePoint(new Point(), page).Y, -1, page.ViewportHeight);
                 vm.InlineJournal.CloseEditorCommand.Execute(null); Flush();
                 Assert.False(vm.InlineJournal.IsEditorOpen);
                 Assert.Equal(Visibility.Collapsed, form.Visibility);
                 section.BringIntoView(); Flush(); Render(view, theme, width, dpi, "collapsed");
                 vm.CloseInlineJournalCommand.Execute(null); Flush();
                 Assert.Equal(Visibility.Collapsed, section.Visibility);
+                Assert.NotNull(vm.DayDetails);
                 vm.Deactivate();
                 var reviewVm = reviews[i];
                 var reviewView = new CalendarDayDetailsView { DataContext = reviewVm };

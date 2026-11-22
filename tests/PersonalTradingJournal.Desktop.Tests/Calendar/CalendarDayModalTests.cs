@@ -7,10 +7,15 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 using System.Windows.Threading;
+using System.Diagnostics;
+using PersonalTradingJournal.Application.Calendar;
+using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 using PersonalTradingJournal.Desktop.ViewModels.Calendar;
 using PersonalTradingJournal.Desktop.Views.Calendar;
+using PersonalTradingJournal.Desktop.Tests.Trades;
 
 namespace PersonalTradingJournal.Desktop.Tests.CalendarPage;
 
@@ -18,6 +23,257 @@ namespace PersonalTradingJournal.Desktop.Tests.CalendarPage;
 [Trait(ExclusiveWpfCollection.Trait, ExclusiveWpfCollection.Value)]
 public sealed partial class CalendarDayModalTests
 {
+    [Theory]
+    [InlineData("Light", 1100, 96, false)]
+    [InlineData("Dark", 1100, 96, false)]
+    [InlineData("Light", 1900, 96, false)]
+    [InlineData("Dark", 1900, 96, false)]
+    [InlineData("Light", 480, 240, false)]
+    [InlineData("Dark", 480, 240, false)]
+    [InlineData("Light", 1100, 96, true)]
+    [InlineData("Dark", 1100, 96, true)]
+    [InlineData("Light", 1900, 96, true)]
+    [InlineData("Dark", 1900, 96, true)]
+    [InlineData("Light", 480, 240, true)]
+    [InlineData("Dark", 480, 240, true)]
+    public async Task ResponsiveColumnsCenterNetFillViewportAndKeepAccountStableWithExpandedRows(string theme, int width, int dpi, bool longName)
+    {
+        var first = CalendarDayDetailsTests.Row(new(2026, 9, 5), -1234567.89m, null) with { TradingAccountName = "P 21" };
+        var second = first with { Id = Guid.NewGuid(), GrossPnL = 200m, NetPnL = 197m, TotalCosts = 3m, TradingAccountName = longName
+            ? "An unusually long historical account name that must remain available in full" : "Q 7" };
+        var detail = TradesViewModelTests.CreateEditableTradeDetail(second, null);
+        var details = new FakeTradeDetailReader(); details.EnqueueResult(detail);
+        var editor = TradesViewModelTests.CreateViewModel(tradeDetailReader: details);
+        var classification = new CalendarTradeClassification(Guid.NewGuid(), longName
+            ? "A long historical Setup name with several conditions and confirmations to review"
+            : "15m key level + 15m range", true, longName
+                ? [new(Guid.NewGuid(), "Entered before confirmation of the planned Setup", true),
+                   new(Guid.NewGuid(), "Exceeded the planned position size", false),
+                   new(Guid.NewGuid(), "Moved the protective stop repeatedly", true)] : []);
+        var reader = new FakeTradingCalendarDayReader { Handler = (q, ct) => Task.FromResult(
+            TradingCalendarDayDetails.Create(q.Date, [first, second]) with
+            { Classifications = new Dictionary<Guid, CalendarTradeClassification> { [second.Id] = classification } }) };
+        var vm = await CalendarSummaryFixture.CreateAsync(reader, editor);
+        await vm.SelectDayCommand.ExecuteAsync(CalendarDayDetailsTests.Cell(vm, new(2026, 9, 5)));
+        await vm.ViewTradeCommand.ExecuteAsync(second);
+        await OnSta(() =>
+        {
+            var content = new CalendarDayDetailsView { DataContext = vm, Resources = CalendarViewLayoutTests.SharedThemeResources(theme) };
+            var window = new CalendarDayDialogWindow { DataContext = vm, Content = content, Width = width, Height = 760, ShowInTaskbar = false };
+            ApplyRunnerWindowConstraint(window);
+            try
+            {
+                window.Show(); Pump(); window.UpdateLayout();
+                var header = (Grid)content.FindName("DayTradesHeader");
+                var scroller = (ScrollViewer)content.FindName("DayTradesScroller");
+                Grid[] rows = Descendants(content).OfType<Grid>().Where(g => g.Name == "DayTradeRow").ToArray();
+                Assert.Equal(2, rows.Length);
+                Grid[] grids = [header, .. rows];
+                WriteLayoutDiagnostics(window, header, scroller, rows, $"Responsive: {theme}/{width}/{dpi}/{longName}");
+                Assert.Equal(new[] { "Time (New York)", "Instrument", "Account", "Net P&L", "Size", "Direction", "Setup", "Trading Mistakes", "Action" },
+                    header.Children.OfType<TextBlock>().OrderBy(Grid.GetColumn).Select(t => t.Text));
+                TextBlock[] names = rows.Select(g => g.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == 2)).ToArray();
+                foreach (Grid row in rows)
+                {
+                    var trade = (CalendarTradePresentation)row.DataContext;
+                    Assert.Equal(trade.AmountText, row.Children.OfType<StackPanel>().Single(p => Grid.GetColumn(p) == 3).Children.OfType<TextBlock>().First().Text);
+                    Assert.Equal(trade.SizeText, row.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == 4).Text);
+                    Assert.Equal(trade.Trade.Direction.ToString(), row.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == 5).Text);
+                    foreach (int column in new[] { 6, 7 })
+                    {
+                        var text = row.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == column);
+                        Assert.Equal(column == 6 ? trade.SetupText : trade.MistakesText, text.Text);
+                        Assert.Equal(text.Text, text.ToolTip);
+                        Assert.Equal(TextWrapping.Wrap, text.TextWrapping);
+                        Assert.Equal(row.ColumnDefinitions[column].ActualWidth - 8, text.ActualWidth, 1);
+                        // TextBlocks stretch to the tallest cell; desired height measures actual wrapping.
+                        if (longName && width < 700 && trade.Trade.Id == second.Id) Assert.True(text.DesiredSize.Height > 30);
+                        if (text.Text == "None assigned") Assert.True(text.DesiredSize.Height < 25);
+                    }
+                    Assert.Equal("View", row.Children.OfType<Button>().Single(b => Grid.GetColumn(b) == 8).Content);
+                    var net = row.Children.OfType<StackPanel>().Single(p => Grid.GetColumn(p) == 3);
+                    Assert.All(net.Children.OfType<TextBlock>(), t => Assert.Equal(TextAlignment.Center, t.TextAlignment));
+                    var amount = net.Children.OfType<TextBlock>().First();
+                    amount.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                    Assert.True(amount.DesiredSize.Width <= net.ActualWidth, "Signed currency value must fit the compact Net column.");
+                    Assert.Same(content.Resources[trade.Amount < 0 ? "PtjDangerBrush" : "PtjSuccessBrush"], amount.Foreground);
+                    Assert.Equal(trade.NetDescription, net.ToolTip);
+                    Assert.Equal(trade.IsEstimated ? Visibility.Visible : Visibility.Collapsed, net.Children.OfType<TextBlock>().Last().Visibility);
+                    double columnCenter = row.ColumnDefinitions.Take(3).Sum(c => c.ActualWidth) + row.ColumnDefinitions[3].ActualWidth / 2;
+                    Assert.Equal(columnCenter, net.TransformToAncestor(row).Transform(new Point()).X + net.ActualWidth / 2, 1);
+                }
+                void CheckAlignment()
+                {
+                    foreach (Grid row in rows)
+                        for (int column = 0; column < header.ColumnDefinitions.Count; column++)
+                        {
+                            var heading = header.Children.OfType<FrameworkElement>().Single(e => Grid.GetColumn(e) == column);
+                            var value = row.Children.OfType<FrameworkElement>().Single(e => Grid.GetColumn(e) == column);
+                            Assert.Equal(heading.TransformToAncestor(scroller).Transform(new Point()).X,
+                                value.TransformToAncestor(scroller).Transform(new Point()).X, 1);
+                        }
+                }
+                double after = header.ColumnDefinitions[2].ActualWidth;
+                var label = header.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == 2);
+                label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                Assert.InRange(after, label.DesiredSize.Width - .1, 160);
+                AssertContentSizedAccount(header, rows);
+                Assert.All(names, t => Assert.Equal(((CalendarTradePresentation)t.DataContext).Trade.TradingAccountName, t.ToolTip));
+                Assert.All(names, t => Assert.Equal(TextTrimming.CharacterEllipsis, t.TextTrimming));
+                CheckAlignment();
+                Assert.All(rows, g => Assert.Equal(after, g.ColumnDefinitions[2].ActualWidth, 1));
+                Assert.All(grids, grid => Assert.Equal(150, grid.ColumnDefinitions[3].ActualWidth, 1));
+                Assert.True(header.ColumnDefinitions[6].ActualWidth >= 150);
+                Assert.True(header.ColumnDefinitions[7].ActualWidth >= 170);
+                var netHeading = header.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == 3);
+                Assert.Equal(TextAlignment.Center, netHeading.TextAlignment);
+                Assert.Equal(header.ColumnDefinitions.Take(3).Sum(c => c.ActualWidth) + header.ColumnDefinitions[3].ActualWidth / 2,
+                    netHeading.TransformToAncestor(header).Transform(new Point()).X + netHeading.ActualWidth / 2, 1);
+                Assert.Equal(header.ActualWidth, header.ColumnDefinitions.Sum(c => c.ActualWidth), 1);
+                if (width >= 1100)
+                {
+                    Assert.All(rows, row =>
+                    {
+                        var action = row.Children.OfType<Button>().Single();
+                        double right = action.TransformToAncestor(scroller).Transform(new Point()).X + action.ActualWidth;
+                        // A stretched ScrollContentPresenter can be wider than its desired extent.
+                        Assert.InRange(Math.Max(scroller.ViewportWidth, scroller.ExtentWidth) - right, 7, 9);
+                    });
+                }
+                var table = (StackPanel)content.FindName("DayTradesTable");
+                // A hosted Windows desktop can constrain even a requested 1,900-DIP window.
+                // The actual viewport, not the theory's requested width, determines overflow.
+                if (scroller.ViewportWidth >= table.MinWidth)
+                {
+                    Assert.Equal(0, scroller.ScrollableWidth);
+                    Assert.Equal(scroller.ViewportWidth, table.ActualWidth, 1);
+                }
+                if (scroller.ViewportWidth >= table.MinWidth + 32)
+                {
+                    foreach (int column in new[] { 6, 7 })
+                        Assert.True(header.ColumnDefinitions[column].ActualWidth > header.ColumnDefinitions[column].MinWidth);
+                }
+                Assert.Single(vm.DayTrades, r => r.IsExpanded && r.Trade.Id == second.Id);
+                if (scroller.ViewportWidth < table.MinWidth)
+                {
+                    Assert.True(scroller.ScrollableWidth > 0);
+                    scroller.ScrollToRightEnd(); Pump(); window.UpdateLayout();
+                    Assert.True(scroller.HorizontalOffset > 0);
+                    Assert.Equal(scroller.ScrollableWidth, scroller.HorizontalOffset, 1);
+                    CheckAlignment();
+                    Assert.Equal(after, header.ColumnDefinitions[2].ActualWidth, 1);
+                    scroller.ScrollToLeftEnd(); Pump(); window.UpdateLayout();
+                }
+
+                // Measure the immediately preceding content-only Account at the same viewport.
+                foreach (Grid grid in grids) grid.ColumnDefinitions[2].MinWidth = 0;
+                Pump(); window.UpdateLayout();
+                double beforeGap = header.ActualWidth - header.ColumnDefinitions.Sum(c => c.ActualWidth);
+                double beforeAccount = header.ColumnDefinitions[2].ActualWidth;
+                double beforeSetup = header.ColumnDefinitions[6].ActualWidth;
+                double beforeMistakes = header.ColumnDefinitions[7].ActualWidth;
+                foreach (Grid grid in grids) grid.ColumnDefinitions[2].MinWidth = 100;
+                Pump(); window.UpdateLayout();
+                Assert.Equal(after, header.ColumnDefinitions[2].ActualWidth, 1);
+                CheckAlignment();
+                double afterGap = header.ActualWidth - header.ColumnDefinitions.Sum(c => c.ActualWidth);
+                Assert.InRange(afterGap, -.1, .1);
+                if (!longName)
+                {
+                    double accountGain = after - beforeAccount;
+                    double setupLoss = beforeSetup - header.ColumnDefinitions[6].ActualWidth;
+                    double mistakesLoss = beforeMistakes - header.ColumnDefinitions[7].ActualWidth;
+                    Assert.InRange(accountGain, 40, 50);
+                    Assert.Equal(accountGain, setupLoss + mistakesLoss, 1);
+                    Assert.InRange(setupLoss / accountGain, .4, .6);
+                    Assert.InRange(mistakesLoss / accountGain, .4, .6);
+                }
+                string measurements = $"Window={window.ActualWidth:F2}, Viewport={scroller.ViewportWidth:F2} DIPs; unused after Action before={beforeGap:F2}, after={afterGap:F2}; Account before={beforeAccount:F2}, after={after:F2}; Setup before={beforeSetup:F2}, after={header.ColumnDefinitions[6].ActualWidth:F2}; Mistakes before={beforeMistakes:F2}, after={header.ColumnDefinitions[7].ActualWidth:F2}; Columns={string.Join(", ", header.ColumnDefinitions.Select(c => c.ActualWidth.ToString("F2")))}";
+                var page = (ScrollViewer)content.FindName("DayContentScroller");
+                page.ScrollToVerticalOffset(page.VerticalOffset + header.TransformToAncestor(page).Transform(new Point()).Y - 12);
+                Pump(); window.UpdateLayout();
+                Render(content, $"account-{(longName ? "long" : "short")}-{theme}", width, dpi);
+                if (scroller.ScrollableWidth > 0)
+                {
+                    scroller.ScrollToRightEnd(); Pump(); window.UpdateLayout();
+                    foreach (Grid row in rows)
+                    {
+                        var action = row.Children.OfType<Button>().Single(b => Grid.GetColumn(b) == 8);
+                        double x = action.TransformToAncestor(scroller).Transform(new Point()).X;
+                        Assert.True(x >= 0 && x + action.ActualWidth <= scroller.ViewportWidth + 1);
+                    }
+                    Render(content, $"account-{(longName ? "long" : "short")}-right-{theme}", width, dpi);
+                    scroller.ScrollToLeftEnd(); Pump(); window.UpdateLayout();
+                }
+                if (Environment.GetEnvironmentVariable("PTJ_CALENDAR_RENDER_DIRECTORY") is { Length: > 0 } output)
+                    File.WriteAllText(System.IO.Path.Combine(output, $"calendar-account-{theme}-{width}-{dpi}-{longName}.txt"),
+                        measurements);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [Theory]
+    [InlineData("Light", 1100, 96)]
+    [InlineData("Dark", 1100, 96)]
+    [InlineData("Light", 480, 240)]
+    [InlineData("Dark", 480, 240)]
+    public async Task ExpandedTradeUsesSharedEditorAndPreservesModalAtNarrowWidths(string theme, int width, int dpi)
+    {
+        var row = CalendarDayDetailsTests.Row(new(2026, 9, 5), 200, 197);
+        var detail = TradesViewModelTests.CreateEditableTradeDetail(row, null);
+        var details = new FakeTradeDetailReader(); details.EnqueueResult(detail); details.EnqueueResult(detail);
+        var editor = TradesViewModelTests.CreateViewModel(tradeDetailReader: details,
+            reader: TradesViewModelTests.CreateEditReferenceReader(detail));
+        var reader = new FakeTradingCalendarDayReader { Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date, [row])) };
+        var vm = await CalendarSummaryFixture.CreateAsync(reader, editor);
+        await vm.SelectDayCommand.ExecuteAsync(CalendarDayDetailsTests.Cell(vm, new(2026, 9, 5)));
+        await vm.ViewTradeCommand.ExecuteAsync(row);
+        await editor.ShowSelectedTradeEditCommand.ExecuteAsync(null);
+        await OnSta(() =>
+        {
+            var content = new CalendarDayDetailsView { DataContext = vm, Resources = CalendarViewLayoutTests.SharedThemeResources(theme) };
+            var window = new CalendarDayDialogWindow { DataContext = vm, Content = content, Width = width, Height = 760, ShowInTaskbar = false };
+            try
+            {
+                window.Show(); Pump(); window.UpdateLayout();
+                var inline = Assert.Single(Descendants(content).OfType<CalendarInlineTradeView>());
+                Assert.Same(editor, inline.DataContext);
+                Assert.True(inline.IsVisible);
+                Assert.Contains(Descendants(content).OfType<TextBlock>(), t => t.Text == "Time (New York)");
+                Assert.Contains(Descendants(content).OfType<TextBlock>(), t => t.Text == "Profit");
+                Assert.Contains(Descendants(content).OfType<TextBlock>(), t => t.Text == "Time");
+                Button save = Assert.Single(Descendants(inline).OfType<Button>(), b => Equals(b.Content, "Save Changes"));
+                Assert.Same(editor.SaveTradeEditCommand, save.Command);
+                Assert.True(save.IsVisible);
+                Button cancel = Assert.Single(Descendants(inline).OfType<Button>(), b => Equals(b.Content, "Cancel") && b.IsVisible);
+                Assert.Same(editor.CancelTradeEditCommand, cancel.Command);
+                Assert.False(vm.TryCloseDayDialog());
+                Assert.True(window.IsVisible);
+                inline.BringIntoView(); Pump(); window.UpdateLayout();
+                Assert.True(inline.ActualWidth >= 700);
+                var tableScroller = Descendants(content).OfType<ScrollViewer>().First(s => s.HorizontalScrollBarVisibility == ScrollBarVisibility.Auto && s.ExtentWidth >= 1040);
+                if (width < 700)
+                {
+                    Assert.True(tableScroller.ScrollableWidth > 0);
+                    tableScroller.ScrollToRightEnd(); Pump(); window.UpdateLayout();
+                    Assert.Equal(tableScroller.ScrollableWidth, tableScroller.HorizontalOffset, 1);
+                    tableScroller.ScrollToLeftEnd(); Pump(); window.UpdateLayout();
+                    Assert.Equal(0, tableScroller.HorizontalOffset);
+                }
+                Render(content, "inline-" + theme, width, dpi);
+                cancel.Command.Execute(null);
+                Assert.False(editor.IsTradeEditVisible);
+                Assert.True(vm.TryCloseDayDialog());
+            }
+            finally
+            {
+                if (editor.CancelTradeEditCommand.CanExecute(null)) editor.CancelTradeEditCommand.Execute(null);
+                window.Close();
+            }
+        });
+    }
+
     [Theory]
     [InlineData("Light", 1100, 96, "Outside")]
     [InlineData("Dark", 1400, 96, "Outside")]
@@ -27,7 +283,9 @@ public sealed partial class CalendarDayModalTests
     [InlineData("Dark", 1100, 96, "Escape")]
     public async Task BackdropConsumesOneWholeClickAndAllClosePathsRestoreSelection(string theme, int width, int dpi, string close)
     {
-        var vm = await CalendarSummaryFixture.CreateAsync();
+        var reader = new FakeTradingCalendarDayReader { Handler = (q, ct) => Task.FromResult(
+            TradingCalendarDayDetails.Create(q.Date, [CalendarDayDetailsTests.Row(q.Date, 10, 9)], ct)) };
+        var vm = await CalendarSummaryFixture.CreateAsync(reader);
         await OnSta(() =>
         {
             var dispatcher = Dispatcher.CurrentDispatcher;
@@ -50,7 +308,7 @@ public sealed partial class CalendarDayModalTests
                         var dialog = view.DayDialog!;
                         focus.ObserveDialog(dialog);
                         dialog.Closed += (_, _) => closed++;
-                        await vm.DayJournalLoadTask; dialog.UpdateLayout();
+                        await vm.DayLoadTask; dialog.UpdateLayout();
                         var backdrop = (Border)dialog.FindName("DialogBackdrop");
                         var panel = (Border)dialog.FindName("DayPanel");
                         var content = (CalendarDayDetailsView)dialog.FindName("DayContent");
@@ -63,17 +321,17 @@ public sealed partial class CalendarDayModalTests
                         Assert.Same(view.Resources["PtjBorderBrush"], panel.BorderBrush);
                         // The inset area belongs to the enabled modal, even with a disabled native owner.
                         Assert.Same(backdrop, dialog.InputHitTest(new Point(4, 4)));
-                        var journalAction = (Button)content.FindName("DayJournalAction");
                         foreach (UIElement inside in new UIElement[] { panel, content,
-                            (ScrollViewer)content.FindName("DayContentScroller"), journalAction })
+                            (ScrollViewer)content.FindName("DayContentScroller"),
+                            Descendants(content).OfType<DayPerformanceChart>().Single(),
+                            Descendants(content).OfType<Button>().Single(b => Equals(b.Content, "View")) })
                         {
                             Press(inside); Release(inside); Assert.True(dialog.IsVisible);
                         }
                         // Tooltips live in a separate popup and cannot inherit the backdrop click route.
-                        var maximize = (Button)dialog.FindName("MaximizeButton");
-                        var tip = new ToolTip { Content = maximize.ToolTip, PlacementTarget = maximize };
-                        maximize.ToolTip = tip;
-                        tip.IsOpen = true; Pump();
+                        Border point = Descendants(content).OfType<Border>().First(b => b.Tag is CalendarDayPerformancePoint);
+                        var tip = (ToolTip)point.ToolTip;
+                        tip.PlacementTarget = point; tip.IsOpen = true; Pump();
                         Assert.NotSame(PresentationSource.FromVisual(dialog), PresentationSource.FromVisual(tip));
                         Point tooltipCenter = dialog.PointFromScreen(tip.PointToScreen(new Point(tip.ActualWidth / 2, tip.ActualHeight / 2)));
                         Assert.True(dialog.IsPointOnOpenToolTip(tooltipCenter));
@@ -109,8 +367,47 @@ public sealed partial class CalendarDayModalTests
                 Assert.Equal(new DateOnly(2026, 9, 5), vm.SelectedDate);
                 Assert.Equal(new DateOnly(2026, 9, 1), vm.SelectedMonth);
                 Assert.Same(account, vm.SelectedAccount); Assert.Equal(currency, vm.SelectedCurrency);
+                Assert.Single(reader.Calls);
             }
             finally { owner.Close(); }
+        });
+    }
+
+    [Fact]
+    public async Task BackdropAndKeyboardCloseKeepInlineDraftUntilUserCancels()
+    {
+        var row = CalendarDayDetailsTests.Row(new(2026, 9, 5), 10, 9);
+        var detail = TradesViewModelTests.CreateEditableTradeDetail(row, null);
+        var details = new FakeTradeDetailReader(); details.EnqueueResult(detail); details.EnqueueResult(detail);
+        var editor = TradesViewModelTests.CreateViewModel(tradeDetailReader: details, reader: TradesViewModelTests.CreateEditReferenceReader(detail));
+        var reader = new FakeTradingCalendarDayReader { Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date, [row], ct)) };
+        var vm = await CalendarSummaryFixture.CreateAsync(reader, editor);
+        await vm.SelectDayCommand.ExecuteAsync(CalendarDayDetailsTests.Cell(vm, new(2026, 9, 5)));
+        await vm.ViewTradeCommand.ExecuteAsync(row);
+        await editor.ShowSelectedTradeEditCommand.ExecuteAsync(null);
+        await OnSta(() =>
+        {
+            var dialog = new CalendarDayDialogWindow { DataContext = vm, Resources = CalendarViewLayoutTests.SharedThemeResources("Light") };
+            int closed = 0; dialog.Closed += (_, _) => closed++;
+            try
+            {
+                dialog.Show(); Pump();
+                var backdrop = (Border)dialog.FindName("DialogBackdrop");
+                var inline = Assert.Single(Descendants(dialog).OfType<CalendarInlineTradeView>());
+                Press(inline); Release(inline);
+                Assert.True(Press(backdrop).Handled); Assert.True(Release(backdrop).Handled);
+                Assert.True(dialog.IsVisible); Assert.True(editor.IsTradeEditVisible);
+                Assert.Contains("Save or Cancel", vm.DayErrorMessage);
+                var key = new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(dialog)!, 0, Key.Escape) { RoutedEvent = Keyboard.PreviewKeyDownEvent };
+                dialog.RaiseEvent(key); Assert.True(key.Handled); Assert.True(dialog.IsVisible);
+                ((Button)dialog.FindName("DismissButton")).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                ((Button)dialog.FindName("CloseButton")).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                Assert.True(dialog.IsVisible); Assert.True(editor.IsTradeEditVisible); Assert.Equal(0, closed);
+                editor.CancelTradeEditCommand.Execute(null);
+                Press(backdrop); Release(backdrop);
+                Assert.False(dialog.IsVisible); Assert.Equal(1, closed);
+            }
+            finally { editor.CancelTradeEditCommand.Execute(null); dialog.Close(); }
         });
     }
 
@@ -123,6 +420,32 @@ public sealed partial class CalendarDayModalTests
     }
 
     private static readonly Lazy<Task> NativeHost = new(RunNativeHostAsync);
+    [Fact]
+    public void PerformanceUsesActualClosuresCurrencyPartitionsAndExactAuthoritativeNet()
+    {
+        DateOnly date = new(2026, 9, 5);
+        TradeListItem first = CalendarDayDetailsTests.Row(date, 110m, 100m) with { ClosedAtUtc = new(2026, 9, 5, 15, 0, 0, TimeSpan.Zero) };
+        TradeListItem loss = CalendarDayDetailsTests.Row(date, -40m, -40m) with { ClosedAtUtc = first.ClosedAtUtc!.Value.AddMinutes(30) };
+        TradeListItem zero = CalendarDayDetailsTests.Row(date, 0m, 0m) with { ClosedAtUtc = loss.ClosedAtUtc };
+        TradeListItem euro = CalendarDayDetailsTests.Row(date, 5m, 5m) with { Currency = "EUR" };
+        var series = CalendarDayPerformance.From([zero, euro, loss, first]);
+        Assert.Equal(new[] { "EUR", "USD" }, series.Select(s => s.Currency));
+        var usd = series[1].Points;
+        Assert.Equal(new decimal?[] { 100m, 60m }, usd.Select(p => p.Value));
+        Assert.Equal(new[] { 1, 2 }, usd.Select(p => p.TradeCount));
+        Assert.Equal(first.ClosedAtUtc, usd[0].ClosedAtUtc);
+        Assert.Equal(loss.ClosedAtUtc, usd[1].ClosedAtUtc);
+        Assert.All(usd, p => Assert.False(p.IsEstimated));
+        Assert.Equal(5m, Assert.Single(series[0].Points).Value);
+        var estimated = CalendarDayPerformance.From([CalendarDayDetailsTests.Row(date, -285m, null)]);
+        Assert.Equal(-285m, estimated[0].Points[0].Value);
+        Assert.Contains("commission/fees unknown", estimated[0].Points[0].Description);
+        var unknown = CalendarDayDetailsTests.Row(date, null, null) with { ClosedAtUtc = first.ClosedAtUtc!.Value.AddMinutes(15) };
+        Assert.Equal(new decimal?[] { 100m, null, null }, CalendarDayPerformance.From([first, unknown, loss])[0].Points.Select(p => p.Value));
+        Assert.Empty(CalendarDayPerformance.From([]));
+        Assert.Throws<OverflowException>(() => CalendarDayPerformance.From([first with { NetPnL = decimal.MaxValue }, loss with { NetPnL = 1m }]));
+    }
+
     [Theory]
     [InlineData("Light", 1100, 96, false)]
     [InlineData("Dark", 1100, 96, true)]
@@ -130,7 +453,9 @@ public sealed partial class CalendarDayModalTests
     [InlineData("Dark", 480, 240, false)]
     public async Task OwnedModalDimsCalendarClosesAndRestoresDateFocusWithoutJournalStatusService(string theme, int width, int dpi, bool empty)
     {
-        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync();
+        var reader = new FakeTradingCalendarDayReader { Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date,
+            empty ? [] : [CalendarDayDetailsTests.Row(q.Date, -285m, null), CalendarDayDetailsTests.Row(q.Date, 10m, 9m) with { Currency = "EUR" }], ct)) };
+        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync(reader);
         await OnSta(() =>
         {
             var dispatcher = Dispatcher.CurrentDispatcher;
@@ -156,12 +481,13 @@ public sealed partial class CalendarDayModalTests
                         Assert.Same(owner, dialog.Owner);
                         Assert.True(dialog.IsVisible);
                         Assert.Equal(Visibility.Visible, ((Border)view.FindName("ModalShade")).Visibility);
-                        await vm.DayJournalLoadTask;
+                        await vm.DayLoadTask;
                         dialog.UpdateLayout();
                         Assert.Equal(saturday.DataContext, CalendarDayDetailsTests.Cell(vm, new(2026, 9, 5)));
+                        Assert.Equal(empty ? 0 : 2, vm.DayDetails!.ClosedTradeCount);
                         Assert.Null(view.FindName("DayDetailsPanel"));
                         var content = (CalendarDayDetailsView)dialog.FindName("DayContent");
-                        Assert.Contains(Descendants(content).OfType<TextBlock>(), t => t.Text == "Day Journal");
+                        Assert.Contains(Descendants(content).OfType<TextBlock>(), t => t.Text == vm.SelectedDateLabel);
                         Button journal = Assert.Single(Descendants(content).OfType<Button>(), b => Equals(b.Content, "Add Journal"));
                         // Day content and Add do not depend on the grid-status service.
                         Assert.True(journal.IsEnabled);
@@ -169,6 +495,21 @@ public sealed partial class CalendarDayModalTests
                         Assert.True(journal.Command.CanExecute(null));
                         Assert.Contains("No Journal", vm.DayJournalStatusMessage);
                         Assert.Equal("Add Journal", AutomationProperties.GetName(journal));
+                        Assert.Equal(empty ? 0 : 2, Descendants(content).OfType<DayPerformanceChart>().Count());
+                        if (empty) Assert.Contains(Descendants(content).OfType<TextBlock>(), t => t.Text == "No closed Trades to chart." && t.IsVisible);
+                        else
+                        {
+                            Button[] buttons = Descendants(content).OfType<Button>().Where(b => Equals(b.Content, "View")).ToArray();
+                            Assert.Equal(2, buttons.Length);
+                            Assert.All(buttons, button => { Assert.Same(vm.ViewTradeCommand, button.Command); Assert.Contains(vm.DayTrades, row => ReferenceEquals(row.Trade, button.CommandParameter)); });
+                            reader.Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date, [CalendarDayDetailsTests.Row(q.Date, 9m, 9m)], ct));
+                            vm.OnDataCommitted();
+                            await vm.LoadTask;
+                            dialog.UpdateLayout();
+                            Assert.True(dialog.IsVisible);
+                            Assert.Equal(9m, Assert.Single(Assert.Single(vm.DayPerformance).Points).Value);
+                            Assert.Equal(9m, Assert.Single(Descendants(content).OfType<DayPerformanceChart>()).Series!.Points.Single().Value);
+                        }
                         Render(content, theme, width, dpi);
                         if (empty) ((Button)dialog.FindName("CloseButton")).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
                         else
@@ -192,6 +533,127 @@ public sealed partial class CalendarDayModalTests
                 focus.VerifyRestored(); Assert.True(saturday.IsKeyboardFocused);
             }
             finally { owner.Close(); }
+        });
+    }
+
+    [Fact]
+    public async Task ClosingWhileLoadingCancelsReadAndRejectsItsLateResultWithoutClearingSelection()
+    {
+        var pending = new TaskCompletionSource<TradingCalendarDayDetails>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reader = new FakeTradingCalendarDayReader { Handler = (_, _) => { started.TrySetResult(); return pending.Task; } };
+        var vm = await CalendarSummaryFixture.CreateAsync(reader);
+        await OnSta(() =>
+        {
+            var dispatcher = Dispatcher.CurrentDispatcher;
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
+            var view = new CalendarView { DataContext = vm, Resources = CalendarViewLayoutTests.SharedThemeResources("Dark") };
+            var owner = new Window { Content = view, Width = 900, Height = 700, ShowInTaskbar = false };
+            Exception? failure = null;
+            try
+            {
+                owner.Show(); Pump(); owner.UpdateLayout();
+                dispatcher.BeginInvoke(new Action(async () =>
+                {
+                    try { await started.Task; Assert.True(vm.IsDayLoading); view.DayDialog!.Close(); }
+                    catch (Exception exception) { failure = exception; view.DayDialog?.Close(); }
+                }));
+                var cell = Assert.Single(Descendants(view).OfType<CalendarDayHost>(), c => ((CalendarDayCell)c.DataContext).Date == new DateOnly(2026, 9, 5));
+                cell.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = Mouse.MouseUpEvent });
+                if (failure is not null) throw failure;
+                Assert.Equal(new DateOnly(2026, 9, 5), vm.SelectedDate);
+                Assert.True(reader.Calls.Single().Token.IsCancellationRequested);
+                Assert.False(vm.IsDayLoading);
+                var frame = new DispatcherFrame();
+                _ = vm.DayLoadTask.ContinueWith(_ => dispatcher.BeginInvoke(new Action(() => frame.Continue = false)), TaskScheduler.Default);
+                pending.SetResult(TradingCalendarDayDetails.Create(vm.SelectedDate!.Value, [CalendarDayDetailsTests.Row(vm.SelectedDate.Value, 999m, 999m)]));
+                Dispatcher.PushFrame(frame);
+                vm.DayLoadTask.GetAwaiter().GetResult();
+                Assert.Empty(vm.DayTrades);
+                Assert.Empty(vm.DayPerformance);
+                Assert.Null(vm.DayDetails);
+            }
+            finally { owner.Close(); }
+        });
+    }
+
+    [Theory]
+    [InlineData("Light")]
+    [InlineData("Dark")]
+    public async Task ViewExpandsExactTradeWhileKeepingModalOpen(string theme)
+    {
+        var reader = new FakeTradingCalendarDayReader { Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date, [CalendarDayDetailsTests.Row(q.Date, 7m, 7m)], ct)) };
+        var vm = await CalendarSummaryFixture.CreateAsync(reader);
+        await OnSta(() =>
+        {
+            var dispatcher = Dispatcher.CurrentDispatcher;
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
+            var view = new CalendarView { DataContext = vm, Resources = CalendarViewLayoutTests.SharedThemeResources(theme) };
+            var owner = new Window { Content = view, Width = 900, Height = 700, ShowInTaskbar = false };
+            Exception? failure = null;
+            try
+            {
+                owner.Show(); Pump(); owner.UpdateLayout();
+                dispatcher.BeginInvoke(new Action(async () =>
+                {
+                    try
+                    {
+                        await vm.DayLoadTask;
+                        var dialog = view.DayDialog!;
+                        dialog.UpdateLayout();
+                        Button viewButton = Assert.Single(Descendants(dialog).OfType<Button>(), b => Equals(b.Content, "View"));
+                        ((IInvokeProvider)new ButtonAutomationPeer(viewButton).GetPattern(PatternInterface.Invoke)).Invoke();
+                        Pump();
+                        Assert.Same(dialog, view.DayDialog);
+                        Assert.True(vm.DayTrades.Single().IsExpanded);
+                        dialog.Close();
+                    }
+                    catch (Exception exception) { failure = exception; view.DayDialog?.Close(); }
+                }));
+                CalendarDayHost cell = Assert.Single(Descendants(view).OfType<CalendarDayHost>(), c => ((CalendarDayCell)c.DataContext).Date == new DateOnly(2026, 9, 5));
+                cell.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = Mouse.MouseUpEvent });
+                Pump();
+                if (failure is not null) throw failure;
+                Assert.Null(view.DayDialog);
+            }
+            finally { owner.Close(); }
+        });
+    }
+
+    [Theory]
+    [InlineData("Light", 960, 96)]
+    [InlineData("Dark", 480, 240)]
+    public async Task IntradayChartUsesClosureTimeStepsExactAccessibleTargetsAndUnknownGaps(string theme, int width, int dpi)
+    {
+        await OnSta(() =>
+        {
+            DateOnly date = new(2026, 11, 1);
+            TradeListItem a = CalendarDayDetailsTests.Row(date, 100m, 100m) with { ClosedAtUtc = new(2026, 11, 1, 5, 30, 0, TimeSpan.Zero) };
+            TradeListItem b = a with { Id = Guid.NewGuid(), ClosedAtUtc = a.ClosedAtUtc!.Value.AddHours(1), NetPnL = -140m };
+            TradeListItem c = a with { Id = Guid.NewGuid(), ClosedAtUtc = b.ClosedAtUtc!.Value.AddHours(2), NetPnL = null, GrossPnL = null };
+            var series = CalendarDayPerformance.From([c, b, a])[0];
+            var chart = new DayPerformanceChart { Series = series, Resources = CalendarViewLayoutTests.SharedThemeResources(theme),
+                PositiveBrush = Brushes.Green, NegativeBrush = Brushes.Red, NeutralBrush = Brushes.Gray };
+            chart.Measure(new Size(width, 260)); chart.Arrange(new Rect(0, 0, width, 260)); chart.UpdateLayout();
+            Border[] targets = Descendants(chart).OfType<Border>().Where(b => b.Tag is CalendarDayPerformancePoint).ToArray();
+            Assert.Equal(3, targets.Length);
+            Assert.All(targets, target => { Assert.True(target.Focusable); Assert.Equal(((CalendarDayPerformancePoint)target.Tag).Description, AutomationProperties.GetName(target)); Assert.IsType<ToolTip>(target.ToolTip); });
+            Assert.Contains("01:30:00 UTC-4 New York", AutomationProperties.GetName(targets[0]));
+            Assert.Contains("01:30:00 UTC-5 New York", AutomationProperties.GetName(targets[1]));
+            double x1 = Canvas.GetLeft(targets[0]), x2 = Canvas.GetLeft(targets[1]), x3 = Canvas.GetLeft(targets[2]);
+            Assert.Equal(2d, (x3 - x2) / (x2 - x1), 6); // Actual elapsed UTC time, including the DST overlap.
+            var steps = Descendants(chart).OfType<Line>().Where(line => Equals(line.Tag, "ClosureStep")).ToArray();
+            Assert.Equal(3, steps.Length); // One hold plus a zero-crossing split at the second closure only.
+            Assert.All(steps, line => Assert.True(line.X1 == line.X2 || line.Y1 == line.Y2));
+            Assert.Contains(steps, line => line.Stroke == Brushes.Red);
+            Assert.Contains(steps, line => line.Stroke == Brushes.Green);
+            Assert.Contains(Descendants(chart).OfType<TextBlock>(), t => t.Text.Contains("Unavailable cumulative"));
+            var bitmap = new RenderTargetBitmap(width * dpi / 96, 260 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
+            bitmap.Render(chart);
+            chart.Series = new("USD", []);
+            chart.UpdateLayout();
+            Assert.DoesNotContain(Descendants(chart).OfType<Border>(), target => target.Tag is CalendarDayPerformancePoint);
+            Assert.Contains(Descendants(chart).OfType<TextBlock>(), t => t.Text == "No closed Trades to chart.");
         });
     }
 
@@ -232,5 +694,5 @@ public sealed partial class CalendarDayModalTests
     private static Task RunNativeHostAsync() => IsolatedTestProcess.RunSuiteAsync(
         typeof(CalendarDayModalTests), "calendar-native", "PTJ_CALENDAR_MODAL_TEST_HOST",
         TimeSpan.FromMinutes(2), caseHangTimeout: TimeSpan.FromSeconds(45),
-        testCaseFilter: "FullyQualifiedName~CalendarDayModalTests");
+        testCaseFilter: "FullyQualifiedName~CalendarDayModalTests|FullyQualifiedName~CalendarDayPerformanceChartTests");
 }

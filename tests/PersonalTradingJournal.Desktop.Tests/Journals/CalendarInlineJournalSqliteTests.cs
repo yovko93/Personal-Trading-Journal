@@ -32,7 +32,7 @@ public sealed class CalendarInlineJournalSqliteTests
             await calendar.LoadTask;
             var day = calendar.Weeks.SelectMany(w => w.Days).First(d => d.IsSaturday);
             await calendar.SelectDayCommand.ExecuteAsync(day);
-            var trades = calendar.MonthData;
+            var trades = calendar.DayDetails;
             var month = calendar.SelectedMonth;
             var standalone = await db.OpenEditorAsync(day.Date, scoped ? account.Id : null);
             standalone.OpenEditorCommand.Execute(null);
@@ -46,7 +46,7 @@ public sealed class CalendarInlineJournalSqliteTests
             Assert.Equal(day.Date.ToDateTime(TimeOnly.MinValue), journal.SelectedDate);
             Assert.Equal(scoped ? account.Id : (Guid?)null, journal.SelectedAccount.Id);
             Assert.Null(journal.History);
-            Assert.False(journal.TradeContext.HasResult); // The inline Journal does not load standalone Trade context.
+            Assert.False(journal.TradeContext.HasResult); // Existing modal Trades, not another query/panel.
             journal.Text = "Saved inside modal";
             journal.WentWell = "Patience";
             journal.NeedsImprovement = "Discipline";
@@ -97,7 +97,7 @@ public sealed class CalendarInlineJournalSqliteTests
             Assert.False(day.HasJournal);
             Assert.False(journal.IsExisting);
             Assert.Null(await db.Repository.GetAsync(day.Date, scoped ? account.Id : null));
-            Assert.Same(trades, calendar.MonthData);
+            Assert.Same(trades, calendar.DayDetails);
             Assert.Equal(month, calendar.SelectedMonth);
             Assert.Equal(day.Date, calendar.SelectedDate);
             Assert.Equal("USD", calendar.SelectedCurrency);

@@ -100,7 +100,7 @@ public sealed class CalendarDayJournalsTests
             Assert.Equal("✓", Cell(vm).JournalIndicatorText);
             Assert.Equal(first.Id, Assert.Single(vm.DayJournals).Id);
             Assert.DoesNotContain("No Journal", vm.DayJournalStatusMessage);
-            Assert.False(Cell(vm).HasDailyTrades);
+            Assert.True(vm.IsSelectedDayEmpty);
             await db.Repository.CreateAsync(new(Date, null, "Global saved text", false));
             await db.Repository.CreateAsync(new(Date, other, "Other saved text"));
             vm.OnJournalCommitted(); await vm.JournalLoadTask;
@@ -171,17 +171,18 @@ public sealed class CalendarDayJournalsTests
     }
 
     [Fact]
-    public async Task JournalFailureHasIndependentRecoveryWithoutDiscardingEdits()
+    public async Task TradeFailureDoesNotBlockJournalsAndJournalFailureHasIndependentRecoveryWithoutDiscardingEdits()
     {
         await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
         var repo = (IDailyJournalDayReader)db.Repository;
         var reader = new DayReader { Read = repo.GetDayAsync };
         await db.Repository.CreateAsync(new(Date, null, "Saved"));
-        var vm = Create(db, reader);
+        var trades = new FakeTradingCalendarDayReader { Handler = (_, _) => throw new InvalidOperationException("Trade failure") };
+        var vm = Create(db, reader, trades);
         try
         {
             await vm.ActivateAsync(); await vm.SelectDayCommand.ExecuteAsync(Cell(vm));
-            Assert.Equal("Saved", Assert.Single(vm.DayJournals).Text);
+            Assert.NotNull(vm.DayErrorMessage); Assert.Equal("Saved", Assert.Single(vm.DayJournals).Text);
             await vm.OpenDayJournalCommand.ExecuteAsync(vm.DayJournals[0]);
             var editor = vm.InlineJournal!; editor.Text = "Unsaved";
             reader.Read = (_, _, _) => throw new InvalidOperationException("Journal failure");
@@ -389,8 +390,8 @@ public sealed class CalendarDayJournalsTests
 
     private static CalendarDayCell Cell(CalendarViewModel vm, DateOnly? date = null) => vm.Weeks.SelectMany(w => w.Days).Single(d => d.Date == (date ?? Date));
     private static CalendarViewModel Create(JournalSqliteTests.JournalTestDatabase db, IDailyJournalDayReader? reader = null,
-        FakeDialogService? dialogs = null) => new(
-        db.Provider.GetRequiredService<ITradingCalendarReader>(), new Clock(), db.Provider.GetRequiredService<ITradingCalendarDayReader>(),
+        ITradingCalendarDayReader? trades = null, FakeDialogService? dialogs = null) => new(
+        db.Provider.GetRequiredService<ITradingCalendarReader>(), new Clock(), trades ?? db.Provider.GetRequiredService<ITradingCalendarDayReader>(),
         db.Provider.GetRequiredService<ITradingAccountReader>(), journalStatusReader: db.Provider.GetRequiredService<IDailyJournalStatusReader>(),
         journalRepository: db.Repository, journalDialogs: dialogs ?? new FakeDialogService(), journalDayReader: reader);
     private static async Task<Guid> AddAccount(JournalSqliteTests.JournalTestDatabase db, string name, bool inactive = false)

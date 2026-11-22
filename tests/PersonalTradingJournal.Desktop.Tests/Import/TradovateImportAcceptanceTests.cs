@@ -89,14 +89,14 @@ public sealed class TradovateImportAcceptanceTests
             var calendar = new CalendarViewModel(provider.GetRequiredService<ITradingCalendarReader>(),
                 new AcceptanceTimeProvider(now), provider.GetRequiredService<ITradingCalendarDayReader>(), accountReader);
             await calendar.ActivateAsync();
-            CalendarDayCell selected = calendar.Weeks.SelectMany(w => w.Days).Single(d => d.Date == new DateOnly(2026, 9, 10));
-            await calendar.SelectDayCommand.ExecuteAsync(selected);
+            await calendar.SelectDayCommand.ExecuteAsync(calendar.Weeks.SelectMany(w => w.Days)
+                .Single(d => d.Date == new DateOnly(2026, 9, 10)));
             viewModel.ImportCommitted += (_, _) => calendar.OnDataCommitted();
             Task originalCalendarRead = calendar.LoadTask;
             dialog.ConfirmationResult = false;
             await viewModel.ConfirmImportCommand.ExecuteAsync(null);
             Assert.Same(originalCalendarRead, calendar.LoadTask);
-            Assert.False(selected.HasDailyTrades);
+            Assert.True(calendar.IsSelectedDayEmpty);
             await using (JournalDbContext context = await contextFactory.CreateDbContextAsync())
             {
                 Assert.Empty(await context.Trades.ToListAsync());
@@ -110,8 +110,8 @@ public sealed class TradovateImportAcceptanceTests
             await viewModel.ConfirmImportCommand.ExecuteAsync(null);
             await calendar.LoadTask;
             Assert.False(calendar.IsMonthEmpty);
-            Assert.Equal(1, Assert.Single(selected.DailySummaries).Metrics.ClosedTradeCount);
-            Assert.Equal(5m, Assert.Single(selected.DailySummaries).Amount);
+            Assert.Equal(1, calendar.DayDetails!.ClosedTradeCount);
+            Assert.Equal(5m, Assert.Single(calendar.DaySummaries).Amount);
             Task committedCalendarRead = calendar.LoadTask;
 
             Assert.Equal(ImportWorkflowPhase.Completed, viewModel.Phase);

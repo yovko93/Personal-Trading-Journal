@@ -51,6 +51,7 @@ public sealed class JournalEditorActionTests
                 await editor.ActivateAsync();
                 editor.OpenEditorCommand.Execute(null);
             }
+            var dayData = calendar?.DayDetails;
             var month = calendar?.SelectedMonth;
             var date = DateOnly.FromDateTime(editor.SelectedDate!.Value);
             const string exact = "  Journal\r\nПлан 📈\t ";
@@ -82,6 +83,7 @@ public sealed class JournalEditorActionTests
             if (calendar is not null)
             {
                 Assert.Same(editor, calendar.InlineJournal);
+                Assert.Same(dayData, calendar.DayDetails);
                 Assert.Equal(month, calendar.SelectedMonth);
                 Assert.Equal(date, calendar.SelectedDate);
                 Assert.Equal(draft, calendar.SelectedDayJournalStatus!.IsDraft);
@@ -135,6 +137,7 @@ public sealed class JournalEditorActionTests
         try
         {
             var date = editor.SelectedDate;
+            var dayData = calendar?.DayDetails;
             editor.Text = "  Unsaved notes\r\n ";
             editor.WentWell = "Exact first answer";
             editor.NeedsImprovement = "Exact second answer";
@@ -173,7 +176,7 @@ public sealed class JournalEditorActionTests
             if (calendar is not null)
             {
                 Assert.Same(editor, calendar.InlineJournal);
-                Assert.Equal(date, calendar.SelectedDate?.ToDateTime(TimeOnly.MinValue));
+                Assert.Same(dayData, calendar.DayDetails);
                 Assert.Null(calendar.SelectedDayJournalStatus);
             }
         }

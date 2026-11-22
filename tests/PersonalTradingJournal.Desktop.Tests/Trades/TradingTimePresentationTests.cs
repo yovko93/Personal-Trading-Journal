@@ -71,11 +71,11 @@ public sealed class TradingTimePresentationTests
     {
         string views = Path.Combine(FindRepositoryRoot(), "src/PersonalTradingJournal.Desktop/Views");
         XNamespace wpf = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
-        var journal = XDocument.Load(Path.Combine(views, "Journals/JournalTradeContextView.xaml"));
-        var closingTime = Assert.Single(journal.Descendants(wpf + "TextBlock"),
-            element => (string?)element.Attribute("Text") == "{Binding ClosingTime}");
-        Assert.Equal("{Binding ClosingTimeDescription}", (string?)closingTime.Attribute("ToolTip"));
-        Assert.Equal("{Binding ClosingTimeDescription}", (string?)closingTime.Attribute("AutomationProperties.Name"));
+        var inline = XDocument.Load(Path.Combine(views, "Calendar/CalendarInlineTradeView.xaml"));
+        var execution = Assert.Single(inline.Descendants(wpf + "TextBlock"),
+            e => ((string?)e.Attribute("Text"))?.Contains("Binding ExecutedAtUtc", StringComparison.Ordinal) == true);
+        Assert.Equal("{Binding ExecutedAtUtc, Converter={StaticResource TradingTime}}", (string?)execution.Attribute("Text"));
+        Assert.Contains("TradingTimestampConverter", inline.ToString());
         var import = XDocument.Load(Path.Combine(views, "Import/ImportView.xaml"));
         var period = import.Descendants(wpf + "TextBlock").Select(e => (string?)e.Attribute("Text"))
             .Where(text => text?.Contains("Binding PreviewSummary.Period", StringComparison.Ordinal) == true).ToArray();

@@ -38,7 +38,7 @@ public partial class CalendarView : UserControl
         {
             vm.SelectDayCommand.Execute(day);
             // Detached components have no native owner. The real page opens an owned,
-            // modal WPF window immediately, so Journal loading and errors are visible inside it.
+            // modal WPF window immediately, so loading/errors are visible inside it.
             if (_dayDialog is not null || Window.GetWindow(this) is not { IsVisible: true } owner) return;
             var dialog = new CalendarDayDialogWindow
             {
@@ -61,6 +61,7 @@ public partial class CalendarView : UserControl
                 vm.PropertyChanged -= selectionChanged;
                 _dayDialog = null;
                 ModalShade.Visibility = Visibility.Collapsed;
+                if (vm.IsDayLoading) vm.CancelDayCommand.Execute(null);
                 // Preserve month/filter/date state. The same-grid container survives refresh.
                 if (IsVisible) FindSelectedCell(this)?.Focus();
             }

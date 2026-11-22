@@ -366,6 +366,43 @@ public sealed partial class MainWindowViewModelTests
         Assert.True(fixture.Trades.HasTrades);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CalendarViewStaysInlineAndDiscardsDetailsAfterNavigationAway(bool navigateAway)
+    {
+        var reader = new FakeTradingCalendarDayReader
+        {
+            Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date,
+                [CalendarPage.CalendarDayDetailsTests.Row(q.Date, 10m, 9m)], ct))
+        };
+        var inlineReader = new FakeTradeDetailReader { HoldRead = true };
+        var inlineEditor = Trades.TradesViewModelTests.CreateViewModel(tradeDetailReader: inlineReader);
+        ViewModelFixture fixture = CreateFixture(calendarDayReader: reader, calendarEditor: inlineEditor);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Calendar);
+        var calendar = Assert.IsType<CalendarViewModel>(fixture.Main.CurrentContentViewModel);
+        await calendar.LoadTask;
+        await calendar.SelectDayCommand.ExecuteAsync(calendar.Weeks[0].Days[5]);
+        TradeListItem row = Assert.Single(calendar.DayTrades).Trade;
+        inlineReader.EnqueueResult(CreateTradeDetail(row));
+        Task view = calendar.ViewTradeCommand.ExecuteAsync(row);
+        await inlineReader.ReadStarted.WaitAsync(TimeSpan.FromSeconds(10));
+        if (navigateAway) fixture.Main.NavigateCommand.Execute(NavigationDestination.Accounts);
+        inlineReader.ReleaseRead();
+        await view;
+        if (navigateAway)
+        {
+            Assert.Null(inlineEditor.SelectedTradeDetail);
+            Assert.Equal(NavigationDestination.Accounts, fixture.Main.CurrentDestination);
+            return;
+        }
+        Assert.Equal(NavigationDestination.Calendar, fixture.Main.CurrentDestination);
+        Assert.Equal(row.Id, inlineEditor.SelectedTradeDetail!.Id);
+        Assert.Equal(row.Id, Assert.Single(inlineReader.RequestedTradeIds));
+        Assert.Empty(fixture.TradeDetailReader.RequestedTradeIds);
+        Assert.DoesNotContain(fixture.Trades.RecentTrades, t => t.Id == row.Id);
+    }
+
     [Fact]
     public async Task NavigateAwayAndBackToAccounts_ResetsDetailEditAndCreateStateWithoutReloading()
     {
@@ -943,11 +980,12 @@ public sealed partial class MainWindowViewModelTests
     [InlineData("Blocked", false)]
     [InlineData("Rollback", false)]
     [InlineData("Failure", false)]
-    public async Task ActiveCalendarRefreshesGridOnlyForCommittedImportAndRejectsPreCommitResponse(
+    public async Task ActiveCalendarRefreshesBothReadsOnlyForCommittedImportAndRejectsPreCommitResponses(
         string outcome, bool cancelledPresentationAfterCommit)
     {
         var reader = new CommitCalendarReader();
-        var (fixture, store) = await CreateDelayedTopstepFixture(reader);
+        var dayReader = new FakeTradingCalendarDayReader();
+        var (fixture, store) = await CreateDelayedTopstepFixture(reader, dayReader);
         using var main = fixture.Main;
         Task confirmation = fixture.Import.ConfirmImportCommand.ExecuteAsync(null);
         await store.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -957,12 +995,18 @@ public sealed partial class MainWindowViewModelTests
         CalendarDayCell selected = calendar.Weeks[0].Days[5];
         await calendar.SelectDayCommand.ExecuteAsync(selected);
         TradingCalendarMonth staleMonth = calendar.MonthData!;
+        TradingCalendarDayDetails staleDay = calendar.DayDetails!;
         var oldMonth = new TaskCompletionSource<TradingCalendarMonth>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var oldDay = new TaskCompletionSource<TradingCalendarDayDetails>(TaskCreationOptions.RunContinuationsAsynchronously);
         var monthStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var dayStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         reader.Read = _ => { monthStarted.TrySetResult(); return oldMonth.Task; };
+        dayReader.Handler = (_, _) => { dayStarted.TrySetResult(); return oldDay.Task; };
         Task preCommit = calendar.RefreshAsync();
-        await monthStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await Task.WhenAll(monthStarted.Task, dayStarted.Task).WaitAsync(TimeSpan.FromSeconds(10));
         reader.Read = null;
+        TradeListItem committed = CalendarPage.CalendarDayDetailsTests.Row(selected.Date, -285m, null);
+        dayReader.Handler = (q, token) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date, [committed], token));
         if (outcome == "Rollback")
         {
             fixture.Import.CancelOperationCommand.Execute(null);
@@ -983,21 +1027,30 @@ public sealed partial class MainWindowViewModelTests
         await confirmation.WaitAsync(TimeSpan.FromSeconds(10));
         if (outcome == "Imported") await calendar.LoadTask.WaitAsync(TimeSpan.FromSeconds(10));
         oldMonth.SetResult(staleMonth);
+        oldDay.SetResult(staleDay);
         await preCommit;
         Assert.Equal(outcome == "Imported" ? 3 : 2, reader.ReadCount);
+        Assert.Equal(outcome == "Imported" ? 3 : 2, dayReader.Calls.Count);
         Assert.Equal(selected.Date, calendar.SelectedDate);
         Assert.Same(selected, calendar.Weeks[0].Days[5]);
         Assert.False(calendar.IsBusy);
+        if (outcome == "Imported")
+        {
+            Assert.Equal(committed.Id, Assert.Single(calendar.DayTrades).Trade.Id);
+            Assert.Equal(-285m, Assert.Single(calendar.DaySummaries).Amount);
+        }
+        else Assert.Empty(calendar.DayTrades);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task PendingManualDeletionRefreshesActiveCalendarGridOnlyAfterCommit(bool cancel)
+    public async Task PendingManualDeletionRefreshesActiveCalendarAndSelectedDayOnlyAfterCommit(bool cancel)
     {
         var deletion = new FakeTradeDeletionStore { HoldDelete = true };
         var monthReader = new CommitCalendarReader();
-        var fixture = CreateFixture(calendarReader: monthReader,
+        var dayReader = new FakeTradingCalendarDayReader();
+        var fixture = CreateFixture(calendarReader: monthReader, calendarDayReader: dayReader,
             tradeDeletionStore: deletion);
         await fixture.Accounts.EnsureLoadedAsync();
         using var main = fixture.Main;
@@ -1005,6 +1058,7 @@ public sealed partial class MainWindowViewModelTests
         await fixture.Trades.EnsureLoadedAsync();
         TradeListItem row = Assert.Single(fixture.Trades.RecentTrades);
         deletion.Result = new(row.Id, []);
+        dayReader.Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date, [row], ct));
         Task write = fixture.Trades.DeleteTradeCommand.ExecuteAsync(row);
         await deletion.DeleteStarted.WaitAsync(TimeSpan.FromSeconds(10));
         main.NavigateCommand.Execute(NavigationDestination.Calendar);
@@ -1012,13 +1066,19 @@ public sealed partial class MainWindowViewModelTests
         await calendar.LoadTask;
         CalendarDayCell selected = calendar.Weeks.SelectMany(w => w.Days).Single(d => d.Date.Day == 10 && d.IsInDisplayedMonth);
         await calendar.SelectDayCommand.ExecuteAsync(selected);
+        Assert.Equal(row.Id, Assert.Single(calendar.DayTrades).Trade.Id);
+        dayReader.Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date, [], ct));
         if (cancel) fixture.Trades.DeleteTradeCommand.Cancel();
         else deletion.ReleaseDelete();
         if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => write);
         else await write;
         await calendar.LoadTask;
         Assert.Equal(cancel ? 1 : 2, monthReader.ReadCount);
+        Assert.Equal(cancel ? 1 : 2, dayReader.Calls.Count);
         Assert.Equal(selected.Date, calendar.SelectedDate);
+        Assert.Equal(!cancel, calendar.IsSelectedDayEmpty);
+        if (cancel) Assert.Equal(row.Id, Assert.Single(calendar.DayTrades).Trade.Id);
+        else Assert.Empty(calendar.DayTrades);
         await fixture.Accounts.EnsureLoadedAsync();
         Assert.Equal(cancel ? 1 : 2, fixture.AccountReader.CallCount);
     }
@@ -1035,7 +1095,7 @@ public sealed partial class MainWindowViewModelTests
     }
 
     private static async Task<(ViewModelFixture Fixture, DelayedTopstepStore Store)> CreateDelayedTopstepFixture(
-        ITradingCalendarReader? calendarReader = null)
+        ITradingCalendarReader? calendarReader = null, ITradingCalendarDayReader? calendarDayReader = null)
     {
         var changes = new TopstepImportChangeTracker();
         var store = new DelayedTopstepStore();
@@ -1056,7 +1116,7 @@ public sealed partial class MainWindowViewModelTests
             new TopstepImportPreviewBuilder(new TopstepCsvParser(), new TopstepTradeCandidateReconstructor(), new(instruments, accountReader)),
             new ImportTopstepTradesUseCase(store, TimeProvider.System, changes));
         ViewModelFixture fixture = CreateFixture(topstepChanges: changes, importViewModel: vm,
-            calendarReader: calendarReader);
+            calendarReader: calendarReader, calendarDayReader: calendarDayReader);
         fixture.Main.NavigateCommand.Execute(NavigationDestination.Import);
         await vm.EnsureLoadedAsync();
         vm.SelectedSource = vm.Sources.Single(s => s.Name == "TopstepX");
@@ -1137,15 +1197,18 @@ public sealed partial class MainWindowViewModelTests
 
     [Theory]
     [InlineData("Trades")]
+    [InlineData("Calendar")]
     [InlineData("Tradovate")]
     public async Task CommittedNotificationRefreshesVisibleAccountBalancesWithoutNavigation(string source)
     {
         var fixture = CreateFixture();
         using var main = fixture.Main;
+        main.NavigateCommand.Execute(NavigationDestination.Calendar);
+        var calendar = Assert.IsType<CalendarViewModel>(main.CurrentContentViewModel);
         main.NavigateCommand.Execute(NavigationDestination.Accounts);
         await fixture.Accounts.EnsureLoadedAsync();
         int before = fixture.AccountReader.CallCount;
-        object publisher = source == "Trades" ? fixture.Trades : fixture.Import;
+        object publisher = source == "Trades" ? fixture.Trades : source == "Calendar" ? calendar : fixture.Import;
         string eventName = source == "Tradovate" ? "ImportCommitted" : "TradeDataCommitted";
         // Exercise the actual shell event subscription without inventing a second import/write workflow.
         var handler = Assert.IsAssignableFrom<Delegate>(publisher.GetType().GetField(eventName,
@@ -1166,8 +1229,10 @@ public sealed partial class MainWindowViewModelTests
         AppTheme? effectiveTheme = null,
         TopstepImportChangeTracker? topstepChanges = null,
         ImportViewModel? importViewModel = null,
+        ITradingCalendarDayReader? calendarDayReader = null,
         ITradingCalendarReader? calendarReader = null,
         FakeTradeDeletionStore? tradeDeletionStore = null,
+        TradesViewModel? calendarEditor = null,
         JournalViewModel? journalViewModel = null,
         IDailyJournalStatusReader? journalStatusReader = null,
         IDailyJournalRepository? calendarJournalRepository = null,
@@ -1341,7 +1406,7 @@ public sealed partial class MainWindowViewModelTests
             new FakeDialogService(), new JournalTradeContextViewModel(journalReader, new FakeTradingAccountReader()), timeProvider);
         var main = new MainWindowViewModel(
             dashboard,
-            new CalendarViewModel(calendarReader ?? new EmptyCalendarReader(), timeProvider, new FakeTradingCalendarDayReader(), new FakeTradingAccountReader(), journalStatusReader: journalStatusReader,
+            new CalendarViewModel(calendarReader ?? new EmptyCalendarReader(), timeProvider, calendarDayReader ?? new FakeTradingCalendarDayReader(), new FakeTradingAccountReader(), tradeEditor: calendarEditor, journalStatusReader: journalStatusReader,
                 journalRepository: calendarJournalRepository, journalDialogs: calendarJournalDialogs),
             journal,
             accounts,

@@ -3,8 +3,10 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Threading;
+using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Application.Journals;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
+using PersonalTradingJournal.Desktop.Tests.Trades;
 using PersonalTradingJournal.Desktop.ViewModels.Calendar;
 using PersonalTradingJournal.Desktop.Views.Calendar;
 
@@ -81,14 +83,21 @@ public sealed partial class CalendarDayModalTests
     }
 
     [Theory]
-    [InlineData("Light")]
-    [InlineData("Dark")]
-    public async Task JournalActionStaysInlineAndProtectedModalCloseKeepsJournalDraft(string theme)
+    [InlineData("Light", false)]
+    [InlineData("Dark", true)]
+    public async Task JournalActionStaysInlineAndProtectedModalCloseKeepsTradeAndJournalDrafts(string theme, bool veto)
     {
         var date = new DateOnly(2026, 9, 5);
+        var row = CalendarDayDetailsTests.Row(date, 10, 9);
+        var detail = TradesViewModelTests.CreateEditableTradeDetail(row, null);
+        var details = new FakeTradeDetailReader(); details.EnqueueResult(detail); details.EnqueueResult(detail);
+        var editor = TradesViewModelTests.CreateViewModel(tradeDetailReader: details,
+            reader: TradesViewModelTests.CreateEditReferenceReader(detail));
+        var dayReader = new FakeTradingCalendarDayReader { Handler = (query, ct) => Task.FromResult(
+            TradingCalendarDayDetails.Create(query.Date, [row], ct)) };
         var journalRepository = new FakeDailyJournalRepository();
         var journalDialogs = new FakeDialogService();
-        var vm = await CalendarSummaryFixture.CreateAsync(journalStatusReader: journalRepository, journalRepository: journalRepository, journalDialogs: journalDialogs);
+        var vm = await CalendarSummaryFixture.CreateAsync(dayReader, editor, journalRepository, journalRepository, journalDialogs);
         await OnSta(() =>
         {
             var dispatcher = Dispatcher.CurrentDispatcher;
@@ -111,11 +120,17 @@ public sealed partial class CalendarDayModalTests
                     try
                     {
                         var dialog = Assert.IsType<CalendarDayDialogWindow>(view.DayDialog);
-                        await vm.DayJournalLoadTask; dialog.UpdateLayout();
+                        await vm.DayLoadTask; dialog.UpdateLayout();
                         var content = (CalendarDayDetailsView)dialog.FindName("DayContent");
                         var button = (Button)content.FindName("DayJournalAction");
                         Assert.True(button.IsEnabled);
                         Assert.Equal("Add Journal", button.Content);
+                        if (veto)
+                        {
+                            await vm.ViewTradeCommand.ExecuteAsync(row);
+                            await editor.ShowSelectedTradeEditCommand.ExecuteAsync(null);
+                            editor.EntryPriceText = "local unsaved edit";
+                        }
                         Assert.Same(vm.AddDayJournalCommand, button.Command);
                         button.Command.Execute(null);
                         await vm.AddDayJournalCommand.ExecutionTask!;
@@ -131,13 +146,21 @@ public sealed partial class CalendarDayModalTests
                         Assert.Equal(date.ToDateTime(TimeOnly.MinValue), journal.SelectedDate);
                         Assert.Null(journal.SelectedAccount.Id);
                         journal.Text = "Keep modal draft";
-                        dialog.Close(); // Journal unsaved-change veto.
+                        dialog.Close(); // Trade edit or Journal unsaved-change veto.
                         Assert.Same(dialog, view.DayDialog);
                         Assert.Equal("Keep modal draft", journal.Text);
+                        if (veto)
+                        {
+                            Assert.Equal("local unsaved edit", editor.EntryPriceText);
+                            Assert.True(editor.IsTradeEditVisible);
+                            editor.CancelTradeEditCommand.Execute(null);
+                            dialog.Close();
+                            Assert.Same(dialog, view.DayDialog); // Journal now independently vetoes.
+                        }
                         journalDialogs.ConfirmationResult = true;
                         dialog.Close();
                     }
-                    catch (Exception error) { failure = error; journalDialogs.ConfirmationResult = true; view.DayDialog?.Close(); }
+                    catch (Exception error) { failure = error; journalDialogs.ConfirmationResult = true; editor.CancelTradeEditCommand.Execute(null); view.DayDialog?.Close(); }
                 }));
                 cell.RaiseEvent(new RoutedEventArgs(CalendarDayHost.InvokedEvent));
                 Pump();
@@ -150,7 +173,7 @@ public sealed partial class CalendarDayModalTests
                 Assert.Equal("All currencies", vm.SelectedCurrency);
                 Assert.Null(vm.SelectedAccount.Id);
             }
-            finally { owner.Close(); }
+            finally { editor.CancelTradeEditCommand.Execute(null); owner.Close(); }
         });
     }
 

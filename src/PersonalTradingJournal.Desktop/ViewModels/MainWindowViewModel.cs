@@ -180,6 +180,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         _dashboardViewModel.OpenTradeAsync = OpenReadOnlyTradeAsync;
         if (_breakdownViewModel is not null) _breakdownViewModel.OpenTradesAsync = OpenBreakdownTradesAsync;
         _tradesViewModel.ReturnToBreakdownAsync = ReturnToBreakdownAsync;
+        _calendarViewModel.TradeDataCommitted += OnCalendarTradeCommitted;
         _calendarViewModel.OpenJournalAsync = OpenCalendarJournalAsync;
         _journalViewModel.JournalDataCommitted += OnJournalDataCommitted;
         foreach (var period in _periodReviews?.All ?? [])
@@ -324,6 +325,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         _tradesViewModel.TradeDataCommitted -= OnTradeDataCommitted;
         _accountsViewModel.TradeDataCommitted -= OnAccountTradesDeleted;
         _dashboardViewModel.OpenTradeAsync = null;
+        _calendarViewModel.TradeDataCommitted -= OnCalendarTradeCommitted;
         _calendarViewModel.OpenJournalAsync = null;
         _journalViewModel.JournalDataCommitted -= OnJournalDataCommitted;
         _dashboardViewModel.Deactivate();
@@ -730,6 +732,24 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         {
             _instrumentsViewModel.InvalidateLoadedDataAfterExternalImport();
         }
+    }
+
+    private void OnCalendarTradeCommitted(object? sender, EventArgs e)
+    {
+        if (_disposed) return;
+        if (_dispatcher is not null && !_dispatcher.CheckAccess())
+        {
+            _ = _dispatcher.BeginInvoke(() => OnCalendarTradeCommitted(sender, e));
+            return;
+        }
+        _tradesViewModel.InvalidateLoadedDataAfterExternalImport();
+        _dashboardViewModel.OnDataCommitted();
+        _breakdownViewModel?.OnDataCommitted();
+        _accountsViewModel.InvalidateBalances(CurrentDestination == NavigationDestination.Accounts);
+        _journalViewModel.TradeContext.OnDataCommitted();
+        // Calendar's dedicated editor refreshes the modal after its save/reload completes.
+        _dailyReviewViewModel?.OnDataCommitted();
+        ActivePeriod?.OnDataCommitted();
     }
 
     private void OnAccountTradesDeleted(object? sender, EventArgs e)

@@ -33,7 +33,7 @@ public partial class CalendarDayDialogWindow : Window
             () =>
             {
                 _acceptedOwnerClose = true;
-                try { Close(); } // Explicitly end the Calendar day modal frame as well.
+                try { Close(); } // Explicitly end the Day Performance modal frame as well.
                 finally { _acceptedOwnerClose = false; }
                 if (DataContext is ViewModels.Calendar.CalendarViewModel vm) vm.CompleteDayDialogClose();
             })) e.Cancel = true;
@@ -67,8 +67,8 @@ public partial class CalendarDayDialogWindow : Window
 
         bool ContainsTooltip(DependencyObject element)
         {
-            // A tooltip popup can extend over the backdrop. Use its screen bounds to
-            // distinguish a tooltip interaction from an outside click.
+            // Chart tips intentionally do not capture input. Their popup can extend over
+            // the backdrop; use actual screen bounds rather than treating that as an outside click.
             if (element is FrameworkElement { ToolTip: ToolTip { IsOpen: true } tip } &&
                 PresentationSource.FromVisual(tip) is not null &&
                 new Rect(new Point(), tip.RenderSize).Contains(tip.PointFromScreen(screen))) return true;

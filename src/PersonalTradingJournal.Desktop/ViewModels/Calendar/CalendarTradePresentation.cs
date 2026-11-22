@@ -1,5 +1,7 @@
 using System.Globalization;
+using CommunityToolkit.Mvvm.ComponentModel;
 using PersonalTradingJournal.Application.Calendar;
+using PersonalTradingJournal.Desktop.ViewModels.Trades;
 using PersonalTradingJournal.Application.Common.Time;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Formatting;
@@ -8,7 +10,7 @@ namespace PersonalTradingJournal.Desktop.ViewModels.Calendar;
 
 /// <summary>Formatting only, over the selected day's authoritative browse row.</summary>
 public sealed class CalendarTradePresentation(TradeListItem trade, CalendarTradeClassification? classification = null,
-    CalendarTradeReferenceState? references = null)
+    CalendarTradeReferenceState? references = null) : ObservableObject
 {
     public TradeListItem Trade { get; } = trade;
     public string AccountText => references is null ? Trade.TradingAccountName
@@ -28,6 +30,9 @@ public sealed class CalendarTradePresentation(TradeListItem trade, CalendarTrade
         ? string.Join(", ", classification.Mistakes.Select(m => ReferenceName(m.Name, m.IsActive, "Mistake"))) : "None assigned";
     private static string ReferenceName(string? name, bool? active, string kind) => name is null
         ? $"Unavailable {kind}" : name + (active == false ? " (inactive)" : "");
+    private bool _isExpanded;
+    public bool IsExpanded { get => _isExpanded; internal set => SetProperty(ref _isExpanded, value); }
+    public TradesViewModel? Editor { get; internal set; }
     public string SizeText => Trade.Size.ToString("0.############################", CultureInfo.CurrentCulture);
     public decimal? Amount => Trade.EffectiveNet.Value;
     public bool IsEstimated => Trade.EffectiveNet.IsEstimated;
