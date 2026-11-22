@@ -73,7 +73,22 @@ public sealed class TradovateBoundPreviewTests
         await vm.BuildPreviewCommand.ExecuteAsync(null);
         Assert.True(vm.FillsSource.IsVerified);
         Assert.True(vm.CashHistorySource.IsVerified);
-        picker.Content = FillsCsv.Replace("2026-09-10 13:30:03Z", "2026-09-10 14:30:03Z");
+        const string extraFill = "\nEXTRA,EXTRA,SYN-COST,MNQU6,Buy,1,20000,09/09/2026 16:30:03,2026-09-09 14:30:03.999Z,2026-09-09,0.52,true";
+        picker.Content = FillsCsv.Replace("2026-09-10 13:", "2026-09-10 14:") + extraFill;
+        await vm.SelectFillsCommand.ExecuteAsync(null);
+        accounts.EnqueueDetailResult(account);
+        await vm.BuildPreviewCommand.ExecuteAsync(null);
+        Assert.Contains("0 missing, 1 extra", vm.WorkflowErrorMessage);
+        Assert.False(vm.ConfirmImportCommand.CanExecute(null));
+
+        picker.Content = FillsCsv.Replace("2026-09-10 13:30:03Z", "2026-09-10 14:30:03Z") + extraFill;
+        await vm.SelectFillsCommand.ExecuteAsync(null);
+        accounts.EnqueueDetailResult(account);
+        await vm.BuildPreviewCommand.ExecuteAsync(null);
+        Assert.Contains("UTC and display timestamps", vm.WorkflowErrorMessage);
+        Assert.False(vm.ConfirmImportCommand.CanExecute(null));
+        // A printed second ahead of the UTC instant is contradictory, even at .999 seconds.
+        picker.Content = FillsCsv.Replace("2026-09-10 13:30:03Z", "2026-09-10 13:30:02.999Z");
         await vm.SelectFillsCommand.ExecuteAsync(null);
         accounts.EnqueueDetailResult(account);
         await vm.BuildPreviewCommand.ExecuteAsync(null);
@@ -217,7 +232,8 @@ public sealed class TradovateBoundPreviewTests
                                 Assert.Contains("Gross 4.00", vm.VerifiedCostSummary);
                                 Assert.Contains("Costs 2.08", vm.VerifiedCostSummary);
                                 Assert.Contains("Net 1.92", vm.VerifiedCostSummary);
-                                Assert.Equal(existing, vm.VerifiedCostSummary!.Contains("UTC+02:00 throughout"));
+                                Assert.Contains(existing ? "UTC+02:00 throughout" : "agrees with Europe/Sofia",
+                                    vm.VerifiedCostSummary);
                                 Assert.Equal("Fills UTC", vm.PreviewSummary!.SourceTimeZoneId);
                                 Assert.Equal(existing ? 10 : 9, vm.PreviewSummary.PeriodStartNewYork!.Value.Hour);
                                 var verifiedText = Assert.IsType<TextBlock>(view.FindName("VerifiedCostPreview"));

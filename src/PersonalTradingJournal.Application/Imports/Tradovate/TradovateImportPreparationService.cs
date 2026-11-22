@@ -77,10 +77,13 @@ public sealed class TradovateImportPreparationService
                 "The selected Trading Account is inactive and is used without reactivation."));
         }
 
-        var fillsById = costSources is null ? null : TradovateCostReconciler.MatchFills(
-            costSources.Fills, reconstruction.Executions.Select(e => e.ExternalFillId));
+        IReadOnlyDictionary<string, TradovateCostFill>? fillsById = null;
         if (costSources is not null)
+        {
             TradovateCostReconciler.ValidateDisplayClock(costSources.Fills);
+            fillsById = TradovateCostReconciler.MatchFills(
+                costSources.Fills, reconstruction.Executions.Select(e => e.ExternalFillId));
+        }
         string sourceClock = fillsById is null ? TradingTimePolicy.TradovateSourceTimeZoneId : "Fills UTC";
         var preparedByKey = new Dictionary<ExecutionKey, TradovatePreparedExecution>();
         var preparedExecutions = new List<TradovatePreparedExecution>(

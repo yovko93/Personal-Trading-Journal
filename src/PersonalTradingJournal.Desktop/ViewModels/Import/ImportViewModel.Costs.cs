@@ -165,8 +165,10 @@ public sealed partial class ImportViewModel
         string trading = FormattableString.Invariant($"Verified USD · {costs.Start:yyyy-MM-dd}–{costs.End:yyyy-MM-dd} · Gross {costs.Gross:N2} · Costs {costs.Costs:N2} · Trade Net {costs.Net:N2}.");
         string cash = costs.ManualAdjustmentCount == 0 ? string.Empty : Environment.NewLine +
             FormattableString.Invariant($"Manual Adjustment ({costs.ManualAdjustmentCount}): {costs.ManualAdjustmentTotal:N2} USD · Total cash movement {costs.TotalCashMovement:N2} USD. Adjustments are shown for reconciliation only and are excluded from Trades and Account Current Balance.");
-        string clock = costs.UsesFixedOffsetDisplay ? Environment.NewLine +
-            "Fills display uses UTC+02:00 throughout this export. Trade times use the matched Fills UTC instants." : string.Empty;
+        string clock = Environment.NewLine + (costs.UsesFixedOffsetDisplay
+            ? "Fills display uses UTC+02:00 throughout this export."
+            : "Fills display agrees with Europe/Sofia throughout this export.") +
+            " Trade times use the matched Fills UTC instants.";
         VerifiedCostSummary = trading + cash + clock + Environment.NewLine +
             "Existing imports keep their saved timestamps and precision. Eligible Trades receive unknown costs only; conflicts block import.";
     }

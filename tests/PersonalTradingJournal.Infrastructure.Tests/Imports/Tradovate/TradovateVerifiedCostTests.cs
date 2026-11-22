@@ -287,7 +287,7 @@ public sealed class TradovateVerifiedCostTests
     private const string CrossSeasonFills =
         "_id,Fill ID,Account,Contract,B/S,Quantity,Price,Timestamp,_timestamp,_tradeDate,commission,_active\n" +
         "B1,B1,SIM-COST,MNQZ6,Buy,1,100,10/23/2026 23:59:59,2026-10-23 21:59:59.123Z,2026-10-23,0.52,true\n" +
-        "S1,S1,SIM-COST,MNQZ6,Sell,1,101,10/24/2026 00:00:00,2026-10-23 22:00:00.234Z,2026-10-26,0.52,true\n" +
+        "S1,S1,SIM-COST,MNQZ6,Sell,1,101,10/24/2026 00:00:00,2026-10-23 22:00:00.9999999Z,2026-10-26,0.52,true\n" +
         "B2,B2,SIM-COST,MNQZ6,Buy,1,100,10/26/2026 23:59:58,2026-10-26 21:59:58.345Z,2026-10-26,0.52,true\n" +
         "S2,S2,SIM-COST,MNQZ6,Sell,1,101,10/26/2026 23:59:59,2026-10-26 21:59:59.456Z,2026-10-26,0.52,true";
     private const string CrossSeasonCash =
@@ -299,17 +299,22 @@ public sealed class TradovateVerifiedCostTests
         "SIM-COST,C4,10/26/2026 23:59:59,2026-10-26,-0.52,99.92,Commission,USD,MNQZ6\n" +
         "SIM-COST,P2,10/26/2026 23:59:59,2026-10-26,2.00,101.92,Trade Paired,USD,MNQZ6";
 
-    [Fact]
-    public async Task FixedDisplayClockPersistsMatchedUtcAndCalendarUsesEachNewYorkClose()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FixedDisplayClockPersistsMatchedUtcAndCalendarUsesEachNewYorkClose(bool singleSeason)
     {
         await using var db = await ReaderTestDatabase.CreateAsync();
-        var request = await Prepare(db, CrossSeasonPerformance, CrossSeasonFills, CrossSeasonCash);
+        var (performance, fills, cash) = FixedClockExports(singleSeason);
+        var request = await Prepare(db, performance, fills, cash);
         var candidates = request.Preparation.PreparedCandidates.OrderBy(c => c.OpenedAtUtc).ToArray();
-        var firstClose = new DateTimeOffset(2026, 10, 23, 22, 0, 0, TimeSpan.Zero).AddMilliseconds(234);
-        var secondClose = new DateTimeOffset(2026, 10, 26, 21, 59, 59, TimeSpan.Zero).AddMilliseconds(456);
+        int month = singleSeason ? 9 : 10;
+        int secondDay = singleSeason ? 25 : 26;
+        var firstClose = new DateTimeOffset(2026, month, 23, 22, 0, 0, TimeSpan.Zero).AddTicks(9_999_999);
+        var secondClose = new DateTimeOffset(2026, month, secondDay, 21, 59, 59, TimeSpan.Zero).AddMilliseconds(456);
         Assert.Equal(firstClose, candidates[0].ClosedAtUtc);
         Assert.Equal(secondClose, candidates[1].ClosedAtUtc);
-        Assert.Equal(new TimeSpan(18, 0, 0).Add(TimeSpan.FromMilliseconds(234)), candidates[0].ClosedAtNewYork!.Value.TimeOfDay);
+        Assert.Equal(new TimeSpan(18, 0, 0).Add(TimeSpan.FromTicks(9_999_999)), candidates[0].ClosedAtNewYork!.Value.TimeOfDay);
         Assert.Equal(new TimeSpan(17, 59, 59).Add(TimeSpan.FromMilliseconds(456)), candidates[1].ClosedAtNewYork!.Value.TimeOfDay);
         Assert.All(request.Preparation.PreparedExecutions, execution =>
             Assert.Equal(request.CostSources!.Fills.Single(f => f.Id == execution.ExternalFillId).UtcTimestamp, execution.ExecutedAtUtc));
@@ -325,21 +330,24 @@ public sealed class TradovateVerifiedCostTests
 
         Guid accountId = request.Preparation.AccountSnapshot!.TradingAccountId;
         var calendar = db.ServiceProvider.GetRequiredService<ITradingCalendarDayReader>();
-        Assert.Empty((await calendar.GetAsync(TradingCalendarDayQuery.ForTradingDate(new(2026, 10, 23), accountId))).Trades);
-        foreach (var (day, close) in new[] { (24, firstClose), (26, secondClose) })
+        Assert.Empty((await calendar.GetAsync(TradingCalendarDayQuery.ForTradingDate(new(2026, month, 23), accountId))).Trades);
+        foreach (var (day, close) in new[] { (24, firstClose), (secondDay, secondClose) })
         {
-            var result = await calendar.GetAsync(TradingCalendarDayQuery.ForTradingDate(new(2026, 10, day), accountId));
+            var result = await calendar.GetAsync(TradingCalendarDayQuery.ForTradingDate(new(2026, month, day), accountId));
             Assert.Equal(close, Assert.Single(result.Trades).ClosedAtUtc);
             Assert.Equal(.96m, Assert.Single(result.Currencies).Metrics.EffectiveNet.Total);
         }
-        Assert.Empty((await calendar.GetAsync(TradingCalendarDayQuery.ForTradingDate(new(2026, 10, 27), accountId))).Trades);
+        Assert.Empty((await calendar.GetAsync(TradingCalendarDayQuery.ForTradingDate(new(2026, month, secondDay + 1), accountId))).Trades);
     }
 
-    [Fact]
-    public async Task ShiftedPerformanceOnlyImportBlocksVerifiedPreviewAndWriteWithoutRewriting()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ShiftedPerformanceOnlyImportBlocksVerifiedPreviewAndWriteWithoutRewriting(bool singleSeason)
     {
         await using var db = await ReaderTestDatabase.CreateAsync();
-        var original = await Prepare(db, CrossSeasonPerformance, CrossSeasonFills, CrossSeasonCash, useFillsTimes: false);
+        var (performance, fills, cash) = FixedClockExports(singleSeason);
+        var original = await Prepare(db, performance, fills, cash, useFillsTimes: false);
         var store = new TradovateImportStore(db.ContextFactory);
         Assert.Equal(2, (await store.ImportAsync(original with { CostSources = null })).ImportedTradeCount);
         Guid accountId = original.Preparation.AccountSnapshot!.TradingAccountId;
@@ -349,7 +357,7 @@ public sealed class TradovateVerifiedCostTests
         var descriptions = db.ServiceProvider.GetRequiredService<IImportedTradeDescriptionStore>();
         await descriptions.SaveDescriptionAsync(originalTrades[0].TradeId, "Manual note");
 
-        var verified = await Prepare(db, CrossSeasonPerformance, CrossSeasonFills, CrossSeasonCash, accountId: accountId);
+        var verified = await Prepare(db, performance, fills, cash, accountId: accountId);
         string? conflict = await store.FindVerifiedImportConflictAsync(verified.Preparation);
         Assert.Contains("different timestamp for the same fill ID", conflict);
         var result = await store.ImportAsync(verified);
@@ -360,6 +368,16 @@ public sealed class TradovateVerifiedCostTests
             after.Select(t => (t.TradeId, t.ClosedAtUtc, t.NetPnL)));
         Assert.Equal("Manual note", (await details.GetByIdAsync(originalTrades[0].TradeId))!.Description);
         Assert.All(await context.TradeExecutions.ToArrayAsync(), execution => Assert.Null(execution.Commission));
+    }
+
+    private static (string Performance, string Fills, string Cash) FixedClockExports(bool singleSeason)
+    {
+        static string InSeptember(string csv) => csv.Replace("10/26/2026", "09/25/2026")
+            .Replace("2026-10-26", "2026-09-25").Replace("10/23/2026", "09/23/2026")
+            .Replace("10/24/2026", "09/24/2026").Replace("2026-10-23", "2026-09-23");
+        return singleSeason
+            ? (InSeptember(CrossSeasonPerformance), InSeptember(CrossSeasonFills), InSeptember(CrossSeasonCash))
+            : (CrossSeasonPerformance, CrossSeasonFills, CrossSeasonCash);
     }
 
     private static async Task<TradovateImportRequest> Prepare(ReaderTestDatabase db,

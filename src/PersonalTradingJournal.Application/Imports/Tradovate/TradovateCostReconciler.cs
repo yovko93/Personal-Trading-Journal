@@ -127,8 +127,12 @@ public static class TradovateCostReconciler
         if (fills.Select(f => f.Id).Distinct(StringComparer.Ordinal).Count() != fills.Count)
             throw new TradovateCostSourceException("Duplicate fill IDs are ambiguous. Export each source once.");
         var byId = fills.ToDictionary(f => f.Id, StringComparer.Ordinal);
-        if (!performanceIds.ToHashSet(StringComparer.Ordinal).SetEquals(byId.Keys))
-            throw new TradovateCostSourceException("Performance and Fills IDs do not match exactly. Partial or extra activity cannot verify Net.");
+        var expected = performanceIds.ToHashSet(StringComparer.Ordinal);
+        int missing = expected.Count(id => !byId.ContainsKey(id));
+        int extra = byId.Keys.Count(id => !expected.Contains(id));
+        if (missing != 0 || extra != 0)
+            throw new TradovateCostSourceException(
+                $"Performance and Fills IDs do not match exactly ({missing} missing, {extra} extra). Select Fills covering the same activity as Performance.");
         return byId;
     }
 
@@ -138,19 +142,17 @@ public static class TradovateCostReconciler
         var fixedOffset = TimeSpan.FromHours(2);
         bool allSofia = true;
         bool allFixed = true;
-        bool includesStandardTime = false;
         foreach (var fill in fills)
         {
             var utc = fill.UtcTimestamp.AddTicks(-(fill.UtcTimestamp.Ticks % TimeSpan.TicksPerSecond));
             var sofia = TradingTimePolicy.ConvertUtcToLocal(utc, TradingTimePolicy.TradovateSourceTimeZoneId);
             allSofia &= fill.LocalTimestamp == sofia.DateTime;
             allFixed &= fill.LocalTimestamp == utc.ToOffset(fixedOffset).DateTime;
-            includesStandardTime |= sofia.Offset == fixedOffset;
         }
 
         if (allSofia) return false;
-        if (allFixed && includesStandardTime) return true;
-        throw new TradovateCostSourceException("Fills UTC and display timestamps do not agree across the export with Sofia time or the supported cross-season UTC+02:00 display.");
+        if (allFixed) return true;
+        throw new TradovateCostSourceException("Fills UTC and display timestamps do not agree across the export with Europe/Sofia time or a consistent UTC+02:00 display.");
     }
 
     private static TradovateCostFill Later(TradovateCostFill a, TradovateCostFill b) => a.UtcTimestamp >= b.UtcTimestamp ? a : b;
