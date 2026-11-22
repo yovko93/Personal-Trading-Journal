@@ -240,15 +240,19 @@ public sealed class TradovateImportAcceptanceTests
                 picker.Csv = "Account,Transaction ID,Timestamp,Date,Delta,Amount,Cash Change Type,Currency,Contract\n" +
                     "SIM-COST,C1,09/10/2026 16:30:03,2026-09-10,-1.04,98.96,Commission,USD,MNQU6\n" +
                     "SIM-COST,C2,09/10/2026 16:30:15,2026-09-10,-1.04,97.92,Commission,USD,MNQU6\n" +
-                    "SIM-COST,P1,09/10/2026 16:30:15,2026-09-10,5.00,102.92,Trade Paired,USD,MNQU6";
+                    "SIM-COST,P1,09/10/2026 16:30:15,2026-09-10,5.00,102.92,Trade Paired,USD,MNQU6\n" +
+                    "SIM-COST,A1,09/10/2026 16:35:00,2026-09-10,-7.50,95.42,Manual Adjustment,USD,";
                 await vm.SelectCashHistoryCommand.ExecuteAsync(null);
                 await vm.BuildPreviewCommand.ExecuteAsync(null);
                 Assert.Equal(ImportWorkflowPhase.PreviewReady, vm.Phase);
                 Assert.Contains("Gross 5.00", vm.VerifiedCostSummary);
                 Assert.Contains("Costs 2.08", vm.VerifiedCostSummary);
-                Assert.Contains("Net 2.92", vm.VerifiedCostSummary);
+                Assert.Contains("Trade Net 2.92", vm.VerifiedCostSummary);
+                Assert.Contains("Manual Adjustment (1): -7.50 USD", vm.VerifiedCostSummary);
+                Assert.Contains("Total cash movement -4.58 USD", vm.VerifiedCostSummary);
                 dialog.ConfirmationResult = false;
                 await vm.ConfirmImportCommand.ExecuteAsync(null);
+                Assert.Contains(vm.VerifiedCostSummary!, dialog.ConfirmationRequest!.Message);
                 Assert.Equal(replay == 0 ? 1 : 2, notifications);
                 dialog.ConfirmationResult = true;
                 await vm.ConfirmImportCommand.ExecuteAsync(null);

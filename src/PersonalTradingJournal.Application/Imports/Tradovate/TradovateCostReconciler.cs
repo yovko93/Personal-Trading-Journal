@@ -27,11 +27,18 @@ public static class TradovateCostReconciler
         Require(fills.Select(f => f.Id).Distinct(StringComparer.Ordinal).Count() == fills.Count &&
             cash.Select(c => c.Id).Distinct(StringComparer.Ordinal).Count() == cash.Count,
             "Duplicate fill or cash transaction IDs are ambiguous. Export each source once.");
-        Require(cash.All(c => c.Type is "Commission" or "Trade Paired"),
-            "Cash History contains unsupported cash movements. Select an isolated trading period without transfers or other charges.");
+        foreach (var entry in cash)
+            entry.ValidateMovement();
+
+        var start = fills.Min(f => f.TradingDate);
+        var end = fills.Max(f => f.TradingDate);
+        var adjustments = cash.Where(c => c.IsManualAdjustment).ToArray();
+        Require(adjustments.All(c => c.TradingDate >= start && c.TradingDate <= end),
+            "Cash History Manual Adjustment falls outside the verified Fills period.");
         Require(fills.All(f => f.Quantity > 0 && f.Quantity == decimal.Truncate(f.Quantity) &&
             f.Commission >= 0 && f.Commission == decimal.Round(f.Commission, 2)),
             "Fill quantity or commission is invalid; USD charges must be nonnegative whole cents.");
+        bool usesFixedOffsetDisplay = ValidateDisplayClock(fills);
         var byId = fills.ToDictionary(f => f.Id, StringComparer.Ordinal);
         var executions = preparation.PreparedCandidates.SelectMany((c, i) => c.OrderedExecutions.Select(e => (Execution: e, Candidate: i))).ToArray();
         Require(executions.Select(e => e.Execution.ExternalFillId).ToHashSet(StringComparer.Ordinal).SetEquals(byId.Keys),
@@ -52,9 +59,6 @@ public static class TradovateCostReconciler
                 a.Execution.Price == fill.Price && a.Execution.SourceLocalTimestamp == fill.LocalTimestamp) &&
                 group.Sum(a => a.Execution.Quantity) == fill.Quantity,
                 "Fill price, side, timestamp, symbol or complete matched quantity differs from Performance.");
-            var local = TradingTimePolicy.ConvertUtcToLocal(fill.UtcTimestamp, TradingTimePolicy.TradovateSourceTimeZoneId).DateTime;
-            Require(local.AddTicks(-(local.Ticks % TimeSpan.TicksPerSecond)) == fill.LocalTimestamp,
-                "Fills UTC and display timestamps disagree with the configured Sofia source zone.");
             var matched = pairsByFill[fill.Id].ToArray();
             Require(matched.Sum(p => p.MatchedQuantity) == fill.Quantity && matched.All(p =>
                 p.BrokerSymbol == fill.Symbol && (fill.Side == ExecutionSide.Buy ? p.BuyFillId : p.SellFillId) == fill.Id),
@@ -109,9 +113,32 @@ public static class TradovateCostReconciler
         }
         decimal sourceGross = pairs.Sum(p => p.SourceReportedPnL);
         decimal costs = fills.Sum(f => f.Commission);
-        Require(cash.Sum(c => c.Delta) == sourceGross - costs && result.Sum(a => a.Commission) == costs,
-            "Net cash or allocation reconciliation failed.");
-        return new(sourceGross, costs, fills.Min(f => f.TradingDate), fills.Max(f => f.TradingDate), result.AsReadOnly());
+        var verified = new TradovateVerifiedCosts(sourceGross, costs, start, end, result.AsReadOnly(),
+            adjustments.Length, adjustments.Sum(c => c.Delta), usesFixedOffsetDisplay);
+        Require(cash.Sum(c => c.Delta) == verified.TotalCashMovement && result.Sum(a => a.Commission) == costs,
+            "Total cash movement or commission allocation reconciliation failed.");
+        return verified;
+    }
+
+    private static bool ValidateDisplayClock(IReadOnlyList<TradovateCostFill> fills)
+    {
+        // Check one convention for the whole export. Never choose a clock per row.
+        var fixedOffset = TimeSpan.FromHours(2);
+        bool allSofia = true;
+        bool allFixed = true;
+        bool includesStandardTime = false;
+        foreach (var fill in fills)
+        {
+            var utc = fill.UtcTimestamp.AddTicks(-(fill.UtcTimestamp.Ticks % TimeSpan.TicksPerSecond));
+            var sofia = TradingTimePolicy.ConvertUtcToLocal(utc, TradingTimePolicy.TradovateSourceTimeZoneId);
+            allSofia &= fill.LocalTimestamp == sofia.DateTime;
+            allFixed &= fill.LocalTimestamp == utc.ToOffset(fixedOffset).DateTime;
+            includesStandardTime |= sofia.Offset == fixedOffset;
+        }
+
+        if (allSofia) return false;
+        if (allFixed && includesStandardTime) return true;
+        throw new TradovateCostSourceException("Fills UTC and display timestamps do not agree across the export with Sofia time or the supported cross-season UTC+02:00 display.");
     }
 
     private static TradovateCostFill Later(TradovateCostFill a, TradovateCostFill b) => a.UtcTimestamp >= b.UtcTimestamp ? a : b;

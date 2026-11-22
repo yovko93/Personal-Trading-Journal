@@ -73,6 +73,12 @@ public sealed class TradovateBoundPreviewTests
         await vm.BuildPreviewCommand.ExecuteAsync(null);
         Assert.True(vm.FillsSource.IsVerified);
         Assert.True(vm.CashHistorySource.IsVerified);
+        picker.Content = FillsCsv.Replace("2026-09-10 13:30:03Z", "2026-09-10 14:30:03Z");
+        await vm.SelectFillsCommand.ExecuteAsync(null);
+        accounts.EnqueueDetailResult(account);
+        await vm.BuildPreviewCommand.ExecuteAsync(null);
+        Assert.Contains("UTC and display timestamps", vm.WorkflowErrorMessage);
+        Assert.False(vm.ConfirmImportCommand.CanExecute(null));
         picker.Content = FillsCsv;
         picker.FileName = "replacement-fills.csv";
         await vm.SelectFillsCommand.ExecuteAsync(null);
@@ -80,10 +86,12 @@ public sealed class TradovateBoundPreviewTests
         Assert.False(vm.FillsSource.IsVerified);
         Assert.False(vm.CashHistorySource.IsVerified);
         Assert.False(vm.ConfirmImportCommand.CanExecute(null));
-        picker.Content = "invalid";
+        picker.Content = CashCsv + "\nSYN-COST,A1,12/10/2026 16:30:16,2026-12-10,7,108.92,Transfer,USD,";
         picker.FileName = "invalid-cash.csv";
         await vm.SelectCashHistoryCommand.ExecuteAsync(null);
         Assert.Equal(picker.FileName, vm.CashHistorySource.FileName);
+        Assert.Contains("Unsupported Cash History movement 'Transfer'", vm.CashHistorySource.Status);
+        Assert.Equal(vm.WorkflowErrorMessage, vm.CashHistorySource.Status);
         Assert.True(vm.CashHistorySource.IsError);
         Assert.False(vm.FillsSource.IsError);
         vm.ClearCostSourcesCommand.Execute(null);
@@ -184,7 +192,7 @@ public sealed class TradovateBoundPreviewTests
                                 Complete(AssertReadOnly());
 
                                 // Supporting exports remain read-only until the same explicit confirmation.
-                                picker.Content = FillsCsv;
+                                picker.Content = existing ? FillsCsv.Replace("2026-09-10 13:", "2026-09-10 14:") : FillsCsv;
                                 picker.FileName = "synthetic-fills-september-through-december-2026.csv";
                                 Complete(vm.SelectFillsCommand.ExecuteAsync(null));
                                 CheckRow("FillsDetails", "Pending · select the other export");
@@ -209,6 +217,7 @@ public sealed class TradovateBoundPreviewTests
                                 Assert.Contains("Gross 4.00", vm.VerifiedCostSummary);
                                 Assert.Contains("Costs 2.08", vm.VerifiedCostSummary);
                                 Assert.Contains("Net 1.92", vm.VerifiedCostSummary);
+                                Assert.Equal(existing, vm.VerifiedCostSummary!.Contains("UTC+02:00 throughout"));
                                 var verifiedText = Assert.IsType<TextBlock>(view.FindName("VerifiedCostPreview"));
                                 Assert.Equal(vm.VerifiedCostSummary, verifiedText.Text);
                                 CheckRow("FillsDetails", "✓ Verified");
@@ -223,7 +232,8 @@ public sealed class TradovateBoundPreviewTests
                                 picker.Content = "invalid";
                                 picker.FileName = "invalid-fills.csv";
                                 Complete(vm.SelectFillsCommand.ExecuteAsync(null));
-                                CheckRow("FillsDetails", "Invalid CSV. Replace the file.");
+                                Assert.Contains("expected headers", vm.WorkflowErrorMessage);
+                                CheckRow("FillsDetails", vm.WorkflowErrorMessage!);
                                 CheckRow("CashHistoryDetails", "Pending · select the other export");
                                 CheckSourceLayout(vm, theme, existing ? 360 : 960, existing ? 240 : 96, "invalid");
                                 Complete(vm.BuildPreviewCommand.ExecuteAsync(null));

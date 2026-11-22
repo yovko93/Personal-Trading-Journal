@@ -89,7 +89,7 @@ public sealed partial class ImportViewModel
             if (version != _workflowVersion) return;
             _costSourceError = error is TradovateCostSourceException ? error.Message :
                 "Supporting CSV could not be read within the import limits. Reselect a complete valid export.";
-            SetCostFileError(fills, "Invalid CSV. Replace the file.");
+            SetCostFileError(fills, _costSourceError);
             WorkflowErrorMessage = _costSourceError;
         }
         finally
@@ -159,7 +159,13 @@ public sealed partial class ImportViewModel
         var sources = new TradovateCostSources(_costFills, _costCash);
         var costs = TradovateCostReconciler.Reconcile(preparation, _reconstruction!.MatchedPairs, sources);
         _verifiedSources = sources;
-        VerifiedCostSummary = FormattableString.Invariant($"Verified USD · {costs.Start:yyyy-MM-dd}–{costs.End:yyyy-MM-dd} · Gross {costs.Gross:N2} · Costs {costs.Costs:N2} · Net {costs.Net:N2}. Existing imports: fill unknown costs only; preserve known costs, block conflicts.");
+        string trading = FormattableString.Invariant($"Verified USD · {costs.Start:yyyy-MM-dd}–{costs.End:yyyy-MM-dd} · Gross {costs.Gross:N2} · Costs {costs.Costs:N2} · Trade Net {costs.Net:N2}.");
+        string cash = costs.ManualAdjustmentCount == 0 ? string.Empty : Environment.NewLine +
+            FormattableString.Invariant($"Manual Adjustment ({costs.ManualAdjustmentCount}): {costs.ManualAdjustmentTotal:N2} USD · Total cash movement {costs.TotalCashMovement:N2} USD. Adjustments are shown for reconciliation only and are excluded from Trades and Account Current Balance.");
+        string clock = costs.UsesFixedOffsetDisplay ? Environment.NewLine +
+            "Fills display uses UTC+02:00 throughout this export. Trade timestamps retain the Performance import’s Europe/Sofia interpretation." : string.Empty;
+        VerifiedCostSummary = trading + cash + clock + Environment.NewLine +
+            "Existing imports: fill unknown costs only; preserve known costs, block conflicts.";
     }
 }
 

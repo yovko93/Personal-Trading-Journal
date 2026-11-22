@@ -25,12 +25,17 @@ public sealed class TradovateCostCsvParser : ITradovateCostCsvParser
     public async Task<IReadOnlyList<TradovateCashEntry>> ParseCashAsync(Stream source, CancellationToken cancellationToken = default)
     {
         var rows = await ReadAsync(source, ["Account", "Transaction ID", "Timestamp", "Date", "Delta", "Amount",
-            "Cash Change Type", "Currency", "Contract"], cancellationToken);
-        return rows.Select(r => new TradovateCashEntry(r["Transaction ID"], r["Account"], r["Currency"], r["Contract"],
-            Timestamp(r["Timestamp"]), Date(r["Date"]), r["Cash Change Type"], Number(r["Delta"]), Number(r["Amount"]))).ToArray();
+            "Cash Change Type", "Currency", "Contract"], cancellationToken, allowEmptyColumn: "Contract");
+        return rows.Select(r =>
+        {
+            var entry = new TradovateCashEntry(r["Transaction ID"], r["Account"], r["Currency"], r["Contract"],
+                Timestamp(r["Timestamp"]), Date(r["Date"]), r["Cash Change Type"], Number(r["Delta"]), Number(r["Amount"]));
+            entry.ValidateMovement();
+            return entry;
+        }).ToArray();
     }
 
-    private static async Task<IReadOnlyList<Dictionary<string, string>>> ReadAsync(Stream source, string[] required, CancellationToken token)
+    private static async Task<IReadOnlyList<Dictionary<string, string>>> ReadAsync(Stream source, string[] required, CancellationToken token, string? allowEmptyColumn = null)
     {
         var records = await CsvRecordReader.ReadNonBlankAsync(source, token);
         if (records.Count < 2 || records.Any(r => r.ErrorMessage is not null)) throw Invalid();
@@ -43,7 +48,7 @@ public sealed class TradovateCostCsvParser : ITradovateCostCsvParser
             token.ThrowIfCancellationRequested();
             if (record.Fields.Count != header.Count) throw Invalid();
             var values = header.Select((h, i) => (h, Value: record.Fields[i].Trim())).ToDictionary(v => v.h, v => v.Value, StringComparer.Ordinal);
-            if (required.Any(h => values[h].Length == 0)) throw Invalid();
+            if (required.Any(h => h != allowEmptyColumn && values[h].Length == 0)) throw Invalid();
             result.Add(values);
         }
         return result;

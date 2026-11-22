@@ -1,5 +1,38 @@
 # Tradovate verified costs
 
+## October exports
+
+On November 22, the read-only import probe reproduced the selection failure on develop at `fd7f5316b1da6fbd48f849ed167f3f8847cccd10`. On CSV line 1024 the October 27 Manual Adjustment had an empty Contract. The old `TradovateCostCsvParser.ReadAsync` rejected every empty required cell, before checking the movement type. The source panel replaced its diagnostic with “Invalid CSV”. The Contract header is still required. Commission and Trade Paired still need a contract. Manual Adjustment requires an empty Contract and a whole-cent Delta, and it participates in the same Account, currency, period, transaction ID, chronology and running-balance checks.
+
+| Read-only evidence | Rows | USD |
+| --- | ---: | ---: |
+| Performance matched Gross | 464 | 2,648.00 |
+| Fills commissions, exact ID set match with Performance | 770 unique fills | 1,277.12 |
+| Cash History Trade Paired | 459 | 2,648.00 |
+| Cash History Commission | 770 | −1,277.12 |
+| Verified Trade Net | 157 reconstructed Trades | **1,370.88** |
+| Cash History Manual Adjustment, October 27 | 1 | **−517.00** |
+| Total cash movement | 1,230 cash entries | **853.88** |
+
+After the row could be parsed, the original Sofia display-clock validation independently blocked cost verification. All 770 Fills displayed UTC+02:00 to the second. That matched Sofia for 155 fills and differed by one hour for 615 before the autumn clock change. Verified costs accept the standard Sofia convention or, for an export spanning both offsets, a consistent UTC+02:00 display on every fill. Each Performance wall-clock timestamp must still match its Fills row. Mixed clocks fail. The importer does not infer a machine timezone or rewrite Trade times. For the 615 pre-change fills the existing Performance interpretation gives a stored UTC instant one hour earlier than Fills UTC. The preview and confirmation disclose the convention.
+
+The real parsers, reconstructor, resolver, preparation and reconciler accepted October 1–30 with 775 allocations and exactly 1,277.12 USD in commissions. The probe used in-memory Account metadata and had no database or write services. The Desktop source-selection commands showed both files as pending, then Verified at PreviewReady. The October confirmation contained the same figures and was declined. The read-only ViewModel evidence is in `TestResults/TradovateOctober/preview-probe/result.log`. Accepted writes, enrichment and replay used synthetic CSVs only. Manual adjustments are reconciliation evidence and do not create a Trade, execution cost, payout or balance entry.
+
+The Release build passed with zero warnings and errors. Filtered Tradovate tests passed **227/227** (76 Application, 138 Infrastructure, 13 Desktop), including compiled preview, signed adjustment and cash totals at confirmation, declined confirmation, enrichment, replay, unchanged Account balance treatment and unsupported-movement feedback. Focused TRX files are under `TestResults/TradovateOctober/focused/`.
+
+The complete local Release gate `release-20261122-123555-caf51e4450c74ecaa8301a2b35d63a4e` completed in **14m 01s**, exit **0**, with **5,622 passed, 0 failed and 1 skipped**. Exclusive WPF passed 151, Domain 602, Application 1,052, Infrastructure 1,662 and parallel Desktop 2,155. The sole skip was the existing [Rules-view quarantine](rules-view-quarantine.md). The counts come from the five top-level TRX files. Native file-picker interaction and hosted CI for this worktree remain unverified.
+
+Files changed for the October correction:
+
+- `src/PersonalTradingJournal.Infrastructure/Imports/Tradovate/TradovateCostCsvParser.cs`
+- `src/PersonalTradingJournal.Application/Imports/Tradovate/TradovateCostSources.cs`
+- `src/PersonalTradingJournal.Application/Imports/Tradovate/TradovateCostReconciler.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Import/ImportViewModel.Costs.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Imports/Tradovate/TradovateVerifiedCostTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Import/TradovateBoundPreviewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Import/TradovateImportAcceptanceTests.cs`
+- `README.md`, `docs/tradovate-csv-import.md`, `docs/tradovate-verified-costs.md`
+
 ## Source reconciliation — 2026-11-11
 
 Read-only reconciliation of the supplied Performance, Fills and Cash History exports was reproduced on `develop`, based on `029ed27857823b6f462ce5045790c87e6e03382d` plus the local implementation. No production journal was opened. The private CSVs remain outside the repository and are not test fixtures.
@@ -21,11 +54,11 @@ One Cash commission posting is one second later than its fill's display timestam
 ## Reconciliation and allocation contract
 
 - The main Performance schema, reconstruction, original fill IDs, UTC execution timestamps and trade grouping remain unchanged. Supporting CSVs use the shared bounded UTF-8 CSV reader and file/record/field limits.
-- Fills require an active row, agreeing internal/display ID, Account, contract, side, whole quantity, price, UTC timestamp, Sofia display timestamp, trading date and nonnegative whole-cent commission. Every Performance fill must exist exactly once in Fills, with all matched quantity accounted for. Extra, missing and duplicate fills block verification, including identical duplicate Fills rows. A fill repeated across Performance matched rows is valid.
+- Fills require an active row, agreeing internal/display ID, Account, contract, side, whole quantity, price, UTC timestamp, verified display timestamp (see the October clock check above), trading date and nonnegative whole-cent commission. Every Performance fill must exist exactly once in Fills, with all matched quantity accounted for. Extra, missing and duplicate fills block verification, including identical duplicate Fills rows. A fill repeated across Performance matched rows is valid.
 - Account external ID must exactly match every Fills/Cash row. USD Account, Cash and Instrument currencies must agree. Sources cannot silently select/create an Account. Unsupported currencies, mixed Accounts and missing external IDs block verified costs; no currency conversion occurs.
 - For each unique fill, allocate its commission across reconstructed Trade allocations proportional to matched quantity. Compute decimal cent quotas, floor them, then distribute remaining cents in descending fractional-remainder order, breaking ties by immutable allocation index. This conserves every cent and is independent of CSV row order. It handles reversal fills shared by two Trades without duplicating their costs.
-- Require exact daily/contract charge multisets, Performance Gross versus Cash Trade Paired totals, and total Net versus Cash Delta sum. Also verify each candidate's Instrument-derived Gross against its partition of Performance evidence. Trade Paired is never imported as a second P/L source. Each Performance row belongs to one candidate.
-- Only Cash `Commission` and `Trade Paired` movements are supported in verified mode. Other charges, transfers, missing transactions, nonchronological rows or broken running balances block it. Zero additional execution Fees is recorded only after this complete supported-scope cash reconciliation establishes Gross minus commissions equals Net. Performance alone never supplies known zero costs.
+- Require exact daily/contract charge multisets, Performance Gross versus Cash Trade Paired totals, and total cash movement versus the Cash Delta sum (Trade Net plus verified Manual Adjustments). Also verify each candidate's Instrument-derived Gross against its partition of Performance evidence. Trade Paired is never imported as a second P/L source. Each Performance row belongs to one candidate.
+- Cash `Commission` and `Trade Paired` reconcile the trading activity. Contractless `Manual Adjustment` entries within the Fills period reconcile separately. Unsupported movements, missing transactions, nonchronological rows and broken running balances block verification. Zero additional execution Fees is recorded only after both trading components reconcile. Performance alone never supplies known zero costs.
 
 ## Confirmation and existing imports
 

@@ -106,6 +106,51 @@ public sealed class TradovateVerifiedCostTests
     }
 
     [Theory]
+    [InlineData("account")]
+    [InlineData("currency")]
+    [InlineData("period")]
+    [InlineData("balance")]
+    public async Task AdjustmentMustBelongToTheVerifiedStatement(string fault)
+    {
+        await using var db = await ReaderTestDatabase.CreateAsync();
+        var request = await Prepare(db);
+        var cash = request.CostSources!.Cash;
+        var adjustment = cash[^1] with
+        {
+            Id = "A1", Type = "Manual Adjustment", Symbol = "", Delta = -7m, Balance = cash[^1].Balance - 7m
+        };
+        adjustment = fault switch
+        {
+            "account" => adjustment with { Account = "OTHER" },
+            "currency" => adjustment with { Currency = "EUR" },
+            "period" => adjustment with { TradingDate = adjustment.TradingDate.AddDays(1) },
+            "balance" => adjustment with { Balance = cash[^1].Balance },
+            _ => throw new ArgumentOutOfRangeException(nameof(fault))
+        };
+        var result = await new TradovateImportStore(db.ContextFactory).ImportAsync(request with
+        {
+            CostSources = new(request.CostSources.Fills, cash.Append(adjustment))
+        });
+        Assert.Equal(TradovateImportStatus.Blocked, result.Status);
+        await using var context = await db.ContextFactory.CreateDbContextAsync();
+        Assert.Empty(await context.Trades.ToArrayAsync());
+    }
+
+    [Theory]
+    [InlineData("Commission", "", "-0.52", "requires a Contract")]
+    [InlineData("Trade Paired", "", "2", "requires a Contract")]
+    [InlineData("Manual Adjustment", "MNQZ6", "-7", "empty Contract")]
+    [InlineData("Manual Adjustment", "", "-0.001", "whole-cent Delta")]
+    [InlineData("Manual Adjustment", "", "bad", "Invalid")]
+    [InlineData("Transfer", "", "7", "Unsupported Cash History movement 'Transfer'")]
+    public async Task InvalidCashRowReportsItsFailedRule(string type, string contract, string delta, string expected)
+    {
+        using var stream = Stream(Cash + $"\nSIM-COST,A1,11/02/2026 15:03:00,2026-11-02,{delta},95.91,{type},USD,{contract}");
+        var error = await Assert.ThrowsAsync<TradovateCostSourceException>(() => new TradovateCostCsvParser().ParseCashAsync(stream));
+        Assert.Contains(expected, error.Message);
+    }
+
+    [Theory]
     [InlineData("missing-fill")]
     [InlineData("duplicate-fill")]
     [InlineData("extra-fill")]
