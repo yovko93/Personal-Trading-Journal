@@ -235,7 +235,9 @@ public sealed class TradovateImportAcceptanceTests
                 vm.SelectedAccount = Assert.Single(vm.Accounts);
                 picker.Csv = "_id,Fill ID,Account,Contract,B/S,Quantity,Price,Timestamp,_timestamp,_tradeDate,commission,_active\n" +
                     "M10-7-BUY,M10-7-BUY,SIM-COST,MNQU6,Buy,2,20123.125,09/10/2026 16:30:03,2026-09-10 13:30:03.125Z,2026-09-10,1.04,true\n" +
-                    "M10-7-SELL,M10-7-SELL,SIM-COST,MNQU6,Sell,2,20124.375,09/10/2026 16:30:15,2026-09-10 13:30:15.250Z,2026-09-10,1.04,true";
+                    "M10-7-SELL,M10-7-SELL,SIM-COST,MNQU6,Sell,2,20124.375,09/10/2026 16:30:15,2026-09-10 13:30:15.250Z,2026-09-10,1.04,true\n" +
+                    "EXTRA-BUY,EXTRA-BUY,SIM-COST,MNQU6,Buy,1,20000,09/09/2026 16:30:03,2026-09-09 13:30:03Z,2026-09-09,0.85,true\n" +
+                    "EXTRA-SELL,EXTRA-SELL,SIM-COST,MNQU6,Sell,1,20001,09/09/2026 16:30:15,2026-09-09 13:30:15Z,2026-09-09,0.85,true";
                 await vm.SelectFillsCommand.ExecuteAsync(null);
                 picker.Csv = "Account,Transaction ID,Timestamp,Date,Delta,Amount,Cash Change Type,Currency,Contract\n" +
                     "SIM-COST,C1,09/10/2026 16:30:03,2026-09-10,-1.04,98.96,Commission,USD,MNQU6\n" +
@@ -247,7 +249,9 @@ public sealed class TradovateImportAcceptanceTests
                 Assert.Equal(ImportWorkflowPhase.PreviewReady, vm.Phase);
                 Assert.Contains("Gross 5.00", vm.VerifiedCostSummary);
                 Assert.Contains("Costs 2.08", vm.VerifiedCostSummary);
-                Assert.Contains("Trade Net 2.92", vm.VerifiedCostSummary);
+                Assert.Contains("Trade Net 2.92 for 1 reported closed Trade", vm.VerifiedCostSummary);
+                Assert.Contains("Excluded Fills on 2026-09-09: 2 · Fills-column commission 1.70 USD", vm.VerifiedCostSummary);
+                Assert.Contains("Performance and Cash History reports show no activity", vm.VerifiedCostSummary);
                 Assert.Contains("Manual Adjustment (1): -7.50 USD", vm.VerifiedCostSummary);
                 Assert.Contains("Total cash movement -4.58 USD", vm.VerifiedCostSummary);
                 dialog.ConfirmationResult = false;

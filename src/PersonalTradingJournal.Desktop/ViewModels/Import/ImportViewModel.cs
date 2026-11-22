@@ -576,7 +576,7 @@ public sealed partial class ImportViewModel : ObservableObject
                     return;
                 if (conflict is not null)
                     throw new TradovateCostSourceException(conflict);
-                ShowVerifiedCosts(sources, costs);
+                ShowVerifiedCosts(sources, costs, preparation.PreparedCandidates.Count(candidate => candidate.ClosedAtUtc.HasValue));
             }
             TradovateImportPreview preview = _previewBuilder.Build(
                 SelectedFileName!,

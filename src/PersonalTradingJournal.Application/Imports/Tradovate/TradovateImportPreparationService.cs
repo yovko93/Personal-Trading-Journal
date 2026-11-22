@@ -82,7 +82,7 @@ public sealed class TradovateImportPreparationService
         {
             TradovateCostReconciler.ValidateDisplayClock(costSources.Fills);
             fillsById = TradovateCostReconciler.MatchFills(
-                costSources.Fills, reconstruction.Executions.Select(e => e.ExternalFillId));
+                costSources, reconstruction.MatchedPairs.SelectMany(pair => new[] { pair.BuyFillId, pair.SellFillId })).Matched;
         }
         string sourceClock = fillsById is null ? TradingTimePolicy.TradovateSourceTimeZoneId : "Fills UTC";
         var preparedByKey = new Dictionary<ExecutionKey, TradovatePreparedExecution>();
@@ -95,8 +95,7 @@ public sealed class TradovateImportPreparationService
             LocalTimeConversionResult conversion;
             if (fillsById is not null)
             {
-                var fill = fillsById[execution.ExternalFillId];
-                if (fill.Symbol != execution.BrokerSymbol || fill.Side != execution.Side ||
+                if (!fillsById.TryGetValue(execution.ExternalFillId, out var fill) || fill.Symbol != execution.BrokerSymbol || fill.Side != execution.Side ||
                     fill.Price != execution.Price || fill.Quantity != execution.Quantity ||
                     fill.LocalTimestamp != execution.SourceLocalTimestamp)
                     throw new TradovateCostSourceException("Fill price, side, timestamp, symbol or complete matched quantity differs from Performance.");

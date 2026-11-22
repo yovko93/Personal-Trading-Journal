@@ -48,9 +48,11 @@ public interface ITradovateCostCsvParser
 public sealed class TradovateCostSourceException(string message) : Exception(message);
 
 public sealed record TradovateCostAllocation(int CandidateIndex, string FillId, int AllocationIndex, decimal Commission);
+public sealed record TradovateExcludedFillsDay(DateOnly Date, int Count, decimal Commission);
+
 public sealed record TradovateVerifiedCosts(decimal Gross, decimal Costs, DateOnly Start, DateOnly End,
     IReadOnlyList<TradovateCostAllocation> Allocations, int ManualAdjustmentCount, decimal ManualAdjustmentTotal,
-    bool UsesFixedOffsetDisplay)
+    bool UsesFixedOffsetDisplay, IReadOnlyList<TradovateExcludedFillsDay> ExcludedFills)
 {
     public decimal Net => Gross - Costs;
     public decimal TotalCashMovement => Net + ManualAdjustmentTotal;

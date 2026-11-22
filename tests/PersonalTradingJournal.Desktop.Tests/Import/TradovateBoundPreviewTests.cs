@@ -78,7 +78,7 @@ public sealed class TradovateBoundPreviewTests
         await vm.SelectFillsCommand.ExecuteAsync(null);
         accounts.EnqueueDetailResult(account);
         await vm.BuildPreviewCommand.ExecuteAsync(null);
-        Assert.Contains("0 missing, 1 extra", vm.WorkflowErrorMessage);
+        Assert.Contains("nonzero position on an unreported date", vm.WorkflowErrorMessage);
         Assert.False(vm.ConfirmImportCommand.CanExecute(null));
 
         picker.Content = FillsCsv.Replace("2026-09-10 13:30:03Z", "2026-09-10 14:30:03Z") + extraFill;

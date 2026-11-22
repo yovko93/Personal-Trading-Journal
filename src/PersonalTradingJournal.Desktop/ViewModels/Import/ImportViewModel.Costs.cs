@@ -159,17 +159,21 @@ public sealed partial class ImportViewModel
         return new TradovateCostSources(_costFills, _costCash);
     }
 
-    private void ShowVerifiedCosts(TradovateCostSources sources, TradovateVerifiedCosts costs)
+    private void ShowVerifiedCosts(TradovateCostSources sources, TradovateVerifiedCosts costs, int closedTradeCount)
     {
         _verifiedSources = sources;
-        string trading = FormattableString.Invariant($"Verified USD · {costs.Start:yyyy-MM-dd}–{costs.End:yyyy-MM-dd} · Gross {costs.Gross:N2} · Costs {costs.Costs:N2} · Trade Net {costs.Net:N2}.");
+        string trading = FormattableString.Invariant($"Verified USD · {costs.Start:yyyy-MM-dd}–{costs.End:yyyy-MM-dd} · Gross {costs.Gross:N2} · Costs {costs.Costs:N2} · Trade Net {costs.Net:N2} for {closedTradeCount} reported closed {(closedTradeCount == 1 ? "Trade" : "Trades")}.");
         string cash = costs.ManualAdjustmentCount == 0 ? string.Empty : Environment.NewLine +
             FormattableString.Invariant($"Manual Adjustment ({costs.ManualAdjustmentCount}): {costs.ManualAdjustmentTotal:N2} USD · Total cash movement {costs.TotalCashMovement:N2} USD. Adjustments are shown for reconciliation only and are excluded from Trades and Account Current Balance.");
         string clock = Environment.NewLine + (costs.UsesFixedOffsetDisplay
             ? "Fills display uses UTC+02:00 throughout this export."
             : "Fills display agrees with Europe/Sofia throughout this export.") +
             " Trade times use the matched Fills UTC instants.";
-        VerifiedCostSummary = trading + cash + clock + Environment.NewLine +
+        string excluded = costs.ExcludedFills.Count == 0 ? string.Empty : Environment.NewLine +
+            string.Join(Environment.NewLine, costs.ExcludedFills.Select(day => FormattableString.Invariant(
+                $"Excluded Fills on {day.Date:yyyy-MM-dd}: {day.Count} · Fills-column commission {day.Commission:N2} USD."))) +
+            Environment.NewLine + "The supplied Performance and Cash History reports show no activity on those dates. These fills and commissions are outside the verified Trade totals.";
+        VerifiedCostSummary = trading + excluded + cash + clock + Environment.NewLine +
             "Existing imports keep their saved timestamps and precision. Eligible Trades receive unknown costs only; conflicts block import.";
     }
 }

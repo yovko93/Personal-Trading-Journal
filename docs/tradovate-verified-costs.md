@@ -1,12 +1,41 @@
 # Tradovate verified costs
 
+## September reporting mismatch
+
+At the baseline `ce24472c8aee4a3a912f0d70fdc8fc86eaf1862b`, the raw 185-fill export blocked with 0 missing and 40 extra. The supplied screenshots for September 22 show 40 Fills, zero Performance Trades and zero Cash History transactions. Read-only CSV inspection agreed. Both dates on the extra Fill rows were September 22, the quantity netted to zero in its contract, and the Fills commission column summed to **85.28 USD**. These observations establish the discrepancy between reports.
+
+The importer now requires every Performance fill ID to match exactly one Fills row. An extra ID is eligible for exclusion only if its broker trading date and display date are absent from the matched Performance fills and all Cash History entries, using both date fields. Each excluded contract/date must net to zero quantity, and an extra fill within a matched Trade’s UTC position interval for that contract blocks reconciliation. All raw rows still undergo Account, clock, and Fills validation. Missing IDs, duplicates, source disagreements and unexplained cash costs still block. Costs, gross checks, and the verified period use only matched fills. Preview and confirmation list excluded fill counts and Fills-column commissions by date.
+
+The unmodified September exports reached Verified in the read-only ViewModel probe. The probe captured and declined the confirmation, with writes disabled and no journal services. **90 Performance rows** referenced **145 matched fills**, producing **24 reported closed Trades** and **145 allocations** with zero UTC mismatches. The **90 Cash Trade Paired rows** reconcile to **1,063.50 USD Gross** and **145 Cash Commission rows** reconcile to **294.32 USD costs**, yielding **769.18 USD verified Trade Net**. Preview and confirmation disclosed the **40 excluded September 22 fills** and their **85.28 USD** Fills-column commissions. See `TestResults/TradovateSeptemberUtc/exclusion-baseline.log` and `TestResults/TradovateSeptemberUtc/exclusion-verified.log`.
+
+The Release build passed with zero warnings and errors. Focused tests passed **281/281** (84 Application, 164 Infrastructure, 33 Desktop). Synthetic tests cover new import, replay and enrichment with exclusions, declined confirmation, no extra trades or identities, report/display date collisions, an open position across an excluded date, net quantity imbalance, unexplained cash costs, missing IDs and Account or currency mismatch. Exact existing-Trade timestamp conflicts remain covered. Focused TRX files are under `TestResults/TradovateSeptemberUtc/exclusion-focused/`.
+
+The complete local Release gate `release-20261122-142144-d133412029ee4adeb3494f567dd1f865` recorded **5,636 passed, 0 failed and 1 skipped** in **14m 01s**. Exclusive WPF passed 151, Domain 602, Application 1,052, Infrastructure 1,676 and parallel Desktop 2,155. All five top-level TRX files were checked for consistent counters and unique test identities. The sole skip was the existing [Rules-view quarantine](rules-view-quarantine.md). The original shell exit code was unavailable after the session ended.
+
+<details>
+<summary>Files changed for the September reporting mismatch</summary>
+
+- `README.md`
+- `docs/tradovate-csv-import.md`
+- `docs/tradovate-verified-costs.md`
+- `src/PersonalTradingJournal.Application/Imports/Tradovate/TradovateCostReconciler.cs`
+- `src/PersonalTradingJournal.Application/Imports/Tradovate/TradovateCostSources.cs`
+- `src/PersonalTradingJournal.Application/Imports/Tradovate/TradovateImportPreparationService.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Import/ImportViewModel.Costs.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Import/ImportViewModel.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Import/TradovateBoundPreviewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Import/TradovateImportAcceptanceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Imports/Tradovate/TradovateVerifiedCostTests.cs`
+
+</details>
+
 ## September timestamp and fill scope
 
 Read-only baseline on develop at `689e81e9c76527bd410ee046b05e425ee003f3b0` found two independent blocks. The full supplied Fills file had 185 unique IDs and failed the exact-ID check. A September 23–30 in-memory projection of 145 Fills reached the clock check and reproduced the specific error. Every display timestamp in the supplied file is UTC+02:00 at whole-second precision while Europe/Sofia is UTC+03:00. The prior rule required some rows to fall in Sofia standard time before accepting fixed UTC+02:00.
 
-The verified workflow now checks every exact UTC instant against its displayed second and accepts one consistent convention for the whole file. Each execution keeps the exact Fills UTC instant, including fractions. Europe/Sofia agreement remains valid, and the preview labels fixed UTC+02:00 when it is the only supported convention that fits. When both fit, the preview reports agreement with Sofia. Mixed offsets and contradictory seconds fail clock validation. The independent exact-ID check follows it. The full supplied files now report **0 missing, 40 extra** and keep confirmation disabled. All extra IDs are from September 22 and account for **85.28 USD** of commission outside the requested scope.
+The verified workflow now checks every exact UTC instant against its displayed second and accepts one consistent convention for the whole file. Each execution keeps the exact Fills UTC instant, including fractions. Europe/Sofia agreement remains valid, and the preview labels fixed UTC+02:00 when it is the only supported convention that fits. When both fit, the preview reports agreement with Sofia. Mixed offsets and contradictory seconds fail clock validation. The independent exact-ID check follows it. At that milestone the full supplied files reported **0 missing, 40 extra** and kept confirmation disabled. The guarded exclusion above supersedes that result. All extra IDs are from September 22 and account for **85.28 USD** of commission outside the requested scope.
 
-The supplied Performance and Cash History files generated a verified preview when paired with a September 23–30 in-memory Fills projection. It used **90 Performance rows, 145 matching fills, 145 execution allocations, 24 Trades and zero UTC differences**. Gross was **1,063.50 USD**, commissions **294.32 USD**, and Trade Net **769.18 USD**. Cash History has 90 Trade Paired rows and 145 matching Commission rows. No CSV was changed or written by the probe. The raw supplied Fills file remains blocked. The verification used a synthetic Account reader and never called confirmation. See `TestResults/TradovateSeptemberUtc/baseline.log` and `TestResults/TradovateSeptemberUtc/verified.log`.
+The supplied Performance and Cash History files generated a verified preview when paired with a September 23–30 in-memory Fills projection. It used **90 Performance rows, 145 matching fills, 145 execution allocations, 24 Trades and zero UTC differences**. Gross was **1,063.50 USD**, commissions **294.32 USD**, and Trade Net **769.18 USD**. Cash History has 90 Trade Paired rows and 145 matching Commission rows. No CSV was changed or written by the probe. At that milestone the raw supplied Fills file remained blocked. The verification used a synthetic Account reader and never called confirmation. See `TestResults/TradovateSeptemberUtc/baseline.log` and `TestResults/TradovateSeptemberUtc/verified.log`.
 
 The Release build passed with zero warnings and errors. Focused tests passed **271/271** (84 Application, 154 Infrastructure, 33 Desktop) and covered Sofia and fixed UTC+02:00, both seasonal scopes, mixed offsets, contradictory and fractional seconds, extra IDs, exact Calendar cutoff, replay, and saved timestamp conflicts. Focused TRX files are under `TestResults/TradovateSeptemberUtc/focused/`.
 
@@ -119,7 +148,7 @@ One Cash commission posting is one second later than its fill's display timestam
 ## Reconciliation and allocation contract
 
 - The main Performance schema, reconstruction, original fill IDs, UTC execution timestamps and trade grouping remain unchanged. Supporting CSVs use the shared bounded UTF-8 CSV reader and file/record/field limits.
-- Fills require an active row, agreeing internal/display ID, Account, contract, side, whole quantity, price, UTC timestamp, verified display timestamp (see the October clock check above), trading date and nonnegative whole-cent commission. Every Performance fill must exist exactly once in Fills, with all matched quantity accounted for. Extra, missing and duplicate fills block verification, including identical duplicate Fills rows. A fill repeated across Performance matched rows is valid.
+- Fills require an active row, agreeing internal/display ID, Account, contract, side, whole quantity, price, UTC timestamp, verified display timestamp (see the October clock check above), trading date and nonnegative whole-cent commission. Every Performance fill must exist exactly once in Fills, with all matched quantity accounted for. Missing and duplicate fills block verification, including identical duplicate Fills rows. The September reporting-mismatch contract above defines when an extra fill may be excluded. A fill repeated across Performance matched rows is valid.
 - Account external ID must exactly match every Fills/Cash row. USD Account, Cash and Instrument currencies must agree. Sources cannot silently select/create an Account. Unsupported currencies, mixed Accounts and missing external IDs block verified costs; no currency conversion occurs.
 - For each unique fill, allocate its commission across reconstructed Trade allocations proportional to matched quantity. Compute decimal cent quotas, floor them, then distribute remaining cents in descending fractional-remainder order, breaking ties by immutable allocation index. This conserves every cent and is independent of CSV row order. It handles reversal fills shared by two Trades without duplicating their costs.
 - Require exact daily/contract charge multisets, Performance Gross versus Cash Trade Paired totals, and total cash movement versus the Cash Delta sum (Trade Net plus verified Manual Adjustments). Also verify each candidate's Instrument-derived Gross against its partition of Performance evidence. Trade Paired is never imported as a second P/L source. Each Performance row belongs to one candidate.

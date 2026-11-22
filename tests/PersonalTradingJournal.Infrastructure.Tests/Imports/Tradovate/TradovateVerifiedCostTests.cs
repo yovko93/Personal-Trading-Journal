@@ -152,6 +152,96 @@ public sealed class TradovateVerifiedCostTests
         Assert.Contains(expected, error.Message);
     }
 
+    private const string IsolatedFills =
+        "\nX1,X1,SIM-COST,MNQZ6, Buy,1,99,10/30/2026 15:00:00,2026-10-30 13:00:00Z,2026-10-30,0.70,true" +
+        "\nX2,X2,SIM-COST,MNQZ6, Sell,1,101,10/30/2026 15:01:00,2026-10-30 13:01:00Z,2026-10-30,0.80,true";
+
+    [Fact]
+    public async Task VerifiedImportExcludesIsolatedFlatFillsFromCostsAndPersistence()
+    {
+        await using var db = await ReaderTestDatabase.CreateAsync();
+        var request = await Prepare(db, fillsCsv: Fills + IsolatedFills);
+        var costs = TradovateCostReconciler.Reconcile(request.Preparation, request.MatchedPairs!, request.CostSources!);
+        Assert.Equal(new TradovateExcludedFillsDay(new(2026, 10, 30), 2, 1.50m), Assert.Single(costs.ExcludedFills));
+        Assert.Equal(new DateOnly(2026, 11, 2), costs.Start);
+        Assert.Equal(costs.Start, costs.End);
+        Assert.Equal(4m, costs.Gross);
+        Assert.Equal(1.09m, costs.Costs);
+        Assert.Equal(2.91m, costs.Net);
+
+        var store = new TradovateImportStore(db.ContextFactory);
+        Assert.Equal(2, (await store.ImportAsync(request)).ImportedTradeCount);
+        Assert.Equal(TradovateImportStatus.NoChanges, (await store.ImportAsync(request)).Status);
+        await using var context = await db.ContextFactory.CreateDbContextAsync();
+        var identities = await context.TradovateImportedExecutions.Select(e => e.ExternalExecutionId).ToArrayAsync();
+        Assert.Equal(new[] { "B1", "B2", "CROSS", "CROSS" }, identities.Order(StringComparer.Ordinal));
+        Assert.Equal(1.09m, (await context.TradeExecutions.ToArrayAsync()).Sum(e => e.Commission));
+    }
+
+    [Theory]
+    [InlineData("cash-on-excluded-day", "date with Performance or Cash History")]
+    [InlineData("cash-display-day", "date with Performance or Cash History")]
+    [InlineData("fill-display-day", "date with Performance or Cash History")]
+    [InlineData("unexplained-cash", "amounts and counts")]
+    [InlineData("other-account", "mismatched Accounts")]
+    [InlineData("other-currency", "matching USD")]
+    [InlineData("missing-and-extra", "1 missing, 2 extra")]
+    [InlineData("imbalance", "nonzero position")]
+    [InlineData("overlap", "overlaps a reported position")]
+    public async Task AnExclusionCannotHideAmbiguousOrUnreconciledActivity(string fault, string expected)
+    {
+        await using var db = await ReaderTestDatabase.CreateAsync();
+        var request = fault == "overlap"
+            ? await Prepare(db,
+                CrossSeasonPerformance.Replace("10/24/2026 00:00:00", "10/26/2026 00:00:00"),
+                CrossSeasonFills.Replace("10/24/2026 00:00:00,2026-10-23 22:", "10/26/2026 00:00:00,2026-10-25 22:"),
+                CrossSeasonCash.Replace("10/24/2026 00:00:01", "10/26/2026 00:00:01"))
+            : await Prepare(db);
+        using var stream = Stream(Fills + IsolatedFills);
+        var extra = (await new TradovateCostCsvParser().ParseFillsAsync(stream)).TakeLast(2).ToArray();
+        var fills = request.CostSources!.Fills.ToList();
+        var cash = request.CostSources.Cash.ToList();
+        switch (fault)
+        {
+            case "cash-on-excluded-day":
+                cash[0] = cash[0] with { TradingDate = extra[0].TradingDate };
+                break;
+            case "cash-display-day":
+                cash[0] = cash[0] with { LocalTimestamp = extra[0].LocalTimestamp };
+                break;
+            case "fill-display-day":
+                extra[0] = extra[0] with { LocalTimestamp = fills[0].LocalTimestamp, UtcTimestamp = fills[0].UtcTimestamp };
+                break;
+            case "unexplained-cash":
+                cash.Add(cash[^1] with { Id = "C-EXTRA", Type = "Commission", Delta = -.70m, Balance = cash[^1].Balance - .70m });
+                break;
+            case "other-account":
+                extra[0] = extra[0] with { Account = "OTHER" };
+                break;
+            case "other-currency":
+                cash[0] = cash[0] with { Currency = "EUR" };
+                break;
+            case "missing-and-extra":
+                fills.RemoveAt(0);
+                break;
+            case "imbalance":
+                extra[0] = extra[0] with { Quantity = 2 };
+                break;
+            case "overlap":
+                extra = extra.Select(f => f with { TradingDate = f.TradingDate.AddDays(-5),
+                    LocalTimestamp = f.LocalTimestamp.AddDays(-5), UtcTimestamp = f.UtcTimestamp.AddDays(-5) }).ToArray();
+                break;
+        }
+
+        var result = await new TradovateImportStore(db.ContextFactory)
+            .ImportAsync(request with { CostSources = new(fills.Concat(extra), cash) });
+        Assert.Equal(TradovateImportStatus.Blocked, result.Status);
+        Assert.Contains(expected, result.Message);
+        await using var context = await db.ContextFactory.CreateDbContextAsync();
+        Assert.Empty(await context.Trades.ToArrayAsync());
+        Assert.Empty(await context.TradovateImportedExecutions.ToArrayAsync());
+    }
+
     [Theory]
     [InlineData("missing-fill")]
     [InlineData("duplicate-fill")]

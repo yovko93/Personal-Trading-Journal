@@ -3,7 +3,7 @@ using PersonalTradingJournal.Domain.Trades;
 
 namespace PersonalTradingJournal.Application.Imports.Tradovate;
 
-/// <summary>Strict whole-source reconciliation. Never estimates a missing charge or partial fill.</summary>
+/// <summary>Reconciles reported Trades to Fills and Cash History and validates any excluded Fills.</summary>
 public static class TradovateCostReconciler
 {
     public static TradovateVerifiedCosts Reconcile(TradovateImportPreparationResult preparation,
@@ -24,23 +24,26 @@ public static class TradovateCostReconciler
             "Set the selected Account's external ID to the exact export Account. Mixed or mismatched Accounts are blocked.");
         Require(account.Currency == "USD" && cash.All(c => c.Currency == account.Currency),
             "Verified costs currently require matching USD Account, Instruments and Cash History. No FX is inferred.");
-        Require(fills.Select(f => f.Id).Distinct(StringComparer.Ordinal).Count() == fills.Count &&
-            cash.Select(c => c.Id).Distinct(StringComparer.Ordinal).Count() == cash.Count,
-            "Duplicate fill or cash transaction IDs are ambiguous. Export each source once.");
+        Require(cash.Select(c => c.Id).Distinct(StringComparer.Ordinal).Count() == cash.Count,
+            "Duplicate cash transaction IDs are ambiguous. Export each source once.");
         foreach (var entry in cash)
             entry.ValidateMovement();
 
-        var start = fills.Min(f => f.TradingDate);
-        var end = fills.Max(f => f.TradingDate);
-        var adjustments = cash.Where(c => c.IsManualAdjustment).ToArray();
-        Require(adjustments.All(c => c.TradingDate >= start && c.TradingDate <= end),
-            "Cash History Manual Adjustment falls outside the verified Fills period.");
         Require(fills.All(f => f.Quantity > 0 && f.Quantity == decimal.Truncate(f.Quantity) &&
             f.Commission >= 0 && f.Commission == decimal.Round(f.Commission, 2)),
             "Fill quantity or commission is invalid; USD charges must be nonnegative whole cents.");
         bool usesFixedOffsetDisplay = ValidateDisplayClock(fills);
         var executions = preparation.PreparedCandidates.SelectMany((c, i) => c.OrderedExecutions.Select(e => (Execution: e, Candidate: i))).ToArray();
-        var byId = MatchFills(fills, executions.Select(e => e.Execution.ExternalFillId));
+        var (byId, excluded) = MatchFills(sources, pairs.SelectMany(pair => new[] { pair.BuyFillId, pair.SellFillId }));
+        Require(byId.Count > 0 && byId.Keys.ToHashSet(StringComparer.Ordinal)
+            .SetEquals(executions.Select(e => e.Execution.ExternalFillId)),
+            "Prepared execution IDs must match the Performance fill IDs.");
+        var start = byId.Values.Min(f => f.TradingDate);
+        var end = byId.Values.Max(f => f.TradingDate);
+        var adjustments = cash.Where(c => c.IsManualAdjustment).ToArray();
+        Require(adjustments.All(c => c.TradingDate >= start && c.TradingDate <= end),
+            "Cash History Manual Adjustment falls outside the verified Fills period.");
+        ValidateExcludedPositions(excluded, preparation.PreparedCandidates);
         Require(pairs.Count > 0 && pairs.Select(p => p.SourceRecordIndex).Distinct().Count() == pairs.Count,
             "Performance matched-row evidence is missing or duplicated.");
         var candidateRows = preparation.PreparedCandidates.SelectMany(c => c.SourceRecordIndices).ToArray();
@@ -84,13 +87,12 @@ public static class TradovateCostReconciler
         // each contract/trading-date gross total to agree, without adding Trade Paired to P&L.
         // Cash posting can lag execution (observed by one second); it has no fill ID.
         // Compare exact daily charge multisets, never invent a cash-to-fill timestamp join.
-        var expectedCharges = fills.GroupBy(f => (f.Symbol, f.TradingDate, Delta: -f.Commission))
+        var expectedCharges = byId.Values.GroupBy(f => (f.Symbol, f.TradingDate, Delta: -f.Commission))
             .ToDictionary(g => g.Key, g => g.Count());
         var actualCharges = cash.Where(c => c.Type == "Commission")
             .GroupBy(c => (c.Symbol, c.TradingDate, c.Delta)).ToDictionary(g => g.Key, g => g.Count());
         Require(expectedCharges.Count == actualCharges.Count && expectedCharges.All(k => actualCharges.GetValueOrDefault(k.Key) == k.Value),
             "Cash commission amounts and counts do not match Fills by contract and trading date.");
-        Require(pairs.All(p => byId.ContainsKey(p.BuyFillId) && byId.ContainsKey(p.SellFillId)), "Missing matched fill.");
         var grossByDay = pairs.GroupBy(p => (p.BrokerSymbol, Date: Later(byId[p.BuyFillId], byId[p.SellFillId]).TradingDate))
             .ToDictionary(g => g.Key, g => g.Sum(p => p.SourceReportedPnL));
         var cashByDay = cash.Where(c => c.Type == "Trade Paired").GroupBy(c => (c.Symbol, Date: c.TradingDate))
@@ -113,27 +115,75 @@ public static class TradovateCostReconciler
                 "Instrument-derived Gross differs from source Gross or currency. No economics will be overwritten.");
         }
         decimal sourceGross = pairs.Sum(p => p.SourceReportedPnL);
-        decimal costs = fills.Sum(f => f.Commission);
+        decimal costs = byId.Values.Sum(f => f.Commission);
+        var excludedDays = excluded.GroupBy(f => f.TradingDate).OrderBy(day => day.Key)
+            .Select(day => new TradovateExcludedFillsDay(day.Key, day.Count(), day.Sum(f => f.Commission))).ToArray();
         var verified = new TradovateVerifiedCosts(sourceGross, costs, start, end, result.AsReadOnly(),
-            adjustments.Length, adjustments.Sum(c => c.Delta), usesFixedOffsetDisplay);
+            adjustments.Length, adjustments.Sum(c => c.Delta), usesFixedOffsetDisplay, Array.AsReadOnly(excludedDays));
         Require(cash.Sum(c => c.Delta) == verified.TotalCashMovement && result.Sum(a => a.Commission) == costs,
             "Total cash movement or commission allocation reconciliation failed.");
         return verified;
     }
 
-    internal static IReadOnlyDictionary<string, TradovateCostFill> MatchFills(
-        IReadOnlyList<TradovateCostFill> fills, IEnumerable<string> performanceIds)
+    internal static (IReadOnlyDictionary<string, TradovateCostFill> Matched, IReadOnlyList<TradovateCostFill> Excluded) MatchFills(
+        TradovateCostSources sources, IEnumerable<string> performanceIds)
     {
-        if (fills.Select(f => f.Id).Distinct(StringComparer.Ordinal).Count() != fills.Count)
+        if (sources.Fills.Select(f => f.Id).Distinct(StringComparer.Ordinal).Count() != sources.Fills.Count)
             throw new TradovateCostSourceException("Duplicate fill IDs are ambiguous. Export each source once.");
-        var byId = fills.ToDictionary(f => f.Id, StringComparer.Ordinal);
         var expected = performanceIds.ToHashSet(StringComparer.Ordinal);
-        int missing = expected.Count(id => !byId.ContainsKey(id));
-        int extra = byId.Keys.Count(id => !expected.Contains(id));
-        if (missing != 0 || extra != 0)
+        var matched = sources.Fills.Where(f => expected.Contains(f.Id)).ToDictionary(f => f.Id, StringComparer.Ordinal);
+        int missing = expected.Count - matched.Count;
+        var excluded = sources.Fills.Where(f => !expected.Contains(f.Id)).ToArray();
+        if (missing != 0)
             throw new TradovateCostSourceException(
-                $"Performance and Fills IDs do not match exactly ({missing} missing, {extra} extra). Select Fills covering the same activity as Performance.");
-        return byId;
+                $"Performance and Fills IDs do not match ({missing} missing, {excluded.Length} extra). Select a complete Fills export.");
+
+        if (excluded.Length > 0)
+        {
+            // Report dates and display dates can differ around midnight. Either one can indicate activity.
+            var activityDates = new HashSet<DateOnly>();
+            foreach (var fill in matched.Values)
+            {
+                activityDates.Add(fill.TradingDate);
+                activityDates.Add(DateOnly.FromDateTime(fill.LocalTimestamp));
+            }
+            foreach (var entry in sources.Cash)
+            {
+                activityDates.Add(entry.TradingDate);
+                activityDates.Add(DateOnly.FromDateTime(entry.LocalTimestamp));
+            }
+
+            if (excluded.Any(f => activityDates.Contains(f.TradingDate) ||
+                activityDates.Contains(DateOnly.FromDateTime(f.LocalTimestamp))))
+                throw new TradovateCostSourceException(
+                    $"{excluded.Length} extra Fills IDs include a date with Performance or Cash History activity. Verified import is blocked.");
+        }
+
+        return (matched, excluded);
+    }
+
+    private static void ValidateExcludedPositions(IReadOnlyList<TradovateCostFill> excluded,
+        IReadOnlyList<TradovatePreparedTradeCandidate> candidates)
+    {
+        if (excluded.Count == 0) return;
+
+        if (excluded.GroupBy(f => (f.TradingDate, f.Symbol))
+            .Any(group => group.Sum(f => f.Side == ExecutionSide.Buy ? f.Quantity : -f.Quantity) != 0))
+            throw new TradovateCostSourceException(
+                "Extra Fills leave a nonzero position on an unreported date. Verified coverage is ambiguous.");
+
+        var byContract = excluded.GroupBy(f => f.Symbol, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Select(f => f.UtcTimestamp).Order().ToArray(), StringComparer.Ordinal);
+        foreach (var candidate in candidates)
+        {
+            if (!byContract.TryGetValue(candidate.BrokerSymbol, out var excludedTimes)) continue;
+            int index = Array.BinarySearch(excludedTimes, candidate.OpenedAtUtc);
+            if (index < 0) index = ~index;
+            if (index < excludedTimes.Length &&
+                (candidate.ClosedAtUtc is null || excludedTimes[index] <= candidate.ClosedAtUtc))
+                throw new TradovateCostSourceException(
+                    "An extra Fill overlaps a reported position in the same contract. Verified coverage is ambiguous.");
+        }
     }
 
     internal static bool ValidateDisplayClock(IReadOnlyList<TradovateCostFill> fills)
