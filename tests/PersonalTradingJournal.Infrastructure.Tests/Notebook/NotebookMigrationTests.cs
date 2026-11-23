@@ -36,7 +36,7 @@ public sealed class NotebookMigrationTests
             Assert.Equal(screenshotId, screenshot.Id); Assert.Equal("synthetic.png", screenshot.StorageKey);
             Assert.Equal("Synthetic chart metadata only", screenshot.Description);
             Assert.Equal(f.Setup.Name, (await db.TradingSetups.AsNoTracking().SingleAsync()).Name);
-            Assert.Single(await db.PlaybookRevisions.ToArrayAsync()); Assert.Single(await db.TradingRuleRevisions.ToArrayAsync());
+            Assert.Empty(await db.ArchivedPlaybookFiles.ToArrayAsync()); Assert.Single(await db.TradingRuleRevisions.ToArrayAsync());
         }
         var note = NotebookFixture.Success(await f.Get<INotebookService>().ExecuteAsync(new CreateNotebookNote(Title: "Restart")));
         await f.Restart();

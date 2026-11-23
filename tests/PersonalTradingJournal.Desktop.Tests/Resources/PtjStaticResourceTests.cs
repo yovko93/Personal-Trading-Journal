@@ -100,7 +100,7 @@ public sealed class PtjStaticResourceTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(19, iconKeys.Count);
+        Assert.Equal(18, iconKeys.Count);
         Assert.True(
             missing.Length == 0,
             $"Undefined navigation icon key(s): {string.Join(", ", missing)}");

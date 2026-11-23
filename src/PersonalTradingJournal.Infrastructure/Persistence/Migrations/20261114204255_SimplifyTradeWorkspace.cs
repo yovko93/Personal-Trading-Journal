@@ -10,10 +10,9 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Retire only Trade capture rows. Frozen review JSON, Rule assessments,
-            // Playbook revisions/examples and all image files remain untouched.
+            // Keep rows still present in older installed journals until RetirePlaybook archives them.
+            // Previously upgraded journals already have the retired insert guards and empty tables.
             migrationBuilder.Sql("DROP TRIGGER IF EXISTS TradePlaybookAssociations_NoDelete;");
-            migrationBuilder.Sql("DELETE FROM TradePlaybookAssociations; DELETE FROM TradePlaybookContexts;");
             migrationBuilder.Sql("CREATE TRIGGER TradePlaybookAssociations_Retired BEFORE INSERT ON TradePlaybookAssociations BEGIN SELECT RAISE(ABORT, 'Trade Playbook associations are retired'); END;");
             migrationBuilder.Sql("CREATE TRIGGER TradePlaybookContexts_Retired BEFORE INSERT ON TradePlaybookContexts BEGIN SELECT RAISE(ABORT, 'Trade Playbook captures are retired'); END;");
             migrationBuilder.AddColumn<string>(

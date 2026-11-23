@@ -46,15 +46,15 @@ The current navigation order is:
 - Notebook
 - **Trading:** Trades, Journal, Calendar, Import
 - **Analysis:** Performance, Setups, Mistakes, Breakdown
-- **Planning:** Playbook, Trading Plan, Rules
+- **Planning:** Trading Plan, Rules
 - **Review:** Daily Review, Weekly Review, Monthly Review
 - Accounts
 - Instruments
 - Settings
 
-There are 19 destinations in total.
+There are 18 destinations in total.
 
-`MainWindowViewModel` builds one deterministic navigation catalog for the 19 destinations. `TopNavigationItems` contains Dashboard and Notebook; `NavigationSections` contains the collapsible Trading, Analysis, Planning, and Review groups; and `BottomNavigationItems` contains Accounts, Instruments, and Settings below a semantic divider. `MainWindow.xaml` renders these collections through shared item and section templates instead of repeating one Button block per route.
+`MainWindowViewModel` builds one deterministic navigation catalog for the 18 destinations. `TopNavigationItems` contains Dashboard and Notebook; `NavigationSections` contains the collapsible Trading, Analysis, Planning, and Review groups; and `BottomNavigationItems` contains Accounts, Instruments, and Settings below a semantic divider. `MainWindow.xaml` renders these collections through shared item and section templates instead of repeating one Button block per route.
 
 `CurrentDestination` remains authoritative routing state. The catalog's item-level `IsSelected` values are synchronized from it so exactly one destination receives selected styling. Every item passes its typed destination through `CommandParameter` to the existing centralized `NavigateCommand`; section headers only toggle their own `IsExpanded` state and never navigate. Groups start expanded, retain their state for the main-window session, and automatically expand if navigation targets one of their children.
 

@@ -95,9 +95,6 @@
             <DataTemplate DataType="{x:Type setupViewModels:TradingSetupsViewModel}">
                 <setupViews:TradingSetupsView />
             </DataTemplate>
-            <DataTemplate DataType="{x:Type setupViewModels:PlaybookViewModel}">
-                <setupViews:PlaybookView />
-            </DataTemplate>
             <DataTemplate DataType="{x:Type ruleViewModels:RulesViewModel}">
                 <ruleViews:RulesView />
             </DataTemplate>

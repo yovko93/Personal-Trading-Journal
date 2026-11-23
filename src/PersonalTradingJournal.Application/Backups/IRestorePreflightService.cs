@@ -28,7 +28,9 @@ public sealed record RestorePreflightResult(Guid OperationId, RestorePreflightPh
 {
     public bool Validated => Failure is null && Summary is not null;
     public string? CleanupMessage => CleanupFailed ? "Private staging cleanup is incomplete. Sensitive temporary files may remain; no installed data was changed." : null;
-    public string Message => Validated ? "Archive checked. Revalidate before any restore; no installed data was changed." :
+    public string Message => Validated && Compatibility == BackupSchemaCompatibility.VerifiedPreRetirement
+        ? "Pre-retirement backup verified. Restore preserves its original files. PTJ archives Playbook content on the next startup."
+        : Validated ? "Archive checked. Revalidate before any restore; no installed data was changed." :
         Compatibility == BackupSchemaCompatibility.RequiresStagedMigration ? "Older schema recognized. A supported staged upgrade is required; this preflight never migrates data." :
         Failure switch
         {

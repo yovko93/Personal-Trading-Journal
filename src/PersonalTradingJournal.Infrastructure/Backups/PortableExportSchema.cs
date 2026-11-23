@@ -1,6 +1,6 @@
 namespace PersonalTradingJournal.Infrastructure.Backups;
 
-// Deliberate version-20 allowlist, not reflection over future DB columns. Any field/semantic change requires contract review.
+// Deliberate version-21 allowlist, not reflection over future DB columns. Any field/semantic change requires contract review.
 internal enum ExportValueKind { Text, Id, Decimal, Integer, Boolean, Utc, NewYorkDate }
 internal sealed record ExportColumn(string Column, ExportValueKind Kind, string? Alias = null)
 {
@@ -41,10 +41,10 @@ internal static class PortableExportSchema
         new("dailyTradingPrinciples", "DailyTradingPrinciples", "Position,Id", false,
             [I("Id"), T("Text"), N("Position"), U("CreatedAtUtc")]),
         new("dailyTradingPrincipleState", "DailyTradingPrincipleState", "Id", false, [N("Id"), N("Version")]),
-        new("currentPlaybooks", "CurrentPlaybooks", "TradingSetupId", false,
-            [I("TradingSetupId"), N("Version"), N("LegacyRevision"), T("DefinitionJson")]),
-        new("currentPlaybookExamples", "CurrentPlaybookExamples", "TradingSetupId,ExampleId", false,
-            [I("TradingSetupId"), I("ExampleId"), I("SourceScreenshotId"), T("ImageStorageKey"), N("ImageSizeBytes"), T("ImageSha256")]),
+        new("archivedPlaybookContent", "ArchivedPlaybookContent", "Id", false,
+            [N("Id"), T("Source"), T("ContentJson")]),
+        new("archivedPlaybookFiles", "ArchivedPlaybookFiles", "StorageKey", false,
+            [T("StorageKey"), N("SizeBytes"), T("Sha256")]),
         new("tradingPlanAssets", "TradingPlanAssets", "PlanId,Id", false,
             [I("Id"), I("PlanId"), I("InstrumentId"), N("Timeframe"), T("StorageKey"), T("FileName"), N("SizeBytes"), T("Sha256")]),
         new("tradingPlans", "TradingPlans", "AccountId,NewYorkDate,Id", false,
@@ -79,16 +79,6 @@ internal static class PortableExportSchema
             [I("Id"), I("TradeId"), N("Sequence"), U("ExecutedAtUtc"), N("Side"), D("Quantity"), D("Price"), D("Commission"), D("Fees"), T("ExternalExecutionId"), T("ExternalOrderId"), T("BrokerSymbol")]),
         new("setups", "TradingSetups", "Id", false,
             [I("Id"), T("Name"), T("Description"), B("IsActive"), U("CreatedAtUtc"), U("UpdatedAtUtc")]),
-        new("playbookRevisions", "PlaybookRevisions", "TradingSetupId,Revision", false,
-            [I("TradingSetupId"), N("Revision"), N("ContractVersion"), T("SetupName"), T("SetupDescription"),
-             T("MarketContext"), T("EntryConditions"), T("Confirmations"), T("Invalidation"), T("ExecutionGuidance"), U("RecordedAtUtc")]),
-        new("playbookExamples", "PlaybookExamples", "TradingSetupId,Revision,Position", false,
-            [I("TradingSetupId"), N("Revision"), I("ExampleId"), N("Position"), T("Annotation"), I("SourceTradeId"), I("SourceScreenshotId"),
-             N("Kind"), T("ImageStorageKey"), T("ImageFileName"), N("ImageSizeBytes"), T("ImageSha256")]),
-        new("tradePlaybookContexts", "TradePlaybookContexts", "TradeId", false,
-            [I("TradeId"), N("ContractVersion"), I("TradingSetupId"), N("Revision"), U("TradeOpenedAtUtc"), U("CapturedAtUtc"), T("DefinitionJson")]),
-        new("tradePlaybookAssociations", "TradePlaybookAssociations", "TradeId,Sequence", false,
-            [I("TradeId"), N("Sequence"), I("TradingSetupId"), N("Revision"), U("RecordedAtUtc"), U("TradeOpenedAtUtc"), T("DefinitionJson")]),
         new("mistakes", "TradingMistakes", "Id", false,
             [I("Id"), T("Name"), T("Description"), B("IsActive"), U("CreatedAtUtc"), U("UpdatedAtUtc")]),
         new("tradeMistakes", "TradeMistakes", "TradeId,TradingMistakeId,Id", false,

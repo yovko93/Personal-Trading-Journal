@@ -53,13 +53,8 @@ public sealed class TradeDeletionStore : ITradeDeletionStore
         List<TradeScreenshotRecord> screenshots = await context.TradeScreenshots
             .Where(candidate => candidate.TradeId == tradeId)
             .ToListAsync(cancellationToken);
-        var screenshotIds = screenshots.Select(s => s.Id).ToArray();
-        if (await context.PlaybookExamples.AnyAsync(e => e.SourceScreenshotId.HasValue && screenshotIds.Contains(e.SourceScreenshotId.Value), cancellationToken) ||
-            await context.CurrentPlaybookExamples.AnyAsync(e => e.SourceScreenshotId.HasValue && screenshotIds.Contains(e.SourceScreenshotId.Value), cancellationToken))
-            throw new InvalidOperationException("This Trade owns a screenshot retained by Playbook history and cannot be deleted.");
         var retainedKeys = await context.TradeScreenshots.Where(s => s.TradeId != tradeId)
-            .Select(s => s.StorageKey).Concat(context.PlaybookExamples.Where(e => e.ImageStorageKey != null).Select(e => e.ImageStorageKey!))
-            .Concat(context.CurrentPlaybookExamples.Where(e => e.ImageStorageKey != null).Select(e => e.ImageStorageKey!))
+            .Select(s => s.StorageKey).Concat(context.ArchivedPlaybookFiles.Select(e => e.StorageKey))
             .ToArrayAsync(cancellationToken);
         IReadOnlyList<string> storageKeys = screenshots
             .Select(screenshot => screenshot.StorageKey)

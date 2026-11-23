@@ -29,9 +29,6 @@ public sealed class ScenariosViewTests
         for (int i = 0; i < 4; i++)
         {
             var fixture = new SessionPreparationTests.Fixture(); await fixture.Vm.LoadCatalogAsync();
-            var books = new ScenarioTests.Books(); fixture.Vm.ConfigurePlaybooks(books, books, books);
-            await fixture.Vm.LoadPlaybooksAsync(); fixture.Vm.Scenarios[0].Candidate = fixture.Vm.AvailablePlaybooks[0];
-            await fixture.Vm.Scenarios[0].LinkCommand.ExecuteAsync(null);
             fixtures.Enqueue(fixture);
         }
         await CalendarStaTest.RunAsync(() =>
@@ -75,9 +72,7 @@ public sealed class ScenariosViewTests
                 condition.SetCurrentValue(TextBox.TextProperty, "Bound\nIF field"); Assert.Equal("Bound\nIF field", vm.Scenarios[0].Condition.Text);
                 var moved = vm.Scenarios[1];
                 Descendants(second).OfType<Expander>().Single().IsExpanded = true; Layout();
-                var select = Descendants(second).OfType<Button>().Single(b => Equals(b.Content, "Use current Playbook"));
-                Assert.True(select.IsTabStop); Assert.Equal("Use current Playbook", new System.Windows.Automation.Peers.ButtonAutomationPeer(select).GetName());
-                Assert.DoesNotContain(Descendants(second).OfType<ComboBox>(), c => c.ItemsSource is IEnumerable<PersonalTradingJournal.Domain.Setups.TradingSetupPlaybookRevision>);
+                Assert.DoesNotContain(Descendants(second).OfType<Button>(), b => b.Content?.ToString()?.Contains("Playbook") == true);
                 var up = Descendants(second).OfType<Button>().Single(b => AutomationProperties.GetName(b) == "Move scenario earlier");
                 Assert.True(up.IsEnabled); up.Command.Execute(up.CommandParameter); Layout(); Assert.Same(moved, vm.Scenarios[0]);
                 Render(scroll, theme, width, dpi, "multiple");

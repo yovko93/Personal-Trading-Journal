@@ -92,7 +92,7 @@ public sealed partial class SessionPreparationViewModel
         return new(perTrade, daily, maximum, consecutive);
     }
     private string ReferenceSelection() => JsonSerializer.Serialize(new { Key.AccountId, PlanCurrency,
-        Instruments = _contexts.Select(c => c.InstrumentId).Order(), Setups = _scenarios.Select(s => s.Setup).Where(s => s is not null).Distinct().OrderBy(s => s!.SetupId),
+        Instruments = _contexts.Select(c => c.InstrumentId).Order(),
         Rules = _linkedRules.Select(r => r.Link).OrderBy(r => r.RuleId) });
 
     public async Task CheckReferencesAsync(CancellationToken ct = default)

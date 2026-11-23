@@ -3,7 +3,8 @@ using PersonalTradingJournal.Application.Backups;
 
 namespace PersonalTradingJournal.Infrastructure.Backups;
 
-internal static class PlaybookImageInventory
+// Exact attachment contract of the last schema with an editable Playbook. Restore validation only.
+internal static class LegacyPlaybookImageInventory
 {
     internal const string KeysSql = "SELECT StorageKey COLLATE BINARY AS StorageKey FROM TradeScreenshots UNION SELECT ImageStorageKey COLLATE BINARY FROM PlaybookExamples WHERE ImageStorageKey IS NOT NULL UNION SELECT ImageStorageKey COLLATE BINARY FROM CurrentPlaybookExamples WHERE ImageStorageKey IS NOT NULL UNION SELECT StorageKey COLLATE BINARY FROM TradingPlanAssets UNION SELECT StorageKey COLLATE BINARY FROM NotebookImages WHERE Ownership = 1 UNION SELECT StorageKey COLLATE BINARY FROM NotebookOwnedImageFiles WHERE CleanupPending = 0 ORDER BY StorageKey COLLATE BINARY LIMIT 100001;";
 

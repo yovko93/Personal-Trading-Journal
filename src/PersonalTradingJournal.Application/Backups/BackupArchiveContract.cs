@@ -56,7 +56,7 @@ public sealed record BackupDatabaseSchema(string Engine, ImmutableArray<string> 
 public sealed record BackupFileEntry(string Path, BackupFileKind Kind, long SizeBytes, string Sha256);
 
 public enum BackupFileKind { Database, Screenshot, Preferences }
-public enum BackupSchemaCompatibility { Exact, RequiresStagedMigration, Unsupported }
+public enum BackupSchemaCompatibility { Exact, RequiresStagedMigration, Unsupported, VerifiedPreRetirement }
 
 /// <summary>Shared safe codes for later transport/payload/database checks as well as today's metadata checks.</summary>
 public enum BackupValidationCode

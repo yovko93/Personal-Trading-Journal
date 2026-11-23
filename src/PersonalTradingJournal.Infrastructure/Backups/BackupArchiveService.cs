@@ -104,7 +104,7 @@ public sealed class BackupArchiveService : IBackupArchiveService
                 using var metadata = new SqliteConnection(new SqliteConnectionStringBuilder
                 { DataSource = snapshot.DatabasePath, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
                 metadata.Open();
-                if (!PlaybookImageInventory.Matches(metadata, payload.Values.Select(p => p.Entry), token))
+                if (!BackupImageInventory.Matches(metadata, payload.Values.Select(p => p.Entry), token))
                     throw new Failure(BackupValidationCode.DatabaseAttachmentMismatch);
             }
             // Captured bytes no longer depend on live screenshot lifetime. New app screenshots use fresh keys.
@@ -179,7 +179,7 @@ public sealed class BackupArchiveService : IBackupArchiveService
         { DataSource = database, Mode = SqliteOpenMode.ReadOnly, Pooling = false, DefaultTimeout = 2 }.ToString());
         connection.Open();
         using var command = connection.CreateCommand();
-        command.CommandText = PlaybookImageInventory.KeysSql;
+        command.CommandText = BackupImageInventory.KeysSql;
         using var rows = command.ExecuteReader();
         var keys = new List<string>(); var unique = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         while (rows.Read())

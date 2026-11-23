@@ -96,11 +96,11 @@
     <SolidColorBrush x:Key="PtjJournalRevisionForegroundBrush" Color="#B9E5FC" />
     <SolidColorBrush x:Key="PtjPlanVioletBrush" Color="#D3BEFF" />
     <SolidColorBrush x:Key="PtjPlanVioletSurfaceBrush" Color="#35294A" />
-    <SolidColorBrush x:Key="PtjPlaybookCreateHoverBrush" Color="#B1DBD5" />
-    <SolidColorBrush x:Key="PtjPlaybookClosePressedBrush" Color="#503040" />
-    <SolidColorBrush x:Key="PtjPlaybookCreatePressedBrush" Color="#C1E6E0" />
-    <SolidColorBrush x:Key="PtjPlaybookRemoveHoverBrush" Color="#F1A8B4" />
-    <SolidColorBrush x:Key="PtjPlaybookRemovePressedBrush" Color="#F7BCC5" />
+    <SolidColorBrush x:Key="PtjWorkspaceCreateHoverBrush" Color="#B1DBD5" />
+    <SolidColorBrush x:Key="PtjWorkspaceClosePressedBrush" Color="#503040" />
+    <SolidColorBrush x:Key="PtjWorkspaceCreatePressedBrush" Color="#C1E6E0" />
+    <SolidColorBrush x:Key="PtjWorkspaceRemoveHoverBrush" Color="#F1A8B4" />
+    <SolidColorBrush x:Key="PtjWorkspaceRemovePressedBrush" Color="#F7BCC5" />
     <SolidColorBrush x:Key="PtjTradeExecutionFactsBrush" Color="#172D42" />
     <SolidColorBrush x:Key="PtjTradeExecutionSourceBrush" Color="#30253D" />
 </ResourceDictionary>

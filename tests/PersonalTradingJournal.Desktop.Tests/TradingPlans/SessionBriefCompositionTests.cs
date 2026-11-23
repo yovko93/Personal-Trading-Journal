@@ -232,7 +232,7 @@ public sealed class SessionBriefCompositionTests
                 Enumerable.Repeat(unchecked((int)0x00609F94), 64 * 32).ToArray(), 64 * 4);
             var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(source));
             using var stream = new MemoryStream(); encoder.Save(stream);
-            var bytes = stream.ToArray(); var decoded = PlaybookExampleImages.Decode(bytes, true);
+            var bytes = stream.ToArray(); var decoded = WorkspaceImageDecoder.Decode(bytes, true);
             return Task.FromResult<PlanImageSelection?>(new("synthetic.png", bytes, decoded));
         }
         public Task<PlaybookExampleImage> StoreAsync(PlanImageSelection s, CancellationToken ct) => storage.StoreAsync(s.FileName, s.Bytes, ct);

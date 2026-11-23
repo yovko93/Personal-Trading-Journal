@@ -43,7 +43,7 @@ Accounts show cumulative payouts in the Account currency and deduct them from Cu
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Latest local Release gate finished in 14m 01s with **5,636 passed, 0 failed and 1 existing Rules-view quarantine skip**. See the [September Tradovate reporting mismatch verification](docs/tradovate-verified-costs.md#september-reporting-mismatch). The [Calendar day verification](docs/trading-calendar.md#calendar-day-scope-correction-20-november-2026) records the compiled Light/Dark layouts, focused tests and remaining live checks. The prior Instruments and Notebook failures shared a native window ownership mismatch. Its trigger remains unresolved. See the [native window investigation](docs/ci-wpf-tests.md#native-window-ownership-during-accounts-verification) and the [Accounts alignment verification](docs/account-payouts.md#accounts-row-alignment). Live Accounts inspection remains pending. The earlier gate took 14m 22s after a 23m 16s run. The earlier slowdown’s cause and matching hosted timing remain unverified. See the [Release gate timing comparison](docs/ci-wpf-tests.md#trades-release-gate-timing-on-19-november-2026). The prior Journal History failure did not recur with the added test diagnostics. Its cause remains unresolved. See [Journal History investigation](docs/ci-wpf-tests.md#journal-history-zero-row-assertion--17-november-2026). |
+| Verification | The Playbook retirement passed the local Release gate with **5,480 passed, 0 failed and 1 existing Rules quarantine skip** in 13m 51.56s. See [migration, restore and verification](docs/playbook.md#verification). The [CI investigation guide](docs/ci-wpf-tests.md) records earlier runs and remaining hosted checks. |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
@@ -57,7 +57,7 @@ The CI badge tracks `main`; it does not certify every development change. The [N
 | **CSV import** | Preview and confirm Tradovate matched fills and TopstepX Trades exports. Matching Tradovate Fills and Cash History verify costs and Net, including safe enrichment of unedited Performance imports. |
 | **Analytics** | Explore Dashboard metrics, Calendar results, and Breakdown groups with drill-down into the contributing trades. Calendar assigns Trades closed at or after 18:00 New York time to the next date. Open a date for daily P&L, the performance chart, Day Journal, and its Trades. |
 | **Daily journal** | Capture reflections, save drafts and completed entries, and revisit revision history by date and account. |
-| **Planning** | Maintain Playbook definitions, trading rules, daily principles, and Trading Plans with saved Ready revisions. |
+| **Planning** | Maintain trading rules, daily principles, and Trading Plans with saved Ready revisions. Historical Playbook content is available through portable export and complete backup. |
 | **Reviews** | Review daily, weekly, and monthly evidence, retain saved analyses, and optionally use AI-assisted coaching or the manual ChatGPT prompt workflow. |
 | **Notebook** | Organize rich-text notes with folders, tags, images, templates, pinned notes, linked trades and setups, autosave, and recovery. |
 | **Data management** | Create complete backups, validate and restore compatible archives, and export data as JSON or CSV. |
@@ -121,7 +121,7 @@ On startup, the app creates its local data directories and applies database migr
 2. Open **Instruments** and configure the instruments you trade, including their pricing and currency.
 3. Add a trade in **Trades**, or open **Import** to preview a supported CSV export before confirming it.
 4. Explore **Dashboard** and **Calendar**, then add your observations in **Journal**.
-5. Build your preparation and review routine with **Playbook**, **Trading Plan**, **Rules**, and **Notebook**.
+5. Build your preparation and review routine with **Trading Plan**, **Rules**, and **Notebook**.
 
 ### Tradovate and TopstepX desktop import
 
@@ -200,7 +200,7 @@ The gate permits only the [explicitly quarantined Rules-view test](docs/rules-vi
 | Trades and imports | [Domain model](docs/domain-model.md) · [Tradovate](docs/tradovate-csv-import.md) · [TopstepX](docs/topstep-csv-import.md) |
 | Analytics | [Dashboard](docs/dashboard-analytics.md) · [Calendar](docs/trading-calendar.md) · [Breakdown](docs/breakdown-analytics.md) |
 | Journaling and reviews | [Daily Journal](docs/daily-journal.md) · [Daily Review](docs/daily-review.md) · [Weekly and Monthly Reviews](docs/period-reviews.md) · [Notebook](docs/notebook.md) |
-| Planning | [Playbook](docs/playbook.md) · [Trading Plan](docs/trading-plan.md) · [Trading Rules](docs/trading-rules.md) |
+| Planning | [Historical Playbook archive](docs/playbook.md) · [Trading Plan](docs/trading-plan.md) · [Trading Rules](docs/trading-rules.md) |
 | Storage and recovery | [Persistence](docs/persistence.md) · [Backup and Restore](docs/backup-restore.md) |
 | Engineering | [Architecture](docs/architecture.md) · [Desktop UI](docs/desktop-ui.md) · [WPF tests](docs/ci-wpf-tests.md) · [SQLite tests](docs/sqlite-test-lifetimes.md) |
 | Visual identity | [Application Branding](docs/application-branding.md) |

@@ -344,7 +344,7 @@ public sealed partial class TradingPlanWorkspaceViewModel
                     TradingPlanWriteStatus.ReferenceChanged when copy && currency is not null => "The Account currency or another source changed again after review. No target Draft was created. Retry Copy Forward and review the latest context; input is retained.",
                     TradingPlanWriteStatus.ReferenceChanged when copy => "A source or Account currency changed. No target Draft was created. Review current sources, then retry Copy Forward with the latest context; input is retained.",
                     TradingPlanWriteStatus.ReferenceChanged => "A source or Account currency changed. Review current sources and explicitly refresh references in the existing Draft. Input is retained.",
-                    TradingPlanWriteStatus.ReferenceUnavailable => "A required Account, Instrument, Playbook or Rule is inactive or unavailable. Reopen or review it before retrying; the historical revision remains readable.",
+                    TradingPlanWriteStatus.ReferenceUnavailable => "A required Account, Instrument or Rule is inactive or unavailable. Reopen or review it before retrying; the historical revision remains readable.",
                     TradingPlanWriteStatus.Cancelled => "Operation cancelled. No success was reported; editor input is retained.",
                     _ => "The Draft could not be saved and verified. Input is retained. Check the target before retrying."
                 }, PlanNotice.ForWrite(result.Status)); return;

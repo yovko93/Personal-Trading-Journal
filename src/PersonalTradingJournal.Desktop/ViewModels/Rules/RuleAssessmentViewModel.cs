@@ -254,7 +254,7 @@ public sealed class RuleAssessmentViewModel : ObservableObject
             _olderEvidence = evidence.Count > 20;
             Message = selected is null ? "No applicable Rules. Create a matching rule in Planning → Rules." :
                 _target is not null && !(_available && Applies(selected.Details.Revision, _target)) ? "Historical records remain readable. This target or current Rule is unavailable, archived, or no longer applicable; new assessments are blocked." :
-                "Assess only recorded, saved data. Run checks evaluates typed criteria only when clicked. Missing costs and a Playbook association never establish adherence.";
+                "Assess only recorded, saved data. Run checks evaluates typed criteria only when clicked. Missing costs cannot establish adherence.";
         }
         catch (OperationCanceledException) { if (generation == _generation) Message = "Loading cancelled. Unsaved explanation retained."; }
         catch (Exception) { if (generation == _generation) { _available = false; Message = "Assessments could not be loaded. Your explanation is retained; use Refresh when ready."; } }

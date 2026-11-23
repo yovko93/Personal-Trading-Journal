@@ -1,5 +1,9 @@
 # Trading Plan
 
+## Scenario options after Playbook retirement
+
+Scenario options include instrument selection and ordering. Ready revisions with historical guidance display their own frozen text. Starting a draft from a Ready revision, copying forward, and prefilling a day retain the scenario text and omit retired links. Older verification entries below describe their respective releases. [Historical Playbook archive](playbook.md)
+
 ## Initial Principles load cancellation race — 20 October 2026
 
 Baseline: clean `develop` at `cc4c43ecd00bbc050f615f9e6ce07f2926acd2f2`. The committed PR #25 Copy Forward currency correction and previous Principles write-entry test synchronization are preserved.

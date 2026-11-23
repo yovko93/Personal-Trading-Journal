@@ -8,7 +8,7 @@
              xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="CohortVisible" />
-        <Style x:Key="BreakdownReturnAction" TargetType="Button" BasedOn="{StaticResource PtjPlaybookCreateButtonStyle}" />
+        <Style x:Key="BreakdownReturnAction" TargetType="Button" BasedOn="{StaticResource PtjWorkspaceCreateButtonStyle}" />
         <Style x:Key="BreakdownExitAction" TargetType="Button" BasedOn="{StaticResource PtjJournalActionButtonStyle}" />
         <converters:PnLOutcomeConverter x:Key="PnLOutcomeConverter" />
         <converters:TradeRowOutcomeConverter x:Key="TradeRowOutcomeConverter" />
@@ -826,7 +826,7 @@
                                        Style="{StaticResource PtjSectionTitleTextStyle}" Text="Trading Mistakes" />
                             <Button x:Name="OpenMistakeEditor" Grid.Column="1" Content="Add Mistake"
                                     Command="{Binding OpenMistakeEditorCommand}" Margin="0"
-                                    Style="{StaticResource PtjPlaybookArchiveButtonStyle}" />
+                                    Style="{StaticResource PtjWorkspaceArchiveButtonStyle}" />
                         </Grid>
 
                         <TextBlock Margin="0,12,0,0"
@@ -937,7 +937,7 @@
                                                     Command="{Binding DataContext.RemoveMistakeCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                                                     CommandParameter="{Binding}"
                                                     Content="Remove"
-                                                    Style="{StaticResource PtjPlaybookRemoveButtonStyle}" />
+                                                    Style="{StaticResource PtjWorkspaceRemoveButtonStyle}" />
                                         </Grid>
                                     </Border>
                                 </DataTemplate>

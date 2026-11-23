@@ -43,12 +43,7 @@ public sealed class JournalDbContext : DbContext
 
     public DbSet<TradingSetupRecord> TradingSetups => Set<TradingSetupRecord>();
 
-    public DbSet<PlaybookRevisionRecord> PlaybookRevisions => Set<PlaybookRevisionRecord>();
-    public DbSet<CurrentPlaybookRecord> CurrentPlaybooks => Set<CurrentPlaybookRecord>();
-    public DbSet<CurrentPlaybookExampleRecord> CurrentPlaybookExamples => Set<CurrentPlaybookExampleRecord>();
-    public DbSet<PlaybookExampleRecord> PlaybookExamples => Set<PlaybookExampleRecord>();
-    public DbSet<TradePlaybookContextRecord> TradePlaybookContexts => Set<TradePlaybookContextRecord>();
-    public DbSet<TradePlaybookAssociationRecord> TradePlaybookAssociations => Set<TradePlaybookAssociationRecord>();
+    public DbSet<ArchivedPlaybookFile> ArchivedPlaybookFiles => Set<ArchivedPlaybookFile>();
 
     public DbSet<TradingMistakeRecord> TradingMistakes => Set<TradingMistakeRecord>();
 
@@ -96,21 +91,10 @@ public sealed class JournalDbContext : DbContext
             b.Property(x => x.Version).IsConcurrencyToken();
             b.HasData(new DailyTradingPrincipleStateRecord { Id = 1, Version = 0 });
         });
-        modelBuilder.Entity<CurrentPlaybookRecord>(b =>
+        modelBuilder.Entity<ArchivedPlaybookFile>(b =>
         {
-            b.ToTable("CurrentPlaybooks", t => t.HasCheckConstraint("CK_CurrentPlaybooks_Content",
-                "Version > 0 AND ((LegacyRevision IS NOT NULL AND LegacyRevision = Version AND DefinitionJson IS NULL) OR (LegacyRevision IS NULL AND DefinitionJson IS NOT NULL))"));
-            b.HasKey(x => x.TradingSetupId); b.Property(x => x.TradingSetupId).ValueGeneratedNever();
-            b.Property(x => x.Version).IsConcurrencyToken();
-            b.HasOne<TradingSetupRecord>().WithMany().HasForeignKey(x => x.TradingSetupId).OnDelete(DeleteBehavior.Restrict);
-            b.HasOne<PlaybookRevisionRecord>().WithMany().HasForeignKey(x => new { x.TradingSetupId, Revision = x.LegacyRevision }).OnDelete(DeleteBehavior.Restrict);
-        });
-        modelBuilder.Entity<CurrentPlaybookExampleRecord>(b =>
-        {
-            b.ToTable("CurrentPlaybookExamples"); b.HasKey(x => new { x.TradingSetupId, x.ExampleId });
-            b.Property(x => x.ExampleId).ValueGeneratedNever();
-            b.HasOne<CurrentPlaybookRecord>().WithMany().HasForeignKey(x => x.TradingSetupId).OnDelete(DeleteBehavior.Restrict);
-            b.HasOne<TradeScreenshotRecord>().WithMany().HasForeignKey(x => x.SourceScreenshotId).OnDelete(DeleteBehavior.Restrict);
+            b.ToTable("ArchivedPlaybookFiles");
+            b.HasKey(x => x.StorageKey);
         });
         modelBuilder.ApplyConfiguration<TradingPlanRecord>(new TradingPlanConfiguration());
         modelBuilder.ApplyConfiguration<TradingPlanReadyRecord>(new TradingPlanConfiguration());
@@ -132,10 +116,6 @@ public sealed class JournalDbContext : DbContext
         modelBuilder.ApplyConfiguration(new PeriodReviewRecordConfiguration());
         modelBuilder.ApplyConfiguration(new DailyJournalRevisionRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradingSetupRecordConfiguration());
-        modelBuilder.ApplyConfiguration(new PlaybookRevisionRecordConfiguration());
-        modelBuilder.ApplyConfiguration(new PlaybookExampleRecordConfiguration());
-        modelBuilder.ApplyConfiguration(new TradePlaybookContextRecordConfiguration());
-        modelBuilder.ApplyConfiguration(new TradePlaybookAssociationRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradingMistakeRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradeRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradeBrowseRecordConfiguration());

@@ -37,8 +37,8 @@ namespace PersonalTradingJournal.Desktop.Tests.Navigation;
 public sealed partial class MainWindowViewModelTests
 {
     [Fact]
-    public void NavigationDestinationsContainNineteenEntries() =>
-        Assert.Equal(19, Enum.GetValues<NavigationDestination>().Length);
+    public void NavigationDestinationsContainEighteenEntries() =>
+        Assert.Equal(18, Enum.GetValues<NavigationDestination>().Length);
 
     [Fact]
     public void NavigationCatalogCoversEveryDestinationExactlyOnce()
@@ -48,7 +48,7 @@ public sealed partial class MainWindowViewModelTests
         Assert.Equal(
             Enum.GetValues<NavigationDestination>(),
             fixture.Main.AllNavigationItems.Select(item => item.Destination));
-        Assert.Equal(19, fixture.Main.AllNavigationItems.Count);
+        Assert.Equal(18, fixture.Main.AllNavigationItems.Count);
         Assert.Equal(
             fixture.Main.AllNavigationItems.Count,
             fixture.Main.AllNavigationItems.Select(item => item.Destination).Distinct().Count());
@@ -86,7 +86,6 @@ public sealed partial class MainWindowViewModelTests
             fixture.Main.NavigationSections[1].Items.Select(item => item.Destination));
         Assert.Equal(
             [
-                NavigationDestination.Playbook,
                 NavigationDestination.TradingPlan,
                 NavigationDestination.Rules,
             ],
@@ -1220,9 +1219,9 @@ public sealed partial class MainWindowViewModelTests
     }
 
     internal static MainWindowViewModel CreatePlanShell(PersonalTradingJournal.Desktop.ViewModels.TradingPlans.TradingPlanWorkspaceViewModel plan,
-        PlaybookViewModel? playbook = null, PersonalTradingJournal.Desktop.ViewModels.Rules.RulesViewModel? rules = null,
+        PersonalTradingJournal.Desktop.ViewModels.Rules.RulesViewModel? rules = null,
         PersonalTradingJournal.Desktop.ViewModels.DailyReview.DailyReviewViewModel? dailyReview = null) =>
-        CreateFixture(tradingPlan: plan, playbook: playbook, rules: rules, dailyReview: dailyReview).Main;
+        CreateFixture(tradingPlan: plan, rules: rules, dailyReview: dailyReview).Main;
 
     private static ViewModelFixture CreateFixture(
         AppTheme preferredTheme = AppTheme.System,
@@ -1240,7 +1239,6 @@ public sealed partial class MainWindowViewModelTests
         PersonalTradingJournal.Desktop.ViewModels.DailyReview.DailyReviewViewModel? dailyReview = null,
         DeleteAccountTradesUseCase? accountTradeDeletion = null,
         DataBackupsViewModel? dataBackups = null,
-        PlaybookViewModel? playbook = null,
         PersonalTradingJournal.Desktop.ViewModels.Rules.RulesViewModel? rules = null,
         PersonalTradingJournal.Desktop.ViewModels.PeriodReviews.PeriodReviewWorkspaces? periods = null,
         PersonalTradingJournal.Desktop.ViewModels.Breakdown.BreakdownViewModel? breakdown = null,
@@ -1417,7 +1415,7 @@ public sealed partial class MainWindowViewModelTests
             trades,
             settings,
             themeService,
-            topstepChanges, dailyReview, playbook, rules, periods, breakdown, tradingPlan, notebook);
+            topstepChanges, dailyReview, rules, periods, breakdown, tradingPlan, notebook);
 
         return new ViewModelFixture(
             main,

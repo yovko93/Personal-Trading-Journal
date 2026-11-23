@@ -1,5 +1,9 @@
 # Backup and restore
 
+## Playbook archive and restore compatibility
+
+Portable export v21 includes archived content and image metadata. Complete backups include archived image originals. The restore preflight accepts the exact current schema and the immediately preceding pre-retirement schema. Earlier compatibility notes below describe those releases. [Historical Playbook archive](playbook.md)
+
 ## Trades workspace — current extension
 
 Portable export **v20** adds the optional Trade `description` to JSON and `trades.csv`. Screenshot capture time and descriptions already stored remain in exports even though Trades no longer edits or displays them. The current database migration removes Trade association/capture rows; empty compatibility tables remain in the export contract and reject new inserts. Whole-database archive v1 retains descriptions, screenshots, shared Playbook images and immutable review JSON. Existing exact-schema restore checks remain: older archives are not silently rewritten or accepted. See [Trades workspace](trades-workspace.md) for migration, isolated round-trip tests and actual verification.

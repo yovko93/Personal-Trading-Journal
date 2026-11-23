@@ -61,28 +61,6 @@ internal sealed record TradingPlanReferences(TradingPlanReferenceSnapshot Snapsh
             Require(i!.IsActive, TradingPlanReferenceKind.Instrument, id, TradingPlanReferenceState.Inactive);
             Token(TradingPlanReferenceKind.Instrument, id, i);
         }
-        var setupIds = content.Scenarios.Where(x => x.Setup is not null).Select(x => x.Setup!.SetupId).Distinct().ToArray();
-        var setups = await db.TradingSetups.AsNoTracking().Where(x => setupIds.Contains(x.Id)).ToArrayAsync(ct);
-        var playbooks = await db.PlaybookRevisions.AsNoTracking().Where(x => setupIds.Contains(x.TradingSetupId) &&
-            !db.PlaybookRevisions.Any(n => n.TradingSetupId == x.TradingSetupId && n.Revision > x.Revision)).ToArrayAsync(ct);
-        var current = setupIds.Length == 0 ? [] : await db.CurrentPlaybooks.AsNoTracking().Where(x => setupIds.Contains(x.TradingSetupId)).ToArrayAsync(ct);
-        // Migration preserves the previous authoritative highest revision. Direct edits replace only
-        // the current definition; the existing Plan token still detects changes and requires reconfirmation.
-        playbooks = playbooks.Where(x => !current.Any(c => c.TradingSetupId == x.TradingSetupId && c.DefinitionJson != null))
-            .Concat(current.Where(x => x.DefinitionJson != null).Select(x =>
-                PlaybookPersistenceMapper.ToRecord(PlaybookPersistenceMapper.Deserialize(x.DefinitionJson!)))).ToArray();
-        var sources = new List<TradingPlanPlaybookSource>();
-        foreach (var id in setupIds)
-        {
-            var s = setups.SingleOrDefault(x => x.Id == id); var p = playbooks.SingleOrDefault(x => x.TradingSetupId == id);
-            Require(s is not null && p is not null, TradingPlanReferenceKind.Playbook, id, TradingPlanReferenceState.Unavailable);
-            Require(s!.IsActive, TradingPlanReferenceKind.Playbook, id, TradingPlanReferenceState.Inactive);
-            Require(content.Scenarios.Where(x => x.Setup?.SetupId == id).All(x => x.Setup!.ExpectedPlaybookRevision == p!.Revision &&
-                x.Setup.ExpectedUpdatedAtUtc == s.UpdatedAtUtc), TradingPlanReferenceKind.Playbook, id, TradingPlanReferenceState.Changed);
-            Token(TradingPlanReferenceKind.Playbook, id, new { Setup = s, Playbook = p });
-            // The Plan contract captures five guidance sections, not image/example content.
-            sources.Add(new(TradingSetupPersistenceMapper.ToDomain(s), PlaybookPersistenceMapper.ToDomain(p!, [])));
-        }
         var ruleIds = content.Rules.Select(x => x.RuleId).ToArray();
         var rules = await db.TradingRuleRevisions.AsNoTracking().Where(x => ruleIds.Contains(x.RuleId) &&
             !db.TradingRuleRevisions.Any(n => n.RuleId == x.RuleId && n.Revision > x.Revision)).ToArrayAsync(ct);
@@ -96,7 +74,7 @@ internal sealed record TradingPlanReferences(TradingPlanReferenceSnapshot Snapsh
             Token(TradingPlanReferenceKind.Rule, link.RuleId, r);
         }
         return new(TradingPlanReferenceSnapshot.Capture(key, content, a is null ? null : TradingAccountPersistenceMapper.ToDomain(a),
-            instruments.Select(InstrumentPersistenceMapper.ToDomain), sources, rules.Select(TradingRuleRepository.ToDomain), now), tokens);
+            instruments.Select(InstrumentPersistenceMapper.ToDomain), [], rules.Select(TradingRuleRepository.ToDomain), now), tokens);
     }
 
     internal void CheckPrevious(string previous)

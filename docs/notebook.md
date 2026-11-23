@@ -1,5 +1,9 @@
 # Notebook
 
+## Setup links
+
+Notebook links to Trading Setups still resolve by Setup ID. The link picker labels this destination **Trading Setups**. Note content, images, links, and recovery drafts retain their existing storage. [Historical Playbook archive](playbook.md)
+
 ## M22.12C3 — Hosted Daily Review watchdog and Test-step timeout
 
 1 November 2026; one agent. Actual baseline: **clean develop / `43ee05cb9dcc0520908392a6c1b65891efacc016`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. Repository guidance, README, retained C1 evidence, workflow, gate script and the supplied hosted log were inspected before diagnosis. No competing testhost was found. No tests, builds, application/native-input operations, workflow triggers or retries ran in C3. Existing evidence is preserved. Exact tracked task inventory: **`README.md` and `docs/notebook.md` only**; no production, fixture, scheduling, deadline or CI changes.

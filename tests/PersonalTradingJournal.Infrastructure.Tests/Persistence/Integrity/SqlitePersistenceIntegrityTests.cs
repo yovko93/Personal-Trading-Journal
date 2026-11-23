@@ -78,12 +78,7 @@ public sealed class SqlitePersistenceIntegrityTests
             typeof(TradingPlanRecord),
             typeof(TradingPlanReadyRecord),
             typeof(TradingPlanAssetRecord),
-            typeof(PlaybookRevisionRecord),
-            typeof(CurrentPlaybookRecord),
-            typeof(CurrentPlaybookExampleRecord),
-            typeof(PlaybookExampleRecord),
-            typeof(TradePlaybookContextRecord),
-            typeof(TradePlaybookAssociationRecord),
+            typeof(ArchivedPlaybookFile),
             typeof(TradingRuleRevisionRecord),
             typeof(TradingRuleAssessmentRecord),
             typeof(TradingRulePositionRecord),
@@ -181,21 +176,6 @@ public sealed class SqlitePersistenceIntegrityTests
             typeof(TradingAccountRecord), isRequired: false, DeleteBehavior.Restrict);
         AssertForeignKey(model, typeof(DailyJournalRevisionRecord), nameof(DailyJournalRevisionRecord.JournalId),
             typeof(DailyJournalRecord), isRequired: true, DeleteBehavior.Restrict);
-        AssertForeignKey(model, typeof(PlaybookRevisionRecord), nameof(PlaybookRevisionRecord.TradingSetupId),
-            typeof(TradingSetupRecord), isRequired: true, DeleteBehavior.Restrict);
-        AssertForeignKey(model, typeof(PlaybookExampleRecord), nameof(PlaybookExampleRecord.SourceScreenshotId),
-            typeof(TradeScreenshotRecord), isRequired: false, DeleteBehavior.Restrict);
-        AssertForeignKey(model, typeof(TradePlaybookContextRecord), nameof(TradePlaybookContextRecord.TradeId),
-            typeof(TradeRecord), isRequired: true, DeleteBehavior.Cascade);
-        AssertForeignKey(model, typeof(TradePlaybookAssociationRecord), nameof(TradePlaybookAssociationRecord.TradeId),
-            typeof(TradeRecord), isRequired: true, DeleteBehavior.Cascade);
-        foreach (Type type in new[] { typeof(PlaybookExampleRecord), typeof(TradePlaybookContextRecord), typeof(TradePlaybookAssociationRecord) })
-        {
-            var key = Assert.Single(foreignKeys, f => f.DeclaringEntityType.ClrType == type && f.PrincipalEntityType.ClrType == typeof(PlaybookRevisionRecord));
-            Assert.Equal(new[] { "TradingSetupId", "Revision" }, key.Properties.Select(p => p.Name));
-            Assert.Equal(type != typeof(TradePlaybookAssociationRecord), key.IsRequired);
-            Assert.Equal(DeleteBehavior.Restrict, key.DeleteBehavior);
-        }
         var ruleRevisionKey = Assert.Single(foreignKeys, f =>
             f.DeclaringEntityType.ClrType == typeof(TradingRuleAssessmentRecord) &&
             f.PrincipalEntityType.ClrType == typeof(TradingRuleRevisionRecord));
@@ -214,12 +194,6 @@ public sealed class SqlitePersistenceIntegrityTests
             typeof(TradingPlanRecord), isRequired: true, DeleteBehavior.Restrict);
         AssertForeignKey(model, typeof(TradingPlanAssetRecord), nameof(TradingPlanAssetRecord.PlanId),
             typeof(TradingPlanRecord), isRequired: true, DeleteBehavior.Restrict);
-        AssertForeignKey(model, typeof(CurrentPlaybookRecord), nameof(CurrentPlaybookRecord.TradingSetupId), typeof(TradingSetupRecord), true, DeleteBehavior.Restrict);
-        AssertForeignKey(model, typeof(CurrentPlaybookExampleRecord), nameof(CurrentPlaybookExampleRecord.TradingSetupId), typeof(CurrentPlaybookRecord), true, DeleteBehavior.Restrict);
-        AssertForeignKey(model, typeof(CurrentPlaybookExampleRecord), nameof(CurrentPlaybookExampleRecord.SourceScreenshotId), typeof(TradeScreenshotRecord), false, DeleteBehavior.Restrict);
-        var bridge = Assert.Single(foreignKeys, x => x.DeclaringEntityType.ClrType == typeof(CurrentPlaybookRecord) && x.PrincipalEntityType.ClrType == typeof(PlaybookRevisionRecord));
-        Assert.Equal(new[] { "TradingSetupId", "LegacyRevision" }, bridge.Properties.Select(x => x.Name));
-        Assert.Equal(DeleteBehavior.Restrict, bridge.DeleteBehavior);
         AssertForeignKey(model, typeof(NotebookNoteRecord), nameof(NotebookNoteRecord.FolderId), typeof(NotebookFolderRecord), false, DeleteBehavior.Restrict);
         AssertForeignKey(model, typeof(NotebookNoteRecord), nameof(NotebookNoteRecord.PreviousFolderId), typeof(NotebookFolderRecord), false, DeleteBehavior.Restrict);
         AssertForeignKey(model, typeof(NotebookImageRecord), nameof(NotebookImageRecord.NoteId), typeof(NotebookNoteRecord), true, DeleteBehavior.Restrict);
@@ -227,13 +201,13 @@ public sealed class SqlitePersistenceIntegrityTests
         AssertForeignKey(model, typeof(NotebookTagAssignmentRecord), nameof(NotebookTagAssignmentRecord.NoteId), typeof(NotebookNoteRecord), true, DeleteBehavior.Restrict);
         AssertForeignKey(model, typeof(NotebookTagAssignmentRecord), nameof(NotebookTagAssignmentRecord.TagId), typeof(NotebookTagRecord), true, DeleteBehavior.Restrict);
         AssertForeignKey(model, typeof(AccountPayoutRecord), nameof(AccountPayoutRecord.AccountId), typeof(TradingAccountRecord), true, DeleteBehavior.Restrict);
-        Assert.Equal(35, foreignKeys.Count);
+        Assert.Equal(24, foreignKeys.Count);
 
         IForeignKey[] cascades = foreignKeys
             .Where(foreignKey =>
                 foreignKey.DeleteBehavior == DeleteBehavior.Cascade)
             .ToArray();
-        Assert.Equal(6, cascades.Length);
+        Assert.Equal(4, cascades.Length);
         Assert.Contains(cascades, foreignKey =>
             foreignKey.DeclaringEntityType.ClrType == typeof(TradeExecutionRecord) &&
             foreignKey.Properties.Single().Name == nameof(TradeExecutionRecord.TradeId));
@@ -315,7 +289,7 @@ public sealed class SqlitePersistenceIntegrityTests
                 }))
             .ToList();
 
-        Assert.Equal(19, uniqueIndexes.Count);
+        Assert.Equal(18, uniqueIndexes.Count);
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(NotebookOwnedImageRecord) && index.Properties.SequenceEqual(["StorageKey"]) && index.Filter is null);
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(NotebookFolderRecord) && index.Properties.SequenceEqual(["NameKey"]) && index.Filter is null);
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(NotebookTagRecord) && index.Properties.SequenceEqual(["NameKey"]) && index.Filter is null);
@@ -332,8 +306,6 @@ public sealed class SqlitePersistenceIntegrityTests
             index.Properties.SequenceEqual(["RuleId", "RuleRevision", "TargetKey", "EvaluationFingerprint"]) && index.Filter is null);
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TradingRuleAssessmentRecord) &&
             index.Properties.SequenceEqual(["RuleId", "TargetKey", "Sequence"]) && index.Filter is null);
-        Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(PlaybookExampleRecord) &&
-            index.Properties.SequenceEqual(["TradingSetupId", "Revision", "Position"]));
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(DailyJournalRecord) &&
             index.Properties.SequenceEqual([nameof(DailyJournalRecord.TradingDate), nameof(DailyJournalRecord.TradingAccountId)]) &&
             index.Filter == "\"TradingAccountId\" IS NOT NULL");
@@ -548,7 +520,7 @@ public sealed class SqlitePersistenceIntegrityTests
                 candidate.Properties[0].Name == foreignKeyProperty);
 
         Assert.Equal(principalType, foreignKey.PrincipalEntityType.ClrType);
-        Assert.Equal(principalType == typeof(CurrentPlaybookRecord) ? "TradingSetupId" : "Id", foreignKey.PrincipalKey.Properties.Single().Name);
+        Assert.Equal("Id", foreignKey.PrincipalKey.Properties.Single().Name);
         Assert.Equal(isRequired, foreignKey.IsRequired);
         Assert.Equal(deleteBehavior, foreignKey.DeleteBehavior);
     }

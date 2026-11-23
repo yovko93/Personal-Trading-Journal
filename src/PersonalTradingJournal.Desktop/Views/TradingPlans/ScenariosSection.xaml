@@ -85,31 +85,18 @@
                             <ContentControl Tag="IF" Content="{Binding Condition}" ContentTemplate="{StaticResource Field}" />
                             <ContentControl Tag="THEN" Content="{Binding Response}" ContentTemplate="{StaticResource Field}" />
                             <ContentControl Tag="INVALID IF" Content="{Binding Invalidation}" ContentTemplate="{StaticResource Field}" />
-                            <Expander Header="Playbook &amp; scenario options" Foreground="{DynamicResource PtjAccentBrush}" Margin="0,4">
+                            <TextBlock Text="{Binding SavedGuidance}" Style="{StaticResource Body}"
+                                       Visibility="{Binding HasSavedGuidance, Converter={StaticResource VisibleIf}}" />
+                            <Expander Header="Scenario options" Foreground="{DynamicResource PtjAccentBrush}" Margin="0,4">
                              <StackPanel>
                               <Label Content="Instrument" Target="{Binding ElementName=Instrument}" />
                               <ComboBox x:Name="Instrument" ItemsSource="{Binding Owner.Contexts}" DisplayMemberPath="Label" SelectedValuePath="InstrumentId" SelectedValue="{Binding InstrumentId}" IsEnabled="{Binding Owner.CanEdit}" Style="{StaticResource PlanSelect}" AutomationProperties.Name="Scenario instrument" />
-                            <Button Content="Load Playbooks" Command="{Binding Owner.ReloadPlaybooksCommand}" Style="{StaticResource Action}" HorizontalAlignment="Left" AutomationProperties.Name="Load Playbook choices and availability" />
-                            <Label Content="PLAYBOOK — optional existing Setup" Target="{Binding ElementName=Playbook}" />
-                            <ComboBox x:Name="Playbook" ItemsSource="{Binding Owner.AvailablePlaybooks}" DisplayMemberPath="Name" SelectedItem="{Binding Candidate}"
-                                      Style="{StaticResource PlanSelect}" IsEnabled="{Binding Owner.CanEdit}" AutomationProperties.Name="Playbook candidate" />
-                            <WrapPanel>
-                                <Button Content="Use current Playbook" Command="{Binding LinkCommand}" Style="{StaticResource Action}" />
-                                <Button Content="Unlink" Command="{Binding UnlinkCommand}" Style="{StaticResource Action}" />
-                                <Button Content="Open Playbook" Command="{Binding OpenPlaybookCommand}" Style="{StaticResource Action}" />
-                            </WrapPanel>
                              <WrapPanel>
                                 <Button Content="Move earlier" Command="{Binding MoveUpCommand}" Style="{StaticResource Action}" AutomationProperties.Name="Move scenario earlier" />
                                 <Button Content="Move later" Command="{Binding MoveDownCommand}" Style="{StaticResource Action}" AutomationProperties.Name="Move scenario later" />
                              </WrapPanel>
                              </StackPanel>
                             </Expander>
-                            <TextBlock Margin="0,4" ToolTip="{Binding PlaybookText}" AutomationProperties.HelpText="{Binding PlaybookText}">
-                             <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Body}"><Setter Property="Text" Value="{Binding PlaybookText}" />
-                              <Style.Triggers><DataTrigger Binding="{Binding Setup}" Value="{x:Null}"><Setter Property="Text" Value="Playbook: none linked · optional" /></DataTrigger></Style.Triggers>
-                             </Style></TextBlock.Style>
-                            </TextBlock>
-
                         </StackPanel>
                     </Border>
                 </DataTemplate>

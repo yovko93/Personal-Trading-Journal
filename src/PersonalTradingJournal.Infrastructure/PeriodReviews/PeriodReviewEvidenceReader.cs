@@ -79,8 +79,6 @@ public sealed class PeriodReviewEvidenceReader(IDbContextFactory<JournalDbContex
                 (long)(e.BrokerSymbol == null ? 0 : e.BrokerSymbol.Length) + (e.ExternalOrderId == null ? 0 : e.ExternalOrderId.Length) +
                 (e.ExternalExecutionId == null ? 0 : e.ExternalExecutionId.Length)), "executions", cancellationToken);
             await budget.Check(db.TradeMistakes.Where(m => ids.Contains(m.TradeId)).Select(_ => 0L), "mistakes", cancellationToken);
-            await budget.Check(db.TradePlaybookContexts.Where(p => relatedTrades.Contains(p.TradeId)).Select(p => (long)p.DefinitionJson.Length), "playbook-captures", cancellationToken);
-            await budget.Check(db.TradePlaybookAssociations.Where(p => relatedTrades.Contains(p.TradeId)).Select(p => (long)(p.DefinitionJson == null ? 0 : p.DefinitionJson.Length)), "playbook-transitions", cancellationToken);
             await budget.Check(relatedJournals.Select(j => (long)j.Text.Length + j.WentWell.Length + j.NeedsImprovement.Length + j.NextTradingDay.Length), "journals", cancellationToken);
             await budget.Check(db.DailyJournalRevisions.Where(j => relatedJournals.Select(x => x.Id).Contains(j.JournalId))
                 .Select(j => (long)j.Text.Length + j.WentWell.Length + j.NeedsImprovement.Length + j.NextTradingDay.Length), "journal-revisions", cancellationToken);

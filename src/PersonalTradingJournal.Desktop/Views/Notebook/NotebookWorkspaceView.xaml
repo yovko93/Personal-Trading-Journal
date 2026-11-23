@@ -419,7 +419,7 @@
        <StackPanel Margin="0,6,0,0">
         <ComboBox SelectedValue="{Binding LinkTargetKind}" SelectedValuePath="Tag" AutomationProperties.Name="Linked target type" Margin="0,0,0,4">
          <ComboBoxItem Content="Trades" Tag="{x:Static vm:NotebookWorkspaceViewModel.TradeLinkKind}"/>
-         <ComboBoxItem Content="Trading Setups (including Playbooks)" Tag="{x:Static vm:NotebookWorkspaceViewModel.SetupLinkKind}"/>
+         <ComboBoxItem Content="Trading Setups" Tag="{x:Static vm:NotebookWorkspaceViewModel.SetupLinkKind}"/>
         </ComboBox>
         <TextBox Text="{Binding LinkSearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Search existing targets by name, instrument, account or identity" MaxLength="256" Margin="0,0,0,4"/>
         <Button Content="Search targets" Command="{Binding SearchLinkTargetsCommand}" HorizontalAlignment="Left" Margin="0,0,0,4"/>

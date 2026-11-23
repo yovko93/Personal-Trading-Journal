@@ -43,10 +43,6 @@ public sealed class TradeWorkspacePersistenceTests
             Assert.Equal(new byte[] { 1, 2, 3 }, bytes.ToArray());
         }
         await using var db = fixture.ContextFactory.CreateDbContext();
-        Assert.Empty(await db.TradePlaybookAssociations.ToArrayAsync());
-        Assert.Empty(await db.TradePlaybookContexts.ToArrayAsync());
-        Assert.Null(fixture.ServiceProvider.GetService<ITradePlaybookAssociationStore>());
-        Assert.Null(fixture.ServiceProvider.GetService<ITradePlaybookContextStore>());
     }
 
     [Theory]

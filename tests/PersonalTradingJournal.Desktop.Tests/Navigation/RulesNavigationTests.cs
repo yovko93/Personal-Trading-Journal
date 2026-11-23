@@ -15,7 +15,7 @@ public sealed partial class MainWindowViewModelTests
         shell.NavigateCommand.Execute(NavigationDestination.Rules); await f.Vm.LoadTask;
         Assert.Same(f.Vm, shell.CurrentContentViewModel); Assert.Equal("Rules", shell.PageTitle);
         f.Vm.CreateCommand.Execute(null); f.Fill();
-        shell.NavigateCommand.Execute(NavigationDestination.Playbook);
+        shell.NavigateCommand.Execute(NavigationDestination.Setups);
         Assert.Equal(NavigationDestination.Rules, shell.CurrentDestination); Assert.False(shell.TryCloseWindow());
         Assert.Equal("Recorded criterion", f.Vm.Fields[1].Text);
         f.Dialogs.ConfirmationResult = true; Assert.True(shell.TryCloseWindow()); Assert.True(f.Vm.IsEditing);

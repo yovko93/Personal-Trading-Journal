@@ -75,8 +75,7 @@ public sealed partial class NotebookImageFiles
         var keys = db.NotebookImages.Where(x => x.StorageKey != null).Select(x => x.StorageKey!)
             .Concat(db.NotebookOwnedImageFiles.Where(x => x.Id != row.Id).Select(x => x.StorageKey))
             .Concat(db.TradeScreenshots.Select(x => x.StorageKey))
-            .Concat(db.PlaybookExamples.Where(x => x.ImageStorageKey != null).Select(x => x.ImageStorageKey!))
-            .Concat(db.CurrentPlaybookExamples.Where(x => x.ImageStorageKey != null).Select(x => x.ImageStorageKey!))
+            .Concat(db.ArchivedPlaybookFiles.Select(e => e.StorageKey))
             .Concat(db.TradingPlanAssets.Select(x => x.StorageKey));
         if (await keys.AnyAsync(x => x.ToUpper() == row.StorageKey.ToUpper(), ct)) return false;
         // Unknown/over-capacity content is retention, never evidence of absence.

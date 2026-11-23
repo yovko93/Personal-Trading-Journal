@@ -113,8 +113,7 @@ public sealed partial class NotebookImageFiles : INotebookImageFiles
             var keys = db.NotebookOwnedImageFiles.Select(x => x.StorageKey)
                 .Concat(db.NotebookImages.Where(x => x.StorageKey != null).Select(x => x.StorageKey!))
                 .Concat(db.TradeScreenshots.Select(x => x.StorageKey))
-                .Concat(db.PlaybookExamples.Where(x => x.ImageStorageKey != null).Select(x => x.ImageStorageKey!))
-                .Concat(db.CurrentPlaybookExamples.Where(x => x.ImageStorageKey != null).Select(x => x.ImageStorageKey!))
+                .Concat(db.ArchivedPlaybookFiles.Select(e => e.StorageKey))
                 .Concat(db.TradingPlanAssets.Select(x => x.StorageKey));
             foreach (var key in keys.AsEnumerable())
             { token.ThrowIfCancellationRequested(); if (StringComparer.OrdinalIgnoreCase.Equals(key, image.StorageKey)) return true; }

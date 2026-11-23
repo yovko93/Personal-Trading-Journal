@@ -67,14 +67,20 @@ public sealed record TradingPlanContent
     /// Linking/saving the target still requires fresh reference validation and a uniqueness check.</summary>
     public TradingPlanContent CopyForward() => new(Session, Focus, Intent,
         Instruments.Select(i => new TradingPlanInstrumentContext(i.InstrumentId)),
-        Scenarios, riskLimits: RiskLimits, rules: Rules, planCurrency: PlanCurrency);
+        Scenarios.Select(s => WithoutLink(s, s.Id)), riskLimits: RiskLimits, rules: Rules, planCurrency: PlanCurrency);
 
     /// <summary>Create-only policy: retain saved daily values, never assets or confirmations.
     /// The caller supplies the saved currency, never a current replacement currency.</summary>
     public TradingPlanContent PrefillPreviousDay(string? savedCurrency) => new(Session, Focus, Intent,
-        Instruments, Scenarios.Select(s => new TradingPlanScenario(Guid.NewGuid(), s.InstrumentId, s.Name,
-            s.Role, s.Direction, s.Condition, s.Response, s.Invalidation, s.Setup)),
+        Instruments, Scenarios.Select(s => WithoutLink(s, Guid.NewGuid())),
         NewsAndRestrictions, StandAside, RiskLimits, Rules, planCurrency: savedCurrency ?? PlanCurrency);
+
+    private static TradingPlanScenario WithoutLink(TradingPlanScenario s, Guid id) =>
+        new(id, s.InstrumentId, s.Name, s.Role, s.Direction, s.Condition, s.Response, s.Invalidation);
+
+    internal TradingPlanContent WithoutRetiredLinks() => new(Session, Focus, Intent,
+        Instruments, Scenarios.Select(s => WithoutLink(s, s.Id)), NewsAndRestrictions, StandAside, RiskLimits,
+        Rules, Confirmed, PlanCurrency, Screenshots);
 
     public TradingPlanContent WithPlanCurrency(string? currency) => new(Session, Focus, Intent,
         Instruments, Scenarios, NewsAndRestrictions, StandAside, RiskLimits, Rules, Confirmed, currency, Screenshots);

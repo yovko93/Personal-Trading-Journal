@@ -131,35 +131,4 @@ public sealed partial class TradingRulePersistenceTests
         Assert.Equal(journal.Id, (await f.Assessments.GetLatestAsync(rule.RuleId, target))!.EvidenceReferences[0].SourceId);
         await using var db = f.Context(); Assert.Empty(await db.Trades.ToArrayAsync());
     }
-
-    [Fact]
-    public async Task PlaybookSourceNamesItsExactAssociationSequenceEvenAfterRelinking()
-    {
-        await using var f = await Fixture.Create(); var trade = await f.Seed();
-        var setup = new TradingSetup("Synthetic plan", null, Now);
-        await f.Get<ITradingSetupStore>().AddAsync(setup);
-        await f.Get<SaveTradingSetupPlaybookUseCase>().ExecuteAsync(new(setup.Id, 0, new("context", "entry", "confirm", "invalidate", "execute")));
-        await using var legacyDb = f.Context();
-        await LegacyTradeCaptureFixture.EnableAsync(legacyDb);
-        var associations = new PersonalTradingJournal.Infrastructure.Trades.TradePlaybookAssociationStore(f.Get<Microsoft.EntityFrameworkCore.IDbContextFactory<PersonalTradingJournal.Infrastructure.Persistence.JournalDbContext>>(), TimeProvider.System);
-        Assert.True(await associations.TryApplyAsync(await associations.PreviewAsync(trade.Id, setup.Id)));
-        var rule = await f.Rule(Definition());
-        var assessment = Assess(rule, TradingRuleAssessmentTarget.ForTrade(trade.Id, trade.TradingAccountId), null,
-            new TradingRuleEvidenceReference(TradingRuleEvidenceKind.PlaybookCapture, trade.Id, 1));
-        Assert.True(await f.Assessments.TryAppendAsync(assessment, 1, null));
-        Assert.True(await associations.TryApplyAsync(await associations.PreviewAsync(trade.Id, null)));
-        var read = (await f.Reader.ReadAssessmentAsync(assessment.Id))!;
-        Assert.Equal(1, Assert.Single(read.Evidence).Reference.Revision);
-        Assert.Equal(TradingRuleSourceState.Available, read.Evidence[0].State);
-        Assert.Equal(TradingRuleAssessmentOutcome.CannotEvaluate, read.Assessment.Outcome);
-        Assert.False(await f.Assessments.TryAppendAsync(Assess(rule, assessment.Target, assessment.Id,
-            new TradingRuleEvidenceReference(TradingRuleEvidenceKind.PlaybookCapture, trade.Id, 2)), 1, assessment.Id)); // Removal is not a capture.
-        var migrations = (await legacyDb.Database.GetAppliedMigrationsAsync()).ToArray();
-        await legacyDb.GetService<IMigrator>().MigrateAsync(migrations[^2]);
-        await legacyDb.GetService<IMigrator>().MigrateAsync();
-        var retired = (await f.Reader.ReadAssessmentAsync(assessment.Id))!;
-        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(read.Assessment), System.Text.Json.JsonSerializer.Serialize(retired.Assessment));
-        Assert.Equal(TradingRuleSourceState.Unavailable, Assert.Single(retired.Evidence).State);
-        Assert.Equal(read.Evidence[0].Reference, retired.Evidence[0].Reference);
-    }
 }

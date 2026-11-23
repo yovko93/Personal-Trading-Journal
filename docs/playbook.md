@@ -1,4 +1,41 @@
-# Playbook — Domain, persistence and Desktop management
+# Historical Playbook archive
+
+Playbook authoring and its sidebar destination have been retired. Trading Setups still classify Trades. Notebook links still identify the original Trading Setup. Trading Plan scenarios retain their instrument, direction, conditions, responses, and order.
+
+## Reading the archive
+
+In Settings, create a portable export and open `journal.json`. In version 21, `tables.archivedPlaybookContent` contains one record per original row. Use `source` to identify the former table and read `contentJson` for the original fields. Current definitions contain their original `DefinitionJson`. A `LegacyRevision` identifies a revision by Setup ID and revision number. Example rows retain their annotation, order, provenance, and image metadata. The archive also includes Setup labels, referenced Trade screenshot metadata, and the original JSON and reference tokens of linked working drafts.
+
+`tables.archivedPlaybookFiles` lists retained storage keys. A complete backup includes their original bytes under `attachments/screenshots/`. Portable export contains metadata only. A Trade screenshot may have no historical digest. Uploaded examples retain their recorded size and SHA-256. Archive image ownership survives deletion of a live reference to the same file.
+
+## Upgrade and restore
+
+Migration `20261122212516_RetirePlaybook` archives content and image ownership in one SQLite transaction, makes the archive read-only, and drops the six live catalog and capture tables. Existing working drafts lose only their scenario links and corresponding tokens. Ready revisions, Rule assessments, saved coaching packets and citations keep their original payloads. New reviews read current Trade classification. Earlier releases that already cleared Trade captures cannot reconstruct those rows.
+
+Restore accepts current backups and complete backups from the immediately preceding schema ending in `20261114204255_SimplifyTradeWorkspace`. PTJ verifies a previous backup against that exact schema and its original image inventory. After offline restore, normal startup performs the archive migration. For an older supported PTJ release, restore the backup with its matching release first, then upgrade the restored journal. Keep the original backup for downgrade. Portable exports are read-only documents.
+
+## Verification
+
+The uncommitted develop worktree based on `ef31f72` was verified on 23 November 2026 using synthetic journals and files. The Release build completed with zero warnings and zero errors.
+
+| Check | Result |
+| --- | --- |
+| Fresh database and populated upgrade | Initialization and migration checks passed. The populated fixture preserved the original linked draft and its frozen Ready revision. |
+| Backup and export | A complete pre-retirement backup was validated, restored offline and upgraded. Export preserved the original direct definition. A shared image remained byte-identical in the upgraded backup after its live Trade screenshot reference was removed. |
+| Focused tests | Infrastructure 117/117, Desktop 39/39, portability 11/11. After corrections, infrastructure contracts 94/94 and Desktop contracts 5/5 passed. The isolated Trading Plan focus check also passed 1/1. These selections overlap. |
+| Compiled WPF inspection | Light and Dark Planning navigation and the bound Notebook Trading Setup picker were inspected at 1280 DIP/96 DPI and 460 DIP/240 DPI. Trading Plan scenarios were inspected at 1100 DIP/96 DPI and 460 DIP/240 DPI. Planning showed Trading Plan and Rules, the picker displayed the Setup result, and narrow scenario options stacked without overlap. |
+| Complete Release gate | 5,480 passed, zero failed, one existing Rules-view quarantine skip. Exit 0 in 13m 51.56s. Exclusive WPF passed 151/151. The parallel partition passed 2,103 Desktop, 1,603 Infrastructure, 1,034 Application and 589 Domain cases. |
+
+The first local gate recorded 5,471 passed, nine failed and the Rules skip. Eight failures exposed outdated expectations or restore eligibility that needed to distinguish a verified pre-retirement backup from an unsupported older schema. The ninth observed null keyboard focus in a Trading Plan check. It passed unchanged in isolation and in the final gate. Its initial cause remains unknown.
+
+The inspected layouts were offscreen WPF renders. Interactive navigation, physical high-DPI inspection, screen-reader speech and hosted verification of this worktree remain pending. Local evidence is under `TestResults/playbook-retirement/`, including `changed-files.txt`, focused TRX files, renders, and the final gate summary in `release-20261123-075408-d78bc3a4539b42ef81952c5fd0e593aa/`.
+
+## Earlier releases
+
+<details>
+<summary>Historical Playbook authoring, migrations and milestone verification</summary>
+
+These notes document releases with an active Playbook. The archive and restore instructions above apply to the current release.
 
 ## Trade capture retirement — current status
 
@@ -603,3 +640,5 @@ Focused Release tests cover required/bounded fields, defensive copies, stable ex
 Local verification on 2026-10-11: **106 Domain + 79 Application focused cases passed**, including **13 + 8 new cases**. Complete Domain/Application Release suites: **467 + 718 = 1,185 passed**, zero failures/skips. Solution Release build: **0 warnings/errors**. The complete Infrastructure/Desktop suite was not rerun for this Domain/Application-only milestone. Tracked and new-file whitespace checks pass.
 
 Persistence/migration and retention were outside M17.1; M17.2 now implements and tests them above. Transactional integration with future Trade-linking commands, UI/accessibility, automatic checks and AI integration remain later work. No Desktop/live acceptance or matching GitHub CI is claimed for this service milestone.
+
+</details>

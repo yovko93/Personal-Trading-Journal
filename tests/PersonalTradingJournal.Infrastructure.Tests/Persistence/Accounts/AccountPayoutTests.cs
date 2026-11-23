@@ -66,16 +66,14 @@ public sealed class AccountPayoutTests
     [Fact]
     public async Task AdditiveMigrationPreservesExistingAccountsAndDoesNotInferPayouts()
     {
-        await using var db = await ReaderTestDatabase.CreateAsync();
-        await using var context = await db.ContextFactory.CreateDbContextAsync();
-        var migrations = context.Database.GetMigrations().ToArray();
+        await using var fixture = await TradingPlans.TradingPlanPersistenceTests.Fixture.Create("20261021121554_AddNotebookDeletionCleanup");
+        await using var context = fixture.Context();
         var migrator = context.GetService<IMigrator>();
-        await migrator.MigrateAsync(migrations[^2]);
         var account = new TradingAccount("Existing", TradingAccountType.Personal, null, null, "USD", 1234.56m, DateTimeOffset.UtcNow);
-        await db.ServiceProvider.GetRequiredService<ITradingAccountStore>().AddAsync(account);
+        await fixture.Get<ITradingAccountStore>().AddAsync(account);
         await migrator.MigrateAsync();
         Assert.Empty(await context.AccountPayouts.ToArrayAsync());
-        var row = Assert.Single(await db.ServiceProvider.GetRequiredService<ITradingAccountBalanceReader>().GetAllWithBalancesAsync());
+        var row = Assert.Single(await fixture.Get<ITradingAccountBalanceReader>().GetAllWithBalancesAsync(), a => a.Id == account.Id);
         Assert.Equal(account.Id, row.Id); Assert.Equal(1234.56m, row.CurrentBalance!.Value); Assert.Equal(0, row.PayoutTotal);
         Assert.False(context.Database.HasPendingModelChanges());
     }

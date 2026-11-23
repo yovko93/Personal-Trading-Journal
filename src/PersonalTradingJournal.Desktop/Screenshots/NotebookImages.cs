@@ -22,7 +22,7 @@ public sealed class WpfNotebookImageInput : INotebookImageInput
     public async Task<byte[]?> PickAsync(CancellationToken ct)
     {
         await using var selected = new WpfTradeScreenshotFilePicker().Pick("Insert Notebook image · WebP requires an installed decoder");
-        return selected is null ? null : await PlaybookExampleImages.ReadBoundedAsync(selected.Content, ct);
+        return selected is null ? null : await WorkspaceImageDecoder.ReadBoundedAsync(selected.Content, ct);
     }
     public byte[]? ClipboardImage(IDataObject data)
     {
@@ -62,18 +62,18 @@ public sealed class NotebookImagePresentation(INotebookImages images, ITradeScre
         if (content is null) throw new IOException("Trade screenshot is unavailable.");
         await using var stream = content.Content;
         if (content.Id != image.TradeScreenshotId || content.TradeId != image.TradeId) throw new IOException("Trade screenshot reference does not match.");
-        return await PlaybookExampleImages.ReadBoundedAsync(stream, ct);
+        return await WorkspaceImageDecoder.ReadBoundedAsync(stream, ct);
     }
     public async Task<ImageSource> PreviewAsync(Guid noteId, NotebookImage image, CancellationToken ct)
     {
         var bytes = await ReadAsync(noteId, image, ct);
-        var preview = await Task.Run(() => PlaybookExampleImages.Decode(bytes, true), ct);
+        var preview = await Task.Run(() => WorkspaceImageDecoder.Decode(bytes, true), ct);
         ct.ThrowIfCancellationRequested(); return preview;
     }
     public async Task ShowAsync(Guid noteId, NotebookImage image, CancellationToken ct)
     {
         var bytes = await ReadAsync(noteId, image, ct);
-        var bitmap = await Task.Run(() => PlaybookExampleImages.Decode(bytes, false), ct);
+        var bitmap = await Task.Run(() => WorkspaceImageDecoder.Decode(bytes, false), ct);
         ct.ThrowIfCancellationRequested();
         var picture = new Image { Source = bitmap, Stretch = Stretch.None };
         AutomationProperties.SetName(picture, image.AlternativeText.Length == 0 ? "Notebook original image" : image.AlternativeText);

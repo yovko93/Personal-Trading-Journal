@@ -32,9 +32,6 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     private readonly ITradingAccountReader _accounts;
     private readonly IInstrumentReader _instruments;
     private readonly ITradingPlanReferenceReader _references;
-    private readonly ITradingSetupReader _setups;
-    private readonly ITradingSetupPlaybookStore _playbooks;
-    private readonly ITradingSetupPlaybookHistoryReader _history;
     private readonly ITradingRuleReader _rules;
     private readonly ITradingRuleStore _ruleStore;
     private readonly ITradingPlanInteraction _interaction;
@@ -56,13 +53,12 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     private readonly PersonalTradingJournal.Desktop.Screenshots.ITradingPlanImages? _images;
 
     public TradingPlanWorkspaceViewModel(ITradingPlanStore store, ITradingAccountReader accounts, IInstrumentReader instruments,
-        ITradingPlanReferenceReader references, ITradingSetupReader setups, ITradingSetupPlaybookStore playbooks,
-        ITradingSetupPlaybookHistoryReader history, ITradingRuleReader rules, ITradingRuleStore ruleStore,
+        ITradingPlanReferenceReader references, ITradingRuleReader rules, ITradingRuleStore ruleStore,
         ITradingPlanInteraction interaction, TimeProvider? clock = null, PersonalTradingJournal.Desktop.Screenshots.ITradingPlanImages? images = null,
         IDailyTradingPrincipleStore? principles = null)
     {
         _store = store; _accounts = accounts; _instruments = instruments; _references = references;
-        _setups = setups; _playbooks = playbooks; _history = history; _rules = rules; _ruleStore = ruleStore;
+        _rules = rules; _ruleStore = ruleStore;
         _interaction = interaction; _clock = clock ?? TimeProvider.System; _images = images;
         Principles = new(principles);
         _date = Today; _dateText = Format(_date);
@@ -146,7 +142,6 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
         OnPropertyChanged(nameof(Notice));
     }
     public Task ContextTask { get; private set; } = Task.CompletedTask;
-    public Func<Guid, CancellationToken, Task<bool>>? OpenPlaybook { get; set; }
     public Func<Guid, CancellationToken, Task<bool>>? OpenRule { get; set; }
     public IAsyncRelayCommand PreviousDayCommand { get; }
     public IAsyncRelayCommand NextDayCommand { get; }
@@ -246,8 +241,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     {
         var editor = new SessionPreparationViewModel(plan, _store, _instruments, historical: historical) { IsHosted = true };
         if (_images is not null) editor.ConfigureImages(_images);
-        editor.ConfigurePlaybooks(_setups, _playbooks, _history); editor.ConfigureRules(_rules, _ruleStore); editor.ConfigureReferenceReader(_references);
-        editor.PlaybookNavigation = (id, ct) => OpenPlaybook?.Invoke(id, ct) ?? Task.FromResult(false);
+        editor.ConfigureRules(_rules, _ruleStore); editor.ConfigureReferenceReader(_references);
         editor.RuleNavigation = (id, ct) => OpenRule?.Invoke(id, ct) ?? Task.FromResult(false);
         return editor;
     }
@@ -255,7 +249,6 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     {
         await editor.LoadCatalogAsync(ct); ct.ThrowIfCancellationRequested();
         await editor.LoadThumbnailsAsync(ct); ct.ThrowIfCancellationRequested();
-        await editor.LoadPlaybooksAsync(ct); ct.ThrowIfCancellationRequested();
         await editor.LoadRulesAsync(ct); ct.ThrowIfCancellationRequested();
         if (!editor.IsReadOnly) await editor.CheckReferencesAsync(ct);
         ct.ThrowIfCancellationRequested();

@@ -32,7 +32,7 @@ public sealed class PortableExportTests
         var service = f.Services.GetRequiredService<IPortableExportService>(); Assert.False(Directory.Exists(Output(f)));
         var result = await service.CreateAsync(Output(f)); Assert.True(result.Succeeded, result.ToString()); Assert.Equal(2, result.Rows); // Rules and principles concurrency singletons, no user records.
         using var document = Read(f); var root = document.RootElement;
-        Assert.Equal(20, root.GetProperty("version").GetInt32()); Assert.False(root.GetProperty("restorableBackup").GetBoolean());
+        Assert.Equal(21, root.GetProperty("version").GetInt32()); Assert.False(root.GetProperty("restorableBackup").GetBoolean());
         Assert.Equal("metadata-only", root.GetProperty("screenshotContent").GetString());
         foreach (var table in PortableExportSchema.Tables) Assert.Equal(table.Name is "tradingRuleCatalogState" or "dailyTradingPrincipleState" ? 1 : 0, root.GetProperty("tables").GetProperty(table.Name).GetArrayLength());
         Assert.Equal(0, root.GetProperty("tables").GetProperty("tradingRuleCatalogState")[0].GetProperty("version").GetInt64());
@@ -53,7 +53,12 @@ public sealed class PortableExportTests
     {
         await using var f = await Fixture.Create(); using var db = f.Context();
         var entities = db.Model.GetEntityTypes().Where(t => t.ClrType != typeof(TradeBrowseRecord)).ToArray();
-        Assert.Equal(entities.Length, PortableExportSchema.Tables.Length);
+        // Archive content has a SQL-only table so the application cannot mutate it through EF.
+        var archive = Assert.Single(PortableExportSchema.Tables, t => t.Source == "ArchivedPlaybookContent");
+        var archiveColumns = await db.Database.SqlQueryRaw<string>("SELECT name AS Value FROM pragma_table_info('ArchivedPlaybookContent') ORDER BY cid").ToArrayAsync();
+        Assert.Equal(new[] { "Id", "Source", "ContentJson" }, archiveColumns);
+        Assert.Equal(archiveColumns, archive.Columns.Select(c => c.Column));
+        Assert.Equal(entities.Length + 1, PortableExportSchema.Tables.Length);
         foreach (var entity in entities)
         {
             var table = Assert.Single(PortableExportSchema.Tables, t => t.Source == entity.GetTableName());

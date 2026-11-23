@@ -28,8 +28,8 @@ public sealed class TradingPlanImages(IPlaybookImageStorage storage) : ITradingP
             Filter = "PNG or JPEG images|*.png;*.jpg;*.jpeg", Multiselect = false };
         if (dialog.ShowDialog() != true) return null;
         await using var input = new FileStream(dialog.FileName, FileMode.Open, FileAccess.Read, FileShare.Read);
-        byte[] bytes = await PlaybookExampleImages.ReadBoundedAsync(input, token);
-        var bitmap = await Task.Run(() => PlaybookExampleImages.Decode(bytes, true), token);
+        byte[] bytes = await WorkspaceImageDecoder.ReadBoundedAsync(input, token);
+        var bitmap = await Task.Run(() => WorkspaceImageDecoder.Decode(bytes, true), token);
         token.ThrowIfCancellationRequested();
         return new(Path.GetFileName(dialog.FileName), bytes, bitmap);
     }
@@ -38,18 +38,18 @@ public sealed class TradingPlanImages(IPlaybookImageStorage storage) : ITradingP
     public async Task<ImageSource> ThumbnailAsync(PlaybookExampleImage image, CancellationToken token)
     {
         var bytes = await storage.ReadAsync(image, token);
-        return await Task.Run(() => PlaybookExampleImages.Decode(bytes, true), token);
+        return await Task.Run(() => WorkspaceImageDecoder.Decode(bytes, true), token);
     }
     public Task CleanupAsync(string key) => storage.DeleteUnreferencedAsync(key, CancellationToken.None);
     public async Task ShowAsync(PlaybookExampleImage? image, PlanImageSelection? pending, string label, CancellationToken token)
     {
         var bytes = pending?.Bytes ?? await storage.ReadAsync(image ?? throw new InvalidDataException("Missing image."), token);
-        var bitmap = await Task.Run(() => PlaybookExampleImages.Decode(bytes, false), token);
+        var bitmap = await Task.Run(() => WorkspaceImageDecoder.Decode(bytes, false), token);
         token.ThrowIfCancellationRequested();
         var chart = new Image { Source = bitmap, Stretch = Stretch.None, Focusable = true };
         System.Windows.Automation.AutomationProperties.SetName(chart, label);
         var close = new Button { Content = "Close image", IsCancel = true, Margin = new(8) };
-        close.SetResourceReference(FrameworkElement.StyleProperty, "PtjPlaybookCloseButtonStyle");
+        close.SetResourceReference(FrameworkElement.StyleProperty, "PtjWorkspaceCloseButtonStyle");
         var panel = new DockPanel(); DockPanel.SetDock(close, Dock.Bottom); panel.Children.Add(close);
         panel.Children.Add(new ScrollViewer { Content = chart, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         var window = new Window { Title = label, Content = panel, Width = Math.Min(1000, SystemParameters.WorkArea.Width),

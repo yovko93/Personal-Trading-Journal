@@ -104,7 +104,8 @@ public sealed class DataBackupsViewModel : ObservableObject
         var result = await preflight.InspectAsync(selected, stagingParent, token);
         Status = token.IsCancellationRequested ? "Backup inspection cancelled; installed data is unchanged." : result.Message;
         if (result.CleanupFailed) Status += " " + result.CleanupMessage;
-        if (!token.IsCancellationRequested && result.Validated && !result.CleanupFailed && result.Compatibility == BackupSchemaCompatibility.Exact)
+        if (!token.IsCancellationRequested && result.Validated && !result.CleanupFailed &&
+            result.Compatibility is BackupSchemaCompatibility.Exact or BackupSchemaCompatibility.VerifiedPreRetirement)
         { archive = selected; summary = result.Summary; }
         OnPropertyChanged(nameof(HasPreview)); OnPropertyChanged(nameof(Preview));
     });

@@ -70,7 +70,6 @@ public sealed class PlanChangesTests
         await using var f = await TradingPlanWorkspaceTests.Fixture.CreateAsync(true); var editor = f.Vm.Editor!;
         var row = editor.Scenarios[0]; var id = row.Id;
         row.Name.Text = row.Condition.Text = row.Response.Text = row.Invalidation.Text = "";
-        row.UnlinkCommand.Execute(null);
         row.Direction = TradeDirection.Short; row.Role = TradingPlanScenarioRole.Primary;
         row.ToggleRoleCommand.Execute(null); Assert.Equal(TradeDirection.Short, row.Direction);
         Assert.Equal(TradingPlanScenarioRole.Alternative, row.Role);

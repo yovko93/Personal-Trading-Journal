@@ -199,7 +199,7 @@ public sealed class TradeWorkspaceViewTests
                 AssertActionContrast(app, setupAdd, hover, "PtjJournalDraftBrush", "PtjJournalDraftHoverBrush");
                 AssertActionContrast(app, mistakeAdd, hover, "PtjJournalReviewBrush", "PtjJournalReviewHoverBrush");
                 AssertActionContrast(app, screenshotAdd, hover, "PtjJournalRevisionBrush", "PtjJournalRevisionHoverBrush");
-                AssertActionContrast(app, removeMistake, hover, "PtjDangerBrush", "PtjPlaybookRemoveHoverBrush");
+                AssertActionContrast(app, removeMistake, hover, "PtjDangerBrush", "PtjWorkspaceRemoveHoverBrush");
                 Assert.Equal(3, new[] { setupAdd.Background, mistakeAdd.Background, screenshotAdd.Background }
                     .Cast<SolidColorBrush>().Select(brush => brush.Color).Distinct().Count());
                 mistakeAdd.Command.Execute(null);

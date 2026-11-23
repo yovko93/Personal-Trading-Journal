@@ -67,7 +67,7 @@ public sealed partial class TradingRulePersistenceTests
     }
 
     [Fact]
-    public async Task ExportVersionEightRetainsExactRuleAssessmentReferencesAndAllExistingTables()
+    public async Task ExportVersionTwentyOneRetainsExactRuleAssessmentReferencesAndAllExistingTables()
     {
         await using var f = await Fixture.Create(); var trade = await f.Seed();
         var rule = await f.Rule(AutomaticDefinition(account: trade.TradingAccountId));
@@ -81,7 +81,7 @@ public sealed partial class TradingRulePersistenceTests
         var result = await f.Get<IPortableExportService>().CreateAsync(output);
         Assert.True(result.Succeeded, result.ToString());
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(output, PortableExportContract.DataFile)));
-        Assert.Equal(20, json.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(21, json.RootElement.GetProperty("version").GetInt32());
         var tables = json.RootElement.GetProperty("tables");
         var positions = tables.GetProperty("tradingRulePositions").EnumerateArray().ToArray();
         Assert.Equal(new[] { manual.RuleId, rule.RuleId }, positions.Select(p => p.GetProperty("ruleId").GetGuid()));

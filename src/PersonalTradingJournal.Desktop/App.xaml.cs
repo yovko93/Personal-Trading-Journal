@@ -166,7 +166,6 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<ImportViewModel>();
             builder.Services.AddTransient<TradingMistakesViewModel>();
             builder.Services.AddTransient<TradingSetupsViewModel>();
-            builder.Services.AddTransient<PlaybookViewModel>();
             builder.Services.AddSingleton<PersonalTradingJournal.Desktop.ViewModels.TradingPlans.ITradingPlanInteraction, PersonalTradingJournal.Desktop.Views.TradingPlans.WpfTradingPlanInteraction>();
             builder.Services.AddTransient<PersonalTradingJournal.Desktop.ViewModels.TradingPlans.TradingPlanWorkspaceViewModel>();
             builder.Services.AddTransient<PersonalTradingJournal.Desktop.ViewModels.Rules.RulesViewModel>();
@@ -177,9 +176,6 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<PersonalTradingJournal.Desktop.ViewModels.Rules.RuleAssessmentViewModel>();
             builder.Services.AddSingleton<IRuleAssessmentDialog>(s => new WpfRuleAssessmentDialog(
                 () => s.GetRequiredService<PersonalTradingJournal.Desktop.ViewModels.Rules.RuleAssessmentViewModel>()));
-            builder.Services.AddSingleton(new PlaybookSaveDiagnostics(applicationPaths.LogsDirectory,
-                applicationPaths.DatabasePath, Environment.GetEnvironmentVariable("PTJ_PLAYBOOK_SAVE_DIAGNOSTICS") == "1"));
-            builder.Services.AddTransient<IPlaybookExampleImages, PlaybookExampleImages>();
             builder.Services.AddTransient<ITradingPlanImages, TradingPlanImages>();
             builder.Services.AddTransient<SettingsViewModel>();
             builder.Services.AddSingleton<IDataBackupInteraction, WpfDataBackupInteraction>();

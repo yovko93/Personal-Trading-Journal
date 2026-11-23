@@ -135,15 +135,6 @@ public sealed partial class DailyReviewEvidenceReaderTests
         var current = TradeFact(account, instrument, query.FromUtc.AddHours(12)); current.SetTradingSetup(setup.Id, Audit);
         var deleted = TradeFact(account, instrument, previous.FromUtc.AddHours(13));
         await Add(db, old, current, deleted);
-        var guidance = TradingSetupPlaybookRevision.Create(setup, new("Before", "Entry", "Confirm", "Invalid", "Execution"), Audit);
-        var playbooks = db.ServiceProvider.GetRequiredService<ITradingSetupPlaybookStore>();
-        Assert.True(await playbooks.TryAppendAsync(guidance, 0, Audit));
-        Assert.True(await (await LegacyTradeCaptureFixture.ContextsAsync(db.ContextFactory))
-            .TryAddAsync(TradePlaybookContext.Capture(old, setup, guidance, Close), Audit));
-        var revised = guidance.Revise(setup, 1, new("After", "Entry", "Confirm", "Invalid", "Execution"), Close);
-        Assert.True(await playbooks.TryAppendAsync(revised, 1, Audit));
-        Assert.True(await (await LegacyTradeCaptureFixture.ContextsAsync(db.ContextFactory))
-            .TryAddAsync(TradePlaybookContext.Capture(current, setup, revised, Close), Audit));
         var rule = TradingRuleRevision.Create(Guid.NewGuid(), new("Retained rule"), Audit);
         var rules = db.ServiceProvider.GetRequiredService<ITradingRuleStore>(); Assert.True(await rules.TryAppendAsync(rule, 0));
         Assert.True(await db.ServiceProvider.GetRequiredService<ITradingRuleAssessmentStore>().TryAppendAsync(
@@ -166,8 +157,8 @@ public sealed partial class DailyReviewEvidenceReaderTests
         var comparison = PeriodReviewComparisonCalculator.Calculate(pair).Comparison!;
         Assert.Equal(1, comparison.Current.Population.Closed.Count);
         Assert.Equal(2, comparison.Breakdowns.Count(g => g.Key.Kind == PeriodBreakdownKind.RecordedMistake && g.Key.SourceId is not null));
-        Assert.Equal(new int?[] { 1, 2 }, comparison.Breakdowns.Where(g => g.Key.Kind == PeriodBreakdownKind.Setup).Select(g => g.Key.Revision));
-        Assert.Equal("Original", pair.Previous.ClosedTrades[0].Playbook!.Associations[0].Guidance!.SetupName);
+        Assert.Null(Assert.Single(comparison.Breakdowns, g => g.Key.Kind == PeriodBreakdownKind.Setup && g.Key.SourceId == setup.Id).Key.Revision);
+        Assert.Empty(pair.Previous.ClosedTrades[0].Playbook!.Associations);
         Assert.Equal("Renamed", pair.Current.ClosedTrades[0].Setup!.Name);
         var retained = Assert.Single(comparison.Rules); Assert.Null(retained.Current);
         Assert.Equal(PeriodRuleVersionState.NotInActiveGlobalCatalog, retained.Previous!.VersionState);

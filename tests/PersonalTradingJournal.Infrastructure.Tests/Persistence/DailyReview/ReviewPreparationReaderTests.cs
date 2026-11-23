@@ -75,7 +75,7 @@ public sealed partial class DailyReviewEvidenceReaderTests
             TradeFact(account, instrument, Close, currency: "EUR", entry: Close.AddMinutes(-10)) };
         await Add(db, trades);
         var observer = new ReadObserver(); var read = await (await ObservedReader(db, observer)).GetAsync(query);
-        Assert.Equal(9, observer.Sql.Count); Assert.Equal(0, observer.NonReads); Assert.False(observer.Tracked);
+        Assert.Equal(7, observer.Sql.Count); Assert.Equal(0, observer.NonReads); Assert.False(observer.Tracked);
         var prep = read.Preparation!; Assert.Equal(new[] { second, third, latest }, prep.Revisions.Select(r => r.Id));
         Assert.DoesNotContain(prep.Revisions, r => r.Id == first);
         Assert.Equal(ReviewPlanTiming.ReadyAfterEntry, prep.Trades.Single(t => t.TradeId == trades[0].Id).Timing);

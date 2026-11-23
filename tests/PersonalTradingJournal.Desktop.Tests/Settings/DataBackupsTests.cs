@@ -70,6 +70,8 @@ public sealed class DataBackupsTests
         var vm = f.ViewModel(); await vm.InspectCommand.ExecuteAsync(null); Assert.False(vm.HasPreview); Assert.Contains("cleanup", vm.Status);
         f.PreflightResult = f.PreflightResult with { CleanupFailed = false, Compatibility = BackupSchemaCompatibility.RequiresStagedMigration };
         await vm.InspectCommand.ExecuteAsync(null); Assert.False(vm.RestoreCommand.CanExecute(null));
+        f.PreflightResult = f.PreflightResult with { Compatibility = BackupSchemaCompatibility.VerifiedPreRetirement };
+        await vm.InspectCommand.ExecuteAsync(null); Assert.True(vm.RestoreCommand.CanExecute(null));
     }
     [Theory]
     [InlineData(false, true)]

@@ -133,7 +133,7 @@ public sealed partial class DailyReviewEvidenceReaderTests
     }
 
     [Fact]
-    public async Task PeriodFrozenPlaybookRetainsLegacyRemovedAndReplacedContextWithoutCurrentSubstitution()
+    public async Task PeriodEvidenceKeepsIndependentSetupClassification()
     {
         await using var db = await ReaderTestDatabase.CreateAsync();
         var (account, instrument) = await References(db);
@@ -143,26 +143,7 @@ public sealed partial class DailyReviewEvidenceReaderTests
         await Add(db, trade);
         var query = new PeriodReviewQuery(ReviewPeriodKind.Month, Day);
         Assert.Equal(ReviewPlaybookState.LegacyClassification, Ready(await Period(db).ReadAsync(query)).ClosedTrades[0].Playbook!.CurrentState);
-        var first = TradingSetupPlaybookRevision.Create(setup, new("Context", "Entry", "Confirm", "Invalidate", "Execute",
-            [new PlaybookExample(Guid.NewGuid(), "Only text; no chart inspection")]), Audit);
-        var store = db.ServiceProvider.GetRequiredService<ITradingSetupPlaybookStore>();
-        Assert.True(await store.TryAppendAsync(first, 0, Audit));
-        Assert.True(await (await LegacyTradeCaptureFixture.ContextsAsync(db.ContextFactory))
-            .TryAddAsync(TradePlaybookContext.Capture(trade, setup, first, Close), Audit));
-        var associations = new Infrastructure.Trades.TradePlaybookAssociationStore(db.ContextFactory, TimeProvider.System);
-        Assert.True(await associations.TryApplyAsync(await associations.PreviewAsync(trade.Id, setup.Id)));
-        Assert.True(await store.TryAppendAsync(first.Revise(setup, 1, new("Changed", "E", "C", "I", "X"), Close.AddHours(1)), 1, Audit));
-        Assert.True(await associations.TryApplyAsync(await associations.PreviewAsync(trade.Id, setup.Id)));
-        Assert.True(await associations.TryApplyAsync(await associations.PreviewAsync(trade.Id, null)));
-        var evidence = Ready(await new PeriodReviewEvidenceReader(db.ContextFactory).ReadAsync(query));
-        var playbook = evidence.ClosedTrades[0].Playbook!;
-        Assert.Equal(ReviewPlaybookState.NoAssociation, playbook.CurrentState);
-        Assert.Equal(new[] { 0, 1, 2, 3 }, playbook.Associations.Select(a => a.Sequence));
-        Assert.Equal("Context", playbook.Associations[0].Guidance!.MarketContext);
-        Assert.Equal(1, playbook.Associations[0].Guidance!.Revision);
-        Assert.Equal(2, playbook.Associations[2].Guidance!.Revision);
-        Assert.Null(playbook.Associations[3].Guidance);
-        Assert.Equal("Only text; no chart inspection", Assert.Single(playbook.Associations[0].Guidance!.Examples).Annotation);
+
     }
 
     [Fact]

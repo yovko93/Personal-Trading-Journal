@@ -117,7 +117,7 @@ public sealed class TradingPlan : AuditableEntity
         if (source.Id.PlanId != Id || source.Key != Key || source.PlanCreatedAtUtc != CreatedAtUtc ||
             source.Id.Revision > LatestReadyRevision!.Id.Revision || source.ReadyAtUtc > LatestReadyRevision.ReadyAtUtc)
             throw new InvalidOperationException("Select a Ready revision belonging to this Plan.");
-        var draft = new TradingPlanDraft(source.Content.WithPlanCurrency(source.References.Account.Currency).WithConfirmations(TradingPlanChecklist.None), source.Id,
+        var draft = new TradingPlanDraft(source.Content.WithoutRetiredLinks().WithPlanCurrency(source.References.Account.Currency).WithConfirmations(TradingPlanChecklist.None), source.Id,
             startedAtUtc, startedAtUtc);
         CommitDraft(draft, startedAtUtc);
     }

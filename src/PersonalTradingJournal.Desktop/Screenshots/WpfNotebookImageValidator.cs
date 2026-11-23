@@ -5,7 +5,7 @@ using PersonalTradingJournal.Domain.Notebook;
 
 namespace PersonalTradingJournal.Desktop.Screenshots;
 
-/// <summary>Installed-codec admission only, shared with the established Playbook decoder policy. No Notebook UI.</summary>
+/// <summary>Installed-codec admission only, shared with Trading Plan image decoding. No Notebook UI.</summary>
 public sealed class WpfNotebookImageValidator : INotebookImageValidator
 {
     private static readonly object DecodeGate = new();
@@ -27,7 +27,7 @@ public sealed class WpfNotebookImageValidator : INotebookImageValidator
                 if (frame.PixelWidth <= 0 || frame.PixelHeight <= 0) return new(NotebookImageStatus.Invalid);
                 if (frame.PixelWidth > 8192 || frame.PixelHeight > 8192 || (long)frame.PixelWidth * frame.PixelHeight > 16_000_000)
                     return new(NotebookImageStatus.TooLarge);
-                var bitmap = PlaybookExampleImages.Decode(bytes, false);
+                var bitmap = WorkspaceImageDecoder.Decode(bytes, false);
                 // Force pixel materialization; successful header parsing alone is not image admission.
                 int stride = checked((bitmap.PixelWidth * bitmap.Format.BitsPerPixel + 7) / 8);
                 bitmap.CopyPixels(new byte[checked(stride * bitmap.PixelHeight)], stride, 0);

@@ -107,13 +107,8 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<IInstrumentDeletionStore, InstrumentDeletionStore>();
         services.AddTransient<ITradingSetupReader, TradingSetupReader>();
         services.AddTransient<ITradingSetupStore, TradingSetupStore>();
-        services.AddTransient<ITradingSetupPlaybookStore, TradingSetupPlaybookStore>();
-        services.AddTransient<ITradingSetupPlaybookHistoryReader, TradingSetupPlaybookStore>();
-        services.AddTransient<IPlaybookRevisionDeletion, PlaybookRevisionDeletion>();
-        services.AddTransient<SaveTradingSetupPlaybookUseCase>();
         services.AddTransient<IPlaybookImageStorage>(provider => new PlaybookImageStorage(applicationPaths,
             provider.GetRequiredService<ITradeScreenshotFileStorage>()));
-        services.AddTransient<SavePlaybookExamplesUseCase>();
         services.AddTransient<ITradingSetupNameChecker, TradingSetupNameChecker>();
         services.AddTransient<ITradingSetupDeletionStore, TradingSetupDeletionStore>();
         services.AddTransient<ITradingMistakeReader, TradingMistakeReader>();

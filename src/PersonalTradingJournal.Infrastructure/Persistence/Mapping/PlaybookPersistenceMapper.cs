@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using PersonalTradingJournal.Domain.Setups;
-using PersonalTradingJournal.Infrastructure.Persistence.Records;
 
 namespace PersonalTradingJournal.Infrastructure.Persistence.Mapping;
 
@@ -14,38 +13,6 @@ internal static class PlaybookPersistenceMapper
     private sealed record Definition(int Version, Guid SetupId, int Revision, string Name, string? Description,
         DateTimeOffset RecordedAtUtc, string MarketContext, string EntryConditions, string Confirmations,
         string Invalidation, string ExecutionGuidance, Example[] Examples);
-
-    internal static PlaybookRevisionRecord ToRecord(TradingSetupPlaybookRevision value) => new()
-    {
-        TradingSetupId = value.TradingSetupId, Revision = value.Revision,
-        ContractVersion = TradingSetupPlaybookRevision.ContractVersion,
-        SetupName = value.SetupName, SetupDescription = value.SetupDescription,
-        RecordedAtUtc = value.RecordedAtUtc, MarketContext = value.Guidance.MarketContext,
-        EntryConditions = value.Guidance.EntryConditions, Confirmations = value.Guidance.Confirmations,
-        Invalidation = value.Guidance.Invalidation, ExecutionGuidance = value.Guidance.ExecutionGuidance,
-    };
-
-    internal static PlaybookExampleRecord[] Examples(TradingSetupPlaybookRevision value) =>
-        value.Guidance.Examples.Select((e, position) => new PlaybookExampleRecord
-        {
-            TradingSetupId = value.TradingSetupId, Revision = value.Revision, ExampleId = e.Id,
-            Position = position, Annotation = e.Annotation, SourceTradeId = e.SourceTradeId,
-            SourceScreenshotId = e.SourceScreenshotId,
-            Kind = (int)e.Kind, ImageStorageKey = e.Image?.StorageKey, ImageFileName = e.Image?.FileName,
-            ImageSizeBytes = e.Image?.SizeBytes, ImageSha256 = e.Image?.Sha256,
-        }).ToArray();
-
-    internal static TradingSetupPlaybookRevision ToDomain(PlaybookRevisionRecord record, IEnumerable<PlaybookExampleRecord> examples)
-    {
-        if (record.ContractVersion != TradingSetupPlaybookRevision.ContractVersion)
-            throw new InvalidDataException("Unsupported Playbook definition version.");
-        return TradingSetupPlaybookRevision.Rehydrate(record.TradingSetupId, record.Revision,
-            record.SetupName, record.SetupDescription,
-            new(record.MarketContext, record.EntryConditions, record.Confirmations, record.Invalidation,
-                record.ExecutionGuidance, examples.OrderBy(e => e.Position).Select(e =>
-                    new PlaybookExample(e.ExampleId, e.Annotation, e.SourceTradeId, e.SourceScreenshotId, (PlaybookExampleKind)e.Kind,
-                        e.ImageStorageKey is null ? null : new(e.ImageStorageKey, e.ImageFileName!, e.ImageSizeBytes ?? 0, e.ImageSha256!)))), record.RecordedAtUtc);
-    }
 
     internal static string Serialize(TradingSetupPlaybookRevision value) => JsonSerializer.Serialize(new Definition(
         TradingSetupPlaybookRevision.ContractVersion, value.TradingSetupId, value.Revision, value.SetupName,

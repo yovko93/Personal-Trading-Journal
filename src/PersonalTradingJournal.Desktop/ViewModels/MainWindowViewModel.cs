@@ -32,7 +32,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private readonly ImportViewModel _importViewModel;
     private readonly TradingMistakesViewModel _tradingMistakesViewModel;
     private readonly TradingSetupsViewModel _tradingSetupsViewModel;
-    private readonly PlaybookViewModel? _playbookViewModel;
     private readonly RulesViewModel? _rulesViewModel;
     private readonly TradingPlanWorkspaceViewModel? _tradingPlan;
     private readonly PersonalTradingJournal.Desktop.ViewModels.Notebook.NotebookWorkspaceViewModel? _notebook;
@@ -72,7 +71,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         IThemeService themeService,
         TopstepImportChangeTracker? topstepChanges = null,
         PersonalTradingJournal.Desktop.ViewModels.DailyReview.DailyReviewViewModel? dailyReviewViewModel = null,
-        PlaybookViewModel? playbookViewModel = null,
         RulesViewModel? rulesViewModel = null,
         PersonalTradingJournal.Desktop.ViewModels.PeriodReviews.PeriodReviewWorkspaces? periodReviews = null,
         BreakdownViewModel? breakdownViewModel = null,
@@ -101,7 +99,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         _importViewModel = importViewModel;
         _tradingMistakesViewModel = tradingMistakesViewModel;
         _tradingSetupsViewModel = tradingSetupsViewModel;
-        _playbookViewModel = playbookViewModel;
         _rulesViewModel = rulesViewModel;
         _tradingPlan = tradingPlan;
         _notebook = notebook;
@@ -109,7 +106,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         ReturnToNotebookCommand = new RelayCommand(() => Navigate(NavigationDestination.Notebook), () => CanReturnToNotebook);
         if (tradingPlan is not null)
         {
-            tradingPlan.OpenPlaybook = OpenPlanPlaybookAsync;
             tradingPlan.OpenRule = OpenPlanRuleAsync;
             tradingPlan.OpenDailyReview = OpenPlanDailyReviewAsync;
         }
@@ -147,7 +143,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             new NavigationSectionViewModel(
                 "PLANNING",
                 [
-                    CreateNavigationItem("Playbook", NavigationDestination.Playbook, "PtjIconPlaybook"),
                     CreateNavigationItem("Trading Plan", NavigationDestination.TradingPlan, "PtjIconTradingPlan"),
                     CreateNavigationItem("Rules", NavigationDestination.Rules, "PtjIconRules"),
                 ]),
@@ -226,7 +221,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         NavigationDestination.Setups => "Trading Setups",
         NavigationDestination.Mistakes => "Trading Mistakes",
         NavigationDestination.Breakdown => "Breakdown",
-        NavigationDestination.Playbook => "Playbook",
         NavigationDestination.TradingPlan => "Trading Plan",
         NavigationDestination.Rules => "Rules",
         NavigationDestination.DailyReview => "Daily Review",
@@ -279,8 +273,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         if (CurrentDestination == NavigationDestination.Trades && !_tradesViewModel.TryLeaveBreakdownScope()) return false;
         if (_settingsViewModel.DataBackups?.TryLeave() == false) return false;
         if (ActivePeriod?.TryLeave() == false) return false;
-        if (CurrentDestination == NavigationDestination.Playbook)
-            return _playbookViewModel?.TryLeave() != false;
         if (CurrentDestination == NavigationDestination.Rules)
             return _rulesViewModel?.TryLeave() != false;
         if (CurrentDestination == NavigationDestination.DailyReview)
@@ -332,7 +324,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         _calendarViewModel.Deactivate();
         _journalViewModel.Deactivate();
         _dailyReviewViewModel?.Deactivate();
-        _playbookViewModel?.Deactivate();
         _rulesViewModel?.Deactivate();
         if (_dailyReviewViewModel is not null)
         {
@@ -503,17 +494,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         finally { _planNavigation = false; }
     }
     // Related-page navigation deliberately retains the very same editor, including malformed raw text.
-    private async Task<bool> OpenPlanPlaybookAsync(Guid id, CancellationToken ct)
-    {
-        if (_disposed || CurrentDestination != NavigationDestination.TradingPlan || _playbookViewModel is null) return false;
-        ct.ThrowIfCancellationRequested(); NavigateCore(NavigationDestination.Playbook, null);
-        if (CurrentDestination != NavigationDestination.Playbook) return false;
-        await _playbookViewModel.LoadTask; ct.ThrowIfCancellationRequested();
-        var setup = _playbookViewModel.Setups.FirstOrDefault(s => s.Id == id);
-        if (setup is null || !_playbookViewModel.TrySelectSetup(setup)) return false;
-        await _playbookViewModel.LoadTask;
-        return _playbookViewModel.SelectedSetup?.Id == id;
-    }
     private async Task<bool> OpenPlanRuleAsync(Guid id, CancellationToken ct)
     {
         if (_disposed || CurrentDestination != NavigationDestination.TradingPlan || _rulesViewModel is null) return false;
@@ -561,8 +541,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         if (destination != CurrentDestination && _settingsViewModel.DataBackups?.TryLeave() == false) return;
         if (destination != CurrentDestination && ActivePeriod?.TryLeave() == false) return;
         if (destination != CurrentDestination && CurrentDestination == NavigationDestination.DailyReview && _dailyReviewViewModel?.TryLeave() == false) return;
-        if (destination != CurrentDestination && CurrentDestination == NavigationDestination.Playbook &&
-            _playbookViewModel?.TryLeave() == false) return;
         if (destination != CurrentDestination && CurrentDestination == NavigationDestination.Rules &&
             _rulesViewModel?.TryLeave() == false) return;
         if (destination != CurrentDestination && CurrentDestination == NavigationDestination.Calendar &&
@@ -596,7 +574,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         if (CurrentDestination == NavigationDestination.Calendar) _calendarViewModel.Deactivate();
         if (CurrentDestination == NavigationDestination.Journal) _journalViewModel.Deactivate(resetOnNextActivation: true);
         if (CurrentDestination == NavigationDestination.DailyReview) _dailyReviewViewModel?.Deactivate(retainReview);
-        if (CurrentDestination == NavigationDestination.Playbook) _playbookViewModel?.Deactivate();
         if (CurrentDestination == NavigationDestination.Rules) _rulesViewModel?.Deactivate();
         if (CurrentDestination == NavigationDestination.Notebook) _notebook?.Deactivate();
         CurrentDestination = destination;
@@ -617,7 +594,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             NavigationDestination.Import => _importViewModel,
             NavigationDestination.Mistakes => _tradingMistakesViewModel,
             NavigationDestination.Setups => _tradingSetupsViewModel,
-            NavigationDestination.Playbook when _playbookViewModel is not null => _playbookViewModel,
             NavigationDestination.TradingPlan when _tradingPlan is not null => _tradingPlan,
             NavigationDestination.Rules when _rulesViewModel is not null => _rulesViewModel,
             NavigationDestination.Trades => _tradesViewModel,
@@ -636,8 +612,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         }
         if (ActivePeriod is { } period) { if (retainReview) period.ResumeFromPreparation(); else _ = period.ActivateAsync(); }
 
-        if (destination == NavigationDestination.Playbook && _playbookViewModel is not null)
-            _ = _playbookViewModel.ActivateAsync();
 
         if (destination == NavigationDestination.TradingPlan && _tradingPlan is not null)
             _ = _tradingPlan.ActivateAsync();

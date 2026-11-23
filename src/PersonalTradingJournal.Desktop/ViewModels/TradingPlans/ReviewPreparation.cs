@@ -19,8 +19,8 @@ public sealed record ReviewPreparationRow(ReviewPlanRevision Source)
             return $"Saved intention · {(c.Intent == TradingPlanIntent.StandAside ? "Stand Aside" : "Look for opportunities")} · session {c.Session}\n" +
                 string.Join("\n\n", c.Instruments.Select(i => $"{Instrument(i.InstrumentId)} · bias {Value(i.Bias)}\n{i.MarketThesis}\n" +
                     $"Manual levels: previous day high {Value(i.Levels.PreviousDayHigh)}, low {Value(i.Levels.PreviousDayLow)}; Asia high {Value(i.Levels.AsiaHigh)}, low {Value(i.Levels.AsiaLow)}; London high {Value(i.Levels.LondonHigh)}, low {Value(i.Levels.LondonLow)}")) +
-                "\n\n" + string.Join("\n\n", c.Scenarios.Select(s => $"{s.Name} · {Instrument(s.InstrumentId)} · {s.Role} · {Value(s.Direction)}\nIf: {s.Condition}\nThen: {s.Response}\nInvalid if: {s.Invalidation}\nPlaybook: " +
-                    (s.Setup is null ? "Not linked" : Source.Setups.FirstOrDefault(x => x.SetupId == s.Setup.SetupId)?.Name ?? "Unavailable recorded Setup"))) +
+                "\n\n" + string.Join("\n\n", c.Scenarios.Select(s => $"{s.Name} · {Instrument(s.InstrumentId)} · {s.Role} · {Value(s.Direction)}\nIf: {s.Condition}\nThen: {s.Response}\nInvalid if: {s.Invalidation}" +
+                    (s.Setup is null ? "" : "\nSaved Playbook: " + (Source.Setups.FirstOrDefault(x => x.SetupId == s.Setup.SetupId)?.Name ?? "Unavailable recorded Setup")))) +
                 $"\n\nStand Aside conditions\n{c.StandAside}\n\nNews and restrictions\n{c.NewsAndRestrictions}\n\nPlanned limits · {Source.Account.Currency}\n" +
                 $"Risk per Trade {Value(c.RiskLimits.RiskPerTrade)} · daily loss {Value(c.RiskLimits.DailyLossLimit)} · maximum Trades {Value(c.RiskLimits.MaximumTrades)} · stop after losses {Value(c.RiskLimits.StopAfterConsecutiveLosses)}\n" +
                 (c.Confirmed == TradingPlanChecklist.None ? "" : $"Historical manual confirmations: {c.Confirmed}\n") + string.Join("\n", Source.Rules.Select(r => $"Linked Rule · {r.Name} · revision {r.Revision}\n{r.Criterion}")) +

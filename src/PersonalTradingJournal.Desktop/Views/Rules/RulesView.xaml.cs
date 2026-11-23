@@ -84,7 +84,7 @@ public partial class RulesView : UserControl
     private void OnMouseWheel(object sender, MouseWheelEventArgs e)
     {
         if (e.Handled || e.Delta == 0) return;
-        // Match the Playbook editor: let text scroll locally, then hand the wheel to the page.
+        // Let text scroll locally, then hand the wheel to the page.
         for (DependencyObject? source = e.OriginalSource as DependencyObject; source is not null && source != RulesScroller;
              source = source is Visual ? VisualTreeHelper.GetParent(source) : null)
         {

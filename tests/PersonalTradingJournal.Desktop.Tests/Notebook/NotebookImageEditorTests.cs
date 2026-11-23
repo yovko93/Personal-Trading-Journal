@@ -152,7 +152,7 @@ public sealed class NotebookImageEditorTests
                 var clipboard = new DataObject(); clipboard.SetData(DataFormats.Bitmap, bitmap);
                 byte[] encoded = new WpfNotebookImageInput().ClipboardImage(clipboard)!;
                 Assert.Equal(NotebookImageStatus.Success, new WpfNotebookImageValidator().Validate(encoded).Status);
-                var decoded = PlaybookExampleImages.Decode(encoded, false); byte[] pixels = new byte[8]; decoded.CopyPixels(pixels, 8, 0);
+                var decoded = WorkspaceImageDecoder.Decode(encoded, false); byte[] pixels = new byte[8]; decoded.CopyPixels(pixels, 8, 0);
                 Assert.Equal(new byte[] { 1, 2, 3, 255, 4, 5, 6, 255 }, pixels);
                 var png = new DataObject(); png.SetData("PNG", new MemoryStream(encoded));
                 Assert.Equal(encoded, new WpfNotebookImageInput().ClipboardImage(png));

@@ -11,7 +11,7 @@
    <TextBlock x:Name="ScreenshotsHeading" Text="Screenshots" Style="{DynamicResource PtjSectionTitleTextStyle}"
               VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0" />
    <Button x:Name="AddScreenshot" Grid.Column="1" Content="Add Screenshot" Command="{Binding ShowAddScreenshotCommand}" Margin="0"
-           Style="{DynamicResource PtjPlaybookViewButtonStyle}" />
+           Style="{DynamicResource PtjWorkspaceViewButtonStyle}" />
   </Grid>
   <ItemsControl ItemsSource="{Binding ScreenshotCards}">
    <ItemsControl.Style><Style TargetType="ItemsControl"><Style.Triggers><DataTrigger Binding="{Binding IsManualEntryVisible}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></ItemsControl.Style>
@@ -22,7 +22,7 @@
       <StackPanel><Image Source="{Binding Image}" Height="72" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
        <TextBlock Text="{Binding Item.Type}" TextWrapping="Wrap" /><TextBlock Text="{Binding Item.Timeframe}" TextWrapping="Wrap" /></StackPanel>
      </Button>
-     <Button Content="Remove" Margin="0,4,0,0" Command="{Binding DataContext.DeleteScreenshotCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Item}" Style="{DynamicResource PtjPlaybookRemoveButtonStyle}" AutomationProperties.Name="{Binding Item.Type, StringFormat=Remove {0} screenshot}" />
+     <Button Content="Remove" Margin="0,4,0,0" Command="{Binding DataContext.DeleteScreenshotCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Item}" Style="{DynamicResource PtjWorkspaceRemoveButtonStyle}" AutomationProperties.Name="{Binding Item.Type, StringFormat=Remove {0} screenshot}" />
     </StackPanel>
    </DataTemplate></ItemsControl.ItemTemplate>
   </ItemsControl>
@@ -36,7 +36,7 @@
      <TextBlock Text="{Binding Draft.Type}" TextWrapping="Wrap" Style="{DynamicResource PtjBodyTextStyle}" />
      <TextBlock Text="{Binding Draft.Timeframe}" TextWrapping="Wrap" Style="{DynamicResource PtjSecondaryTextStyle}" />
      <TextBlock Text="Staged · saved with Trade" TextWrapping="Wrap" Style="{DynamicResource PtjCaptionTextStyle}" />
-     <Button Content="Remove" Command="{Binding DataContext.RemoveStagedScreenshotCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{DynamicResource PtjPlaybookRemoveButtonStyle}" />
+     <Button Content="Remove" Command="{Binding DataContext.RemoveStagedScreenshotCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{DynamicResource PtjWorkspaceRemoveButtonStyle}" />
     </StackPanel>
    </DataTemplate></ItemsControl.ItemTemplate>
   </ItemsControl>

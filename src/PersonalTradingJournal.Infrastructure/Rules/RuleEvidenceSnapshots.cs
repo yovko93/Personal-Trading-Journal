@@ -59,7 +59,7 @@ internal sealed class RuleEvidenceSnapshots
             token.ThrowIfCancellationRequested();
             Guid[] executionIds = chunk.Where(r => r.Kind == TradingRuleEvidenceKind.Execution).Select(r => r.SourceId).ToArray();
             var selectedExecutions = await db.TradeExecutions.AsNoTracking().Where(e => executionIds.Contains(e.Id)).ToArrayAsync(token);
-            Guid[] tradeIds = chunk.Where(r => r.Kind is TradingRuleEvidenceKind.Trade or TradingRuleEvidenceKind.PlaybookCapture)
+            Guid[] tradeIds = chunk.Where(r => r.Kind == TradingRuleEvidenceKind.Trade)
                 .Select(r => r.SourceId).Concat(selectedExecutions.Select(e => e.TradeId)).Distinct().ToArray();
             var trades = await db.Trades.AsNoTracking().Where(t => tradeIds.Contains(t.Id))
                 .Select(TradeFacts).ToDictionaryAsync(t => t.Id, token);
@@ -71,10 +71,6 @@ internal sealed class RuleEvidenceSnapshots
             var journalRevisions = await db.DailyJournalRevisions.AsNoTracking()
                 .Where(Pairs<DailyJournalRevisionRecord>(chunk.Where(r => r.Kind == TradingRuleEvidenceKind.Journal), "JournalId", "Revision"))
                 .ToDictionaryAsync(r => (r.JournalId, r.Revision), token);
-            var captures = await db.TradePlaybookContexts.AsNoTracking().Where(c => tradeIds.Contains(c.TradeId)).ToDictionaryAsync(c => c.TradeId, token);
-            var associations = await db.TradePlaybookAssociations.AsNoTracking()
-                .Where(Pairs<TradePlaybookAssociationRecord>(chunk.Where(r => r.Kind == TradingRuleEvidenceKind.PlaybookCapture && r.Revision <= int.MaxValue), "TradeId", "Sequence"))
-                .ToDictionaryAsync(c => (c.TradeId, c.Sequence), token);
             Guid[] accountIds = trades.Values.Select(t => t.TradingAccountId).Concat(journals.Values
                 .Where(j => j.TradingAccountId.HasValue).Select(j => j.TradingAccountId!.Value)).Distinct().ToArray();
             var accounts = await db.TradingAccounts.AsNoTracking().Where(a => accountIds.Contains(a.Id)).ToDictionaryAsync(a => a.Id, a => a.Name, token);
@@ -115,15 +111,6 @@ internal sealed class RuleEvidenceSnapshots
                     snapshot = new(reference.Kind, journal.Id, revision, journal.TradingAccountId,
                         journal.TradingAccountId is Guid account ? accounts.GetValueOrDefault(account) : null,
                         null, journal.TradingDate, null, Hash(new { journal.Id, journal.TradingAccountId, journal.TradingDate, Revision = saved }));
-                else if (reference.Kind == TradingRuleEvidenceKind.PlaybookCapture && tradeSnapshots.TryGetValue(reference.SourceId, out var trade))
-                {
-                    if (reference.Revision is null && captures.TryGetValue(reference.SourceId, out var legacy))
-                        snapshot = trade with { Kind = reference.Kind, Fingerprint = Hash(new { Capture = legacy, trade.AccountId, trade.NewYorkDate }) };
-                    else if (reference.Revision is > 0 and <= int.MaxValue &&
-                        associations.TryGetValue((reference.SourceId, (int)reference.Revision.Value), out var association) && association.DefinitionJson is not null)
-                        snapshot = trade with { Kind = reference.Kind, Revision = reference.Revision,
-                            Fingerprint = Hash(new { Capture = association, trade.AccountId, trade.NewYorkDate }) };
-                }
                 if (snapshot is not null) result.Items[reference] = snapshot;
             }
         }

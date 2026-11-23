@@ -156,7 +156,7 @@ public sealed class SqliteDatabaseSnapshotService : IDatabaseSnapshotService
     private static object? Scalar(SqliteConnection connection, string sql, CancellationToken token)
     { token.ThrowIfCancellationRequested(); using var command = connection.CreateCommand(); command.CommandText = sql; return command.ExecuteScalar(); }
 
-    internal static ImmutableArray<string> ValidateSchema(SqliteConnection snapshot, CancellationToken token)
+    internal static ImmutableArray<string> ValidateSchema(SqliteConnection snapshot, CancellationToken token, bool allowPreRetirement = false)
     {
         // Construct the trusted schema from shipped migrations in memory, never from the installed source or manifest claims.
         using var reference = new SqliteConnection("Data Source=:memory:;Pooling=False;Default Timeout=2");
@@ -175,13 +175,19 @@ public sealed class SqliteDatabaseSnapshotService : IDatabaseSnapshotService
                 applied.Add(rows.GetString(0));
             }
         }
-        // Capture only the current schema; M16.1 older-prefix restore migration remains a later workflow.
-        if (!known.SequenceEqual(applied)) throw new SnapshotFailure(DatabaseSnapshotStatus.IncompatibleSchema);
-        context.Database.Migrate();
+        bool previous = allowPreRetirement && IsPreRetirement(applied.ToImmutable(), known);
+        if (!previous && !known.SequenceEqual(applied)) throw new SnapshotFailure(DatabaseSnapshotStatus.IncompatibleSchema);
+        context.Database.Migrate(previous ? applied[^1] : null);
+
         var expected = Schema(reference, token);
         if (!expected.SequenceEqual(Schema(snapshot, token))) throw new SnapshotFailure(DatabaseSnapshotStatus.IncompatibleSchema);
         return applied.ToImmutable();
     }
+
+    internal static bool IsPreRetirement(ImmutableArray<string> applied, ImmutableArray<string> known) =>
+        applied.Length > 0 && applied[^1] == "20261114204255_SimplifyTradeWorkspace" &&
+        applied.Length == known.Length - 1 && known[^1] == "20261122212516_RetirePlaybook" &&
+        applied.SequenceEqual(known.Take(applied.Length));
 
     private static List<string> Schema(SqliteConnection connection, CancellationToken token)
     {
