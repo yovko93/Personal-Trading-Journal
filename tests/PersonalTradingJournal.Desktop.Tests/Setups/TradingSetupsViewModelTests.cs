@@ -317,12 +317,13 @@ public sealed class TradingSetupsViewModelTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => refresh);
     }
 
-    private static TradingSetupsViewModel Create(
+    internal static TradingSetupsViewModel Create(
         FakeTradingSetupReader? reader = null,
         FakeTradingSetupStore? store = null,
         FakeTradingSetupNameChecker? checker = null,
         ITradingSetupDeletionStore? deletionStore = null,
-        FakeDialogService? dialog = null)
+        FakeDialogService? dialog = null, ISetupExampleStore? examples = null,
+        Desktop.Screenshots.IWorkspaceImageViewer? viewer = null)
     {
         reader ??= new(); store ??= new(); checker ??= new();
         deletionStore ??= new FakeTradingSetupDeletionStore(); dialog ??= new();
@@ -334,7 +335,7 @@ public sealed class TradingSetupsViewModelTests
             new GetTradingSetupDetailsUseCase(reader),
             new UpdateTradingSetupUseCase(store, checker, time),
             new DeleteTradingSetupUseCase(store, deletionStore),
-            dialog);
+            dialog, examples, viewer);
     }
     private static TradingSetupListItem Item(bool active) =>
         Item(Guid.NewGuid(), active ? "Active" : "Inactive", active);

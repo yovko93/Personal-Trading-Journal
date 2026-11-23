@@ -12,7 +12,7 @@ In Settings, create a portable export and open `journal.json`. In version 21, `t
 
 Migration `20261122212516_RetirePlaybook` archives content and image ownership in one SQLite transaction, makes the archive read-only, and drops the six live catalog and capture tables. Existing working drafts lose only their scenario links and corresponding tokens. Ready revisions, Rule assessments, saved coaching packets and citations keep their original payloads. New reviews read current Trade classification. Earlier releases that already cleared Trade captures cannot reconstruct those rows.
 
-Restore accepts current backups and complete backups from the immediately preceding schema ending in `20261114204255_SimplifyTradeWorkspace`. PTJ verifies a previous backup against that exact schema and its original image inventory. After offline restore, normal startup performs the archive migration. For an older supported PTJ release, restore the backup with its matching release first, then upgrade the restored journal. Keep the original backup for downgrade. Portable exports are read-only documents.
+The retirement release accepts its own backups and complete backups from the preceding schema ending in `20261114204255_SimplifyTradeWorkspace`. PTJ verifies a previous backup against that exact schema and its original image inventory. After offline restore, normal startup performs the archive migration. For an older supported PTJ release, restore the backup with its matching release first, then upgrade the restored journal. Keep the original backup for downgrade. Portable exports are read-only documents. For the current compatibility list, see [backup and restore](backup-restore.md#trading-setup-example-images).
 
 ## Verification
 

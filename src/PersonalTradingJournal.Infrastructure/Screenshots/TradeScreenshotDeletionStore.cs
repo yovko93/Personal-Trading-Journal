@@ -59,6 +59,7 @@ public sealed class TradeScreenshotDeletionStore :
         bool retained = false;
         await foreach (string key in context.TradeScreenshots.Where(s => s.Id != screenshotId)
                            .Select(s => s.StorageKey).Concat(context.ArchivedPlaybookFiles.Select(e => e.StorageKey))
+                           .Concat(context.SetupExamples.Select(e => e.StorageKey))
                            .AsAsyncEnumerable().WithCancellation(cancellationToken))
         {
             if (!StringComparer.OrdinalIgnoreCase.Equals(key, record.StorageKey)) continue;

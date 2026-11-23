@@ -5,7 +5,7 @@ using PersonalTradingJournal.Desktop.Dialogs;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Setups;
 
-public sealed class TradingSetupsViewModel : ObservableObject
+public sealed partial class TradingSetupsViewModel : ObservableObject
 {
     private const string NotFoundMessage =
         "The selected trading setup is no longer available. The list was refreshed.";
@@ -52,7 +52,9 @@ public sealed class TradingSetupsViewModel : ObservableObject
         GetTradingSetupDetailsUseCase detailsUseCase,
         UpdateTradingSetupUseCase updateUseCase,
         DeleteTradingSetupUseCase deleteUseCase,
-        IDialogService dialogService)
+        IDialogService dialogService,
+        ISetupExampleStore? examples = null,
+        Screenshots.IWorkspaceImageViewer? viewer = null)
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(createUseCase);
@@ -68,11 +70,18 @@ public sealed class TradingSetupsViewModel : ObservableObject
         _updateUseCase = updateUseCase;
         _deleteUseCase = deleteUseCase;
         _dialogService = dialogService;
+        _examples = examples;
+        _viewer = viewer;
+        UploadExampleCommand = new AsyncRelayCommand(UploadExampleAsync, () => CanUseImages && PendingExample is null);
+        SaveExampleCommand = new AsyncRelayCommand(SaveExampleAsync, () => CanUseImages && PendingExample is not null);
+        CancelExampleCommand = new RelayCommand(ClearPendingExample, () => !IsBusy && PendingExample is not null);
+        ViewExampleCommand = new AsyncRelayCommand<SetupExampleCard>(ViewExampleAsync, IsCurrentCard);
+        RemoveExampleCommand = new AsyncRelayCommand<SetupExampleCard>(RemoveExampleAsync, IsCurrentCard);
 
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => !IsBusy);
         ShowCreateCommand = new RelayCommand(
             ShowCreate,
-            () => !IsCreateFormVisible && !IsEditFormVisible && !IsBusy);
+            () => !IsCreateFormVisible && !IsEditFormVisible && !IsBusy && PendingExample is null);
         CancelCreateCommand = new RelayCommand(
             CancelCreate,
             () => IsCreateFormVisible && !IsSaving);
@@ -81,12 +90,12 @@ public sealed class TradingSetupsViewModel : ObservableObject
             () => IsCreateFormVisible && !IsBusy && !string.IsNullOrWhiteSpace(NameText));
         ToggleActiveCommand = new AsyncRelayCommand<TradingSetupListItem>(
             ToggleAsync,
-            setup => setup is not null && !IsBusy && !IsCreateFormVisible && !IsEditFormVisible);
+            setup => setup is not null && PendingExample is null && !IsBusy && !IsCreateFormVisible && !IsEditFormVisible);
         ViewCommand = new AsyncRelayCommand<Guid>(ViewAsync, CanUseRowAction);
         EditCommand = new AsyncRelayCommand<Guid>(EditAsync, CanUseRowAction);
         CloseDetailsCommand = new RelayCommand(
             CloseDetails,
-            () => SelectedTradingSetup is not null && !IsBusy && !IsEditFormVisible);
+            () => SelectedTradingSetup is not null && PendingExample is null && !IsBusy && !IsEditFormVisible);
         CancelEditCommand = new RelayCommand(
             CancelEdit,
             () => IsEditFormVisible && !IsUpdating);
@@ -161,6 +170,11 @@ public sealed class TradingSetupsViewModel : ObservableObject
         get => _selectedTradingSetup;
         private set
         {
+            if (_selectedTradingSetup?.Id != value?.Id)
+            {
+                ExampleCards = [];
+                ClearPendingExample();
+            }
             if (SetProperty(ref _selectedTradingSetup, value))
             {
                 OnPropertyChanged(nameof(HasSelectedTradingSetup));
@@ -204,6 +218,8 @@ public sealed class TradingSetupsViewModel : ObservableObject
 
     public void ResetTransientState()
     {
+        UploadExampleCommand.Cancel();
+        SaveExampleCommand.Cancel();
         ViewCommand.Cancel();
         EditCommand.Cancel();
 
@@ -271,7 +287,7 @@ public sealed class TradingSetupsViewModel : ObservableObject
     }
 
     private bool CanUseRowAction(Guid setupId) =>
-        setupId != Guid.Empty && !IsBusy && !IsCreateFormVisible && !IsEditFormVisible;
+        setupId != Guid.Empty && PendingExample is null && !IsBusy && !IsCreateFormVisible && !IsEditFormVisible;
 
     private async Task ViewAsync(Guid setupId, CancellationToken token) =>
         _ = await LoadDetailsAsync(setupId, token);
@@ -279,7 +295,7 @@ public sealed class TradingSetupsViewModel : ObservableObject
     /// <summary>Read-only identity navigation; independent of list membership/activation.</summary>
     public async Task<bool> OpenDetailsByIdAsync(Guid setupId, CancellationToken token = default)
     {
-        if (setupId == Guid.Empty || IsCreateFormVisible || IsEditFormVisible) return false;
+        if (setupId == Guid.Empty || PendingExample is not null || IsCreateFormVisible || IsEditFormVisible) return false;
         // Drain the destination's existing list loader before invoking its normal details use case.
         await _loadGate.WaitAsync(token); _loadGate.Release();
         if (IsBusy) return false;
@@ -312,7 +328,9 @@ public sealed class TradingSetupsViewModel : ObservableObject
                 return null;
             }
 
+            token.ThrowIfCancellationRequested();
             SelectedTradingSetup = setup;
+            await LoadExamplesAsync(setup.Id, token);
             return setup;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
@@ -461,7 +479,7 @@ public sealed class TradingSetupsViewModel : ObservableObject
         TradingSetups = TradingSetups.Select(item => item.Id == setup.Id ? replacement : item).ToArray();
     }
 
-    private bool IsBusy => IsLoading || IsSaving || IsChangingStatus || IsLoadingDetails || IsUpdating || IsDeleting;
+    private bool IsBusy => IsImageBusy || IsLoading || IsSaving || IsChangingStatus || IsLoadingDetails || IsUpdating || IsDeleting;
 
     private void ResetDraft()
     {
@@ -483,6 +501,11 @@ public sealed class TradingSetupsViewModel : ObservableObject
         EditCommand.NotifyCanExecuteChanged(); CloseDetailsCommand.NotifyCanExecuteChanged();
         CancelEditCommand.NotifyCanExecuteChanged(); SaveChangesCommand.NotifyCanExecuteChanged();
         DeleteCommand.NotifyCanExecuteChanged();
+        UploadExampleCommand.NotifyCanExecuteChanged();
+        SaveExampleCommand.NotifyCanExecuteChanged();
+        CancelExampleCommand.NotifyCanExecuteChanged();
+        ViewExampleCommand.NotifyCanExecuteChanged();
+        RemoveExampleCommand.NotifyCanExecuteChanged();
     }
 
     private async Task<bool> LoadAsync(bool force, CancellationToken token)

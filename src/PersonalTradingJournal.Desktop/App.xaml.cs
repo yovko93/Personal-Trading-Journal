@@ -176,6 +176,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<PersonalTradingJournal.Desktop.ViewModels.Rules.RuleAssessmentViewModel>();
             builder.Services.AddSingleton<IRuleAssessmentDialog>(s => new WpfRuleAssessmentDialog(
                 () => s.GetRequiredService<PersonalTradingJournal.Desktop.ViewModels.Rules.RuleAssessmentViewModel>()));
+            builder.Services.AddTransient<IWorkspaceImageViewer, TradingPlanImages>();
             builder.Services.AddTransient<ITradingPlanImages, TradingPlanImages>();
             builder.Services.AddTransient<SettingsViewModel>();
             builder.Services.AddSingleton<IDataBackupInteraction, WpfDataBackupInteraction>();

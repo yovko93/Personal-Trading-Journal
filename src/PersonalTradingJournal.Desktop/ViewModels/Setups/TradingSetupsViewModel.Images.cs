@@ -1,0 +1,120 @@
+using System.Windows.Media;
+using CommunityToolkit.Mvvm.Input;
+using PersonalTradingJournal.Application.Setups;
+using PersonalTradingJournal.Desktop.Dialogs;
+using PersonalTradingJournal.Desktop.Screenshots;
+
+namespace PersonalTradingJournal.Desktop.ViewModels.Setups;
+
+public sealed record SetupExampleCard(SetupExample Example, ImageSource? Thumbnail);
+
+public sealed partial class TradingSetupsViewModel
+{
+    private readonly ISetupExampleStore? _examples;
+    private readonly IWorkspaceImageViewer? _viewer;
+    private IReadOnlyList<SetupExampleCard> _cards = [];
+    private PlanImageSelection? _pending;
+    private string? _timeframe;
+    private bool _imageBusy;
+
+    public IReadOnlyList<SetupExampleCard> ExampleCards { get => _cards; private set => SetProperty(ref _cards, value); }
+    public PlanImageSelection? PendingExample
+    {
+        get => _pending;
+        private set { if (SetProperty(ref _pending, value)) NotifyCommands(); }
+    }
+    public string? ExampleTimeframe { get => _timeframe; set => SetProperty(ref _timeframe, value); }
+    private bool IsImageBusy { get => _imageBusy; set { if (SetProperty(ref _imageBusy, value)) NotifyCommands(); } }
+    private bool CanUseImages => _examples is not null && _viewer is not null && SelectedTradingSetup is not null && !IsBusy && !IsEditFormVisible;
+    private bool IsCurrentCard(SetupExampleCard? card) => CanUseImages && card is not null &&
+        card.Example.SetupId == SelectedTradingSetup?.Id && ExampleCards.Contains(card);
+
+    public IAsyncRelayCommand UploadExampleCommand { get; }
+    public IAsyncRelayCommand SaveExampleCommand { get; }
+    public IRelayCommand CancelExampleCommand { get; }
+    public IAsyncRelayCommand<SetupExampleCard> ViewExampleCommand { get; }
+    public IAsyncRelayCommand<SetupExampleCard> RemoveExampleCommand { get; }
+
+    private void ClearPendingExample() { PendingExample = null; ExampleTimeframe = null; }
+
+    private async Task LoadExamplesAsync(Guid owner, CancellationToken token)
+    {
+        if (_examples is null || _viewer is null) return;
+        var cards = new List<SetupExampleCard>();
+        foreach (var image in await _examples.ListAsync(owner, token))
+        {
+            ImageSource? thumb = null;
+            try { thumb = await _viewer.ThumbnailAsync(image.File, token); }
+            catch (Exception e) when (e is not OperationCanceledException)
+            { if (SelectedTradingSetup?.Id == owner) ActionErrorMessage = "An example image could not be read."; }
+            cards.Add(new(image, thumb));
+        }
+        token.ThrowIfCancellationRequested();
+        if (SelectedTradingSetup?.Id == owner) ExampleCards = cards;
+    }
+
+    private async Task UploadExampleAsync(CancellationToken token)
+    {
+        if (!CanUseImages || PendingExample is not null) return;
+        var owner = SelectedTradingSetup!.Id;
+        IsImageBusy = true;
+        ActionErrorMessage = null;
+        try
+        {
+            var image = await _viewer!.PickAsync("Upload Trading Setup example", token);
+            if (!token.IsCancellationRequested && SelectedTradingSetup?.Id == owner) PendingExample = image;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception) { ActionErrorMessage = "Choose a readable PNG or JPEG image of up to 8 MiB."; }
+        finally { IsImageBusy = false; }
+    }
+
+    private async Task SaveExampleAsync(CancellationToken token)
+    {
+        if (!CanUseImages || PendingExample is not { } pending) return;
+        var owner = SelectedTradingSetup!.Id;
+        IsImageBusy = true;
+        ActionErrorMessage = null;
+        try
+        {
+            var image = await _examples!.AddAsync(owner, pending.FileName, pending.Bytes, ExampleTimeframe, token);
+            if (SelectedTradingSetup?.Id == owner)
+            {
+                ExampleCards = [.. ExampleCards, new(image, pending.Thumbnail)];
+                ClearPendingExample();
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception) { ActionErrorMessage = "The example image could not be saved."; }
+        finally { IsImageBusy = false; }
+    }
+
+    private async Task ViewExampleAsync(SetupExampleCard? card, CancellationToken token)
+    {
+        if (!IsCurrentCard(card)) return;
+        IsImageBusy = true;
+        try { await _viewer!.ShowAsync(card!.Example.File, null, card.Example.File.FileName, token); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception) { ActionErrorMessage = "The original example image could not be opened."; }
+        finally { IsImageBusy = false; }
+    }
+
+    private async Task RemoveExampleAsync(SetupExampleCard? card, CancellationToken token)
+    {
+        if (!IsCurrentCard(card) || !_dialogService.Confirm(new ConfirmationDialogRequest(
+            "Remove example image?", $"Remove {card!.Example.File.FileName} from this Setup?", "Remove image", isDestructive: true))) return;
+        IsImageBusy = true;
+        ActionErrorMessage = null;
+        try
+        {
+            await _examples!.RemoveAsync(card.Example.SetupId, card.Example.Id, token);
+            ExampleCards = ExampleCards.Where(x => x != card).ToArray();
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception)
+        {
+            ActionErrorMessage = "Image removal could not be completed. Reopen the Setup to check its images.";
+        }
+        finally { IsImageBusy = false; }
+    }
+}

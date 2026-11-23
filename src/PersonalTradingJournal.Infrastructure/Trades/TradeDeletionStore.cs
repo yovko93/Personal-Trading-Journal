@@ -55,6 +55,7 @@ public sealed class TradeDeletionStore : ITradeDeletionStore
             .ToListAsync(cancellationToken);
         var retainedKeys = await context.TradeScreenshots.Where(s => s.TradeId != tradeId)
             .Select(s => s.StorageKey).Concat(context.ArchivedPlaybookFiles.Select(e => e.StorageKey))
+            .Concat(context.SetupExamples.Select(e => e.StorageKey))
             .ToArrayAsync(cancellationToken);
         IReadOnlyList<string> storageKeys = screenshots
             .Select(screenshot => screenshot.StorageKey)

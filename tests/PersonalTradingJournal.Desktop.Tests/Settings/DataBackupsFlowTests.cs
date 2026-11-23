@@ -2,6 +2,11 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Backups;
+using PersonalTradingJournal.Application.Setups;
+using PersonalTradingJournal.Desktop.Dialogs;
+using PersonalTradingJournal.Desktop.ViewModels.Setups;
+using PersonalTradingJournal.Domain.Setups;
+using System.Windows.Media.Imaging;
 using PersonalTradingJournal.Desktop.ViewModels.Settings;
 using PersonalTradingJournal.Infrastructure.Backups;
 using PersonalTradingJournal.Infrastructure.Persistence;
@@ -48,6 +53,10 @@ public sealed class DataBackupsFlowTests
                 await db.SaveChangesAsync();
             }
             await SeedRelatedData(services, paths, id);
+            var setup = new TradingSetup("Range break", null, DateTimeOffset.UtcNow);
+            await services.GetRequiredService<ITradingSetupStore>().AddAsync(setup);
+            var example = await services.GetRequiredService<ISetupExampleStore>()
+                .AddAsync(setup.Id, "range.png", NotebookOriginalBytes, "5 min", default);
             var notes = services.GetRequiredService<INotebookService>();
             var note = (await notes.ExecuteAsync(new CreateNotebookNote(null, "Notebook backup", NotebookTemplate.MarketStudy))).Note!;
             var imageId = Guid.NewGuid();
@@ -103,8 +112,23 @@ public sealed class DataBackupsFlowTests
             using (var bytes = recovery.GetEntry(BackupArchiveContract.ScreenshotsPrefix + "synthetic.png")!.Open())
             using (var copy = new MemoryStream())
             { await bytes.CopyToAsync(copy); Assert.Equal(new byte[] { 9, 8, 7 }, copy.ToArray()); }
-            await using var restarted = new ServiceCollection().AddPersistence(paths).BuildServiceProvider();
+            await using var restarted = new ServiceCollection().AddPersistence(paths)
+                .AddSingleton<IDialogService>(f.Dialogs)
+                .AddSingleton(TimeProvider.System)
+                .AddTransient<CreateTradingSetupUseCase>().AddTransient<TradingSetupLifecycleUseCase>()
+                .AddTransient<GetTradingSetupDetailsUseCase>().AddTransient<UpdateTradingSetupUseCase>()
+                .AddTransient<DeleteTradingSetupUseCase>().AddTransient<IWorkspaceImageViewer, TradingPlanImages>()
+                .AddTransient<TradingSetupsViewModel>().BuildServiceProvider();
             await restarted.GetRequiredService<JournalDatabaseInitializer>().InitializeAsync();
+            var setups = restarted.GetRequiredService<TradingSetupsViewModel>();
+            Assert.True(await setups.OpenDetailsByIdAsync(setup.Id));
+            var card = Assert.Single(setups.ExampleCards);
+            Assert.Equal(example, card.Example);
+            var thumbnail = Assert.IsAssignableFrom<BitmapSource>(card.Thumbnail);
+            Assert.Equal(1, thumbnail.PixelWidth);
+            Assert.Equal(1, thumbnail.PixelHeight);
+            Assert.Equal(NotebookOriginalBytes, await restarted.GetRequiredService<IPlaybookImageStorage>().ReadAsync(card.Example.File));
+            Assert.True(setups.ViewExampleCommand.CanExecute(card));
             string restoredExport = Path.Combine(root, "restored-export");
             Assert.True((await restarted.GetRequiredService<IPortableExportService>().CreateAsync(restoredExport)).Succeeded);
             Assert.Equal(originalTables, InspectExport(restoredExport, id)); // Every logical value, not only counts.
@@ -186,8 +210,8 @@ public sealed class DataBackupsFlowTests
         var manifest = JsonSerializer.Deserialize<BackupManifest>(json, BackupArchiveContract.JsonOptions)!;
         Assert.Equal(BackupArchiveContract.Version, manifest.ArchiveVersion);
         Assert.Equal(TimeSpan.Zero, manifest.CreatedAtUtc.Offset);
-        Assert.Equal(4, zip.Entries.Count); // Manifest, DB, Trade screenshot and Notebook original. No credential/log/cache payloads.
-        Assert.Equal(3, manifest.Files.Length);
+        Assert.Equal(5, zip.Entries.Count); // Manifest, DB, Trade screenshot, Notebook original and Setup example.
+        Assert.Equal(4, manifest.Files.Length);
         foreach (var file in manifest.Files)
         {
             var entry = zip.GetEntry(file.Path)!; Assert.Equal(file.SizeBytes, entry.Length);

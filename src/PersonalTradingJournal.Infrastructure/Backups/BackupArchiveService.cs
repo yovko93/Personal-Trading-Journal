@@ -179,7 +179,7 @@ public sealed class BackupArchiveService : IBackupArchiveService
         { DataSource = database, Mode = SqliteOpenMode.ReadOnly, Pooling = false, DefaultTimeout = 2 }.ToString());
         connection.Open();
         using var command = connection.CreateCommand();
-        command.CommandText = BackupImageInventory.KeysSql;
+        command.CommandText = BackupImageInventory.Keys(includeSetupExamples: true);
         using var rows = command.ExecuteReader();
         var keys = new List<string>(); var unique = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         while (rows.Read())

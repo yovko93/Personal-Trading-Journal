@@ -9,6 +9,12 @@ using PersonalTradingJournal.Domain.Setups;
 namespace PersonalTradingJournal.Desktop.Screenshots;
 
 public sealed record PlanImageSelection(string FileName, byte[] Bytes, ImageSource Thumbnail);
+public interface IWorkspaceImageViewer
+{
+    Task<PlanImageSelection?> PickAsync(string title, CancellationToken token);
+    Task<ImageSource> ThumbnailAsync(PlaybookExampleImage image, CancellationToken token);
+    Task ShowAsync(PlaybookExampleImage? image, PlanImageSelection? pending, string label, CancellationToken token);
+}
 public interface ITradingPlanImages
 {
     Task<PlanImageSelection?> PickAsync(CancellationToken token);
@@ -19,12 +25,14 @@ public interface ITradingPlanImages
 }
 
 /// <summary>Reuses bounded, OnLoad decoding and immutable screenshot storage. No image handles survive decoding.</summary>
-public sealed class TradingPlanImages(IPlaybookImageStorage storage) : ITradingPlanImages
+public sealed class TradingPlanImages(IPlaybookImageStorage storage) : ITradingPlanImages, IWorkspaceImageViewer
 {
-    public async Task<PlanImageSelection?> PickAsync(CancellationToken token)
+    public Task<PlanImageSelection?> PickAsync(CancellationToken token) => PickAsync("Upload Trading Plan screenshot", token);
+
+    public async Task<PlanImageSelection?> PickAsync(string title, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        var dialog = new OpenFileDialog { Title = "Upload Trading Plan screenshot", CheckFileExists = true,
+        var dialog = new OpenFileDialog { Title = title, CheckFileExists = true,
             Filter = "PNG or JPEG images|*.png;*.jpg;*.jpeg", Multiselect = false };
         if (dialog.ShowDialog() != true) return null;
         await using var input = new FileStream(dialog.FileName, FileMode.Open, FileAccess.Read, FileShare.Read);

@@ -105,7 +105,7 @@ public sealed class DataBackupsViewModel : ObservableObject
         Status = token.IsCancellationRequested ? "Backup inspection cancelled; installed data is unchanged." : result.Message;
         if (result.CleanupFailed) Status += " " + result.CleanupMessage;
         if (!token.IsCancellationRequested && result.Validated && !result.CleanupFailed &&
-            result.Compatibility is BackupSchemaCompatibility.Exact or BackupSchemaCompatibility.VerifiedPreRetirement)
+            result.Compatibility is BackupSchemaCompatibility.Exact or BackupSchemaCompatibility.VerifiedPreRetirement or BackupSchemaCompatibility.VerifiedBeforeSetupImages)
         { archive = selected; summary = result.Summary; }
         OnPropertyChanged(nameof(HasPreview)); OnPropertyChanged(nameof(Preview));
     });

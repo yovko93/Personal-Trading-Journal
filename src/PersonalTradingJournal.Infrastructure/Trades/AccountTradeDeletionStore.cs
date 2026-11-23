@@ -49,7 +49,8 @@ public sealed class AccountTradeDeletionStore(IDbContextFactory<JournalDbContext
         // Storage keys are normally unique GUID filenames. Protect surviving references even
         // if a legacy/imported database contains shared keys.
         var retainedKeys = await db.TradeScreenshots.Select(s => s.StorageKey)
-            .Concat(db.ArchivedPlaybookFiles.Select(e => e.StorageKey)).Distinct().ToArrayAsync(cancellationToken);
+            .Concat(db.ArchivedPlaybookFiles.Select(e => e.StorageKey))
+            .Concat(db.SetupExamples.Select(e => e.StorageKey)).Distinct().ToArrayAsync(cancellationToken);
         var cleanup = current.StorageKeys.Except(retainedKeys, StringComparer.OrdinalIgnoreCase).ToArray();
         await transaction.CommitAsync(cancellationToken);
         return new(AccountTradeDeletionStatus.Deleted, count, cleanup);

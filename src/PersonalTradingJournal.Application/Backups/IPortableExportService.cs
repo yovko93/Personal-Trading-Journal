@@ -9,7 +9,7 @@ public interface IPortableExportService
 public static class PortableExportContract
 {
     public const string Format = "personal-trading-journal-logical-export";
-    public const int Version = 21; // Read-only Playbook archive replaces the live catalog.
+    public const int Version = 22; // Includes Setup-owned example image metadata.
     public const string DataFile = "journal.json";
     public const string InventoryFile = "export-manifest.json";
     public const long MaximumOutputBytes = 32L * 1024 * 1024 * 1024;

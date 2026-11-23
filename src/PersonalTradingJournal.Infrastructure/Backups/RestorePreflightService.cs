@@ -67,7 +67,7 @@ public sealed class RestorePreflightService : IRestorePreflightService
             compatibility = check.SchemaCompatibility;
             if (!check.Issues.IsEmpty) throw new PreflightFailure(check.Issues[0].Code);
             if (compatibility != BackupSchemaCompatibility.Exact &&
-                !SqliteDatabaseSnapshotService.IsPreRetirement(manifest!.DatabaseSchema.AppliedMigrations, known)) throw new PreflightFailure(BackupValidationCode.UnsupportedDatabaseSchema);
+                !SqliteDatabaseSnapshotService.IsSupportedOlderSchema(manifest!.DatabaseSchema.AppliedMigrations, known)) throw new PreflightFailure(BackupValidationCode.UnsupportedDatabaseSchema);
             var payloads = manifest!.Files;
             if (payloads.Any(p => !entries.ContainsKey(p.Path))) throw new PreflightFailure(BackupValidationCode.MissingEntry);
             if (entries.Count != payloads.Length + 1) throw new PreflightFailure(BackupValidationCode.UnexpectedEntry);
@@ -108,7 +108,8 @@ public sealed class RestorePreflightService : IRestorePreflightService
             capture?.Invoke(manifest, staged, summary);
             token.ThrowIfCancellationRequested();
             if (compatibility == BackupSchemaCompatibility.RequiresStagedMigration)
-                compatibility = BackupSchemaCompatibility.VerifiedPreRetirement;
+                compatibility = manifest!.DatabaseSchema.AppliedMigrations[^1] == "20261122212516_RetirePlaybook"
+                    ? BackupSchemaCompatibility.VerifiedBeforeSetupImages : BackupSchemaCompatibility.VerifiedPreRetirement;
             result = new(id, phase, null, compatibility, summary);
         }
         catch (OperationCanceledException) { result = new(id, phase, BackupValidationCode.Cancelled, compatibility); }
@@ -180,15 +181,16 @@ public sealed class RestorePreflightService : IRestorePreflightService
                 if (!rows.Read() || rows.GetInt64(0) > 4096 || rows.GetInt64(1) > 4 * 1024 * 1024 || rows.GetInt64(2) > 512)
                     throw new PreflightFailure(BackupValidationCode.LimitExceeded);
             }
-            var migrations = SqliteDatabaseSnapshotService.ValidateSchema(database, token, allowPreRetirement: true);
+            var migrations = SqliteDatabaseSnapshotService.ValidateSchema(database, token, allowSupportedOlderSchema: true);
             if (!manifest.DatabaseSchema.AppliedMigrations.SequenceEqual(migrations)) throw new PreflightFailure(BackupValidationCode.UnsupportedDatabaseSchema);
             bool previous = migrations[^1] == "20261114204255_SimplifyTradeWorkspace";
+            bool hasSetupImages = migrations[^1] == "20261123085402_AddSetupExamples";
             check(RestorePreflightPhase.Attachments);
             var expected = payloads.Where(p => p.Kind == BackupFileKind.Screenshot).Select(p => p.Path).ToHashSet(StringComparer.Ordinal);
             var actual = new HashSet<string>(StringComparer.Ordinal);
             using (var command = database.CreateCommand())
             {
-                command.CommandText = previous ? LegacyPlaybookImageInventory.KeysSql : BackupImageInventory.KeysSql;
+                command.CommandText = previous ? LegacyPlaybookImageInventory.KeysSql : BackupImageInventory.Keys(hasSetupImages);
                 using var rows = command.ExecuteReader();
                 while (rows.Read())
                 {
@@ -200,7 +202,7 @@ public sealed class RestorePreflightService : IRestorePreflightService
                 }
             }
             if (!expected.SetEquals(actual)) throw new PreflightFailure(BackupValidationCode.DatabaseAttachmentMismatch);
-            if (!(previous ? LegacyPlaybookImageInventory.Matches(database, payloads, token) : BackupImageInventory.Matches(database, payloads, token))) throw new PreflightFailure(BackupValidationCode.DatabaseAttachmentMismatch);
+            if (!(previous ? LegacyPlaybookImageInventory.Matches(database, payloads, token) : BackupImageInventory.Matches(database, payloads, token, hasSetupImages))) throw new PreflightFailure(BackupValidationCode.DatabaseAttachmentMismatch);
             check(RestorePreflightPhase.Summary);
             long Count(string table) { token.ThrowIfCancellationRequested(); using var command = database.CreateCommand();
                 command.CommandText = "SELECT COUNT(*) FROM " + table; return (long)command.ExecuteScalar()!; }

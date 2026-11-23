@@ -64,6 +64,7 @@ public sealed class SqlitePersistenceIntegrityTests
             typeof(TradeBrowseRecord),
             typeof(TradingAccountRecord),
             typeof(TradingSetupRecord),
+            typeof(SetupExampleRecord),
             typeof(TradingMistakeRecord),
             typeof(TradeRecord),
             typeof(TradeExecutionRecord),
@@ -201,13 +202,14 @@ public sealed class SqlitePersistenceIntegrityTests
         AssertForeignKey(model, typeof(NotebookTagAssignmentRecord), nameof(NotebookTagAssignmentRecord.NoteId), typeof(NotebookNoteRecord), true, DeleteBehavior.Restrict);
         AssertForeignKey(model, typeof(NotebookTagAssignmentRecord), nameof(NotebookTagAssignmentRecord.TagId), typeof(NotebookTagRecord), true, DeleteBehavior.Restrict);
         AssertForeignKey(model, typeof(AccountPayoutRecord), nameof(AccountPayoutRecord.AccountId), typeof(TradingAccountRecord), true, DeleteBehavior.Restrict);
-        Assert.Equal(24, foreignKeys.Count);
+        AssertForeignKey(model, typeof(SetupExampleRecord), nameof(SetupExampleRecord.SetupId), typeof(TradingSetupRecord), true, DeleteBehavior.Cascade);
+        Assert.Equal(25, foreignKeys.Count);
 
         IForeignKey[] cascades = foreignKeys
             .Where(foreignKey =>
                 foreignKey.DeleteBehavior == DeleteBehavior.Cascade)
             .ToArray();
-        Assert.Equal(4, cascades.Length);
+        Assert.Equal(5, cascades.Length);
         Assert.Contains(cascades, foreignKey =>
             foreignKey.DeclaringEntityType.ClrType == typeof(TradeExecutionRecord) &&
             foreignKey.Properties.Single().Name == nameof(TradeExecutionRecord.TradeId));

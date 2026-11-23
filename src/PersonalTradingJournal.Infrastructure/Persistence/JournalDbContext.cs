@@ -43,6 +43,7 @@ public sealed class JournalDbContext : DbContext
 
     public DbSet<TradingSetupRecord> TradingSetups => Set<TradingSetupRecord>();
 
+    public DbSet<SetupExampleRecord> SetupExamples => Set<SetupExampleRecord>();
     public DbSet<ArchivedPlaybookFile> ArchivedPlaybookFiles => Set<ArchivedPlaybookFile>();
 
     public DbSet<TradingMistakeRecord> TradingMistakes => Set<TradingMistakeRecord>();
@@ -66,6 +67,14 @@ public sealed class JournalDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<SetupExampleRecord>(b =>
+        {
+            b.ToTable("SetupExamples");
+            b.HasKey(e => e.Id);
+            b.Property(e => e.Id).ValueGeneratedNever();
+            b.Property(e => e.Timeframe).HasMaxLength(80);
+            b.HasOne<TradingSetupRecord>().WithMany().HasForeignKey(e => e.SetupId).OnDelete(DeleteBehavior.Cascade);
+        });
         NotebookConfiguration.Configure(modelBuilder);
         modelBuilder.Entity<AccountPayoutRecord>(entity =>
         {

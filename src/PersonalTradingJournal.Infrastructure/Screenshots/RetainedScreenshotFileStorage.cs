@@ -25,6 +25,7 @@ internal sealed class RetainedScreenshotFileStorage(IApplicationPaths paths, IDb
         db.Database.UseTransaction(transaction);
         var references = db.TradeScreenshots.Select(s => s.StorageKey)
             .Concat(db.ArchivedPlaybookFiles.Select(e => e.StorageKey))
+            .Concat(db.SetupExamples.Select(e => e.StorageKey))
             .Concat(db.TradingPlanAssets.Select(e => e.StorageKey))
             .Concat(db.NotebookOwnedImageFiles.Select(e => e.StorageKey))
             .Concat(db.NotebookImages.Where(e => e.StorageKey != null).Select(e => e.StorageKey!));

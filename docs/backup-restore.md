@@ -1,8 +1,14 @@
 # Backup and restore
 
+## Trading Setup example images
+
+A complete backup includes each Setup image's original bytes under `attachments/screenshots/`. The SQLite metadata identifies the owning Setup, original filename, optional Timeframe, storage key, byte count and SHA-256. Restore checks the trusted schema, safe attachment paths, file inventory, lengths and hashes before replacing installed data. An image retained by more than one owner is packaged once. Portable export v22 includes the metadata in `journal.json`. Use a complete backup when you need to recover the images.
+
+The current release also accepts complete backups ending in `20261122212516_RetirePlaybook` or `20261114204255_SimplifyTradeWorkspace` after independently verifying their exact schema and corresponding file inventory. After offline restore, startup applies outstanding migrations. Both older schemas start with empty Setup galleries. [Trading Setups](trading-setups.md)
+
 ## Playbook archive and restore compatibility
 
-Portable export v21 includes archived content and image metadata. Complete backups include archived image originals. The restore preflight accepts the exact current schema and the immediately preceding pre-retirement schema. Earlier compatibility notes below describe those releases. [Historical Playbook archive](playbook.md)
+Portable export v21 includes archived content and image metadata. Complete backups include archived image originals. That release accepted its exact schema and the immediately preceding pre-retirement schema. Earlier compatibility notes below describe those releases. [Historical Playbook archive](playbook.md)
 
 ## Trades workspace — current extension
 
