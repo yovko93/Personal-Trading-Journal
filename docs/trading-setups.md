@@ -33,7 +33,18 @@ The current verification covers the 24 November workspace changes on develop at 
 | WPF layout and scrolling | Inspected compiled Light and Dark galleries, open previews and editors at 1000 DIP/96 DPI and 460 DIP/240 DPI. The fixture paired a short and long filename with wide and tall thumbnails. Bound checks measured equal cards and thumbnail areas, aligned Remove buttons, original placement, scroll-to-top on View, and ordinary and fractional wheel deltas in both directions. |
 | Windows input | A native mouse click opened a card. WPF Space activated another card while the preview was open. Close Preview returned keyboard focus to the correct opener. |
 
-Manual precision-touchpad scrolling, native file-picker interaction, physical high-DPI appearance and screen-reader speech remain pending. Focused TRX files and render PNGs are under `TestResults/setup-gallery-edit/final/`.
+Focused TRX files and render PNGs are under `TestResults/setup-gallery-edit/final/`.
+
+### Live Windows acceptance
+
+On 24 November 2026, the Release executable built from clean develop `48dfb6af92ff3f77596c45397585f9fe5ac86494` started with `--isolated-data-root` in a fresh temporary profile. The build passed with zero warnings and zero errors. The live Setup used four generated PNGs with wide, portrait and square proportions. The portrait image had a long filename and a **15 min** Timeframe.
+
+| Check | Live result |
+| --- | --- |
+| Native multi-file selection | The operator selected all four files in one Windows picker confirmation. Four staged cards appeared. After saving, the isolated database listed all four under the same Setup. The portrait retained its Timeframe and every stored original matched its source byte for byte. |
+| Physical touchpad | The operator used a two-finger gesture to scroll down with the pointer over the portrait card, then scrolled up with the pointer over its open preview. The page moved in both directions. |
+| Windows Narrator | Opening the portrait preview focused **Close Preview**. Pressing Space closed the preview, and Windows UI Automation and Narrator's visible focus outline both identified the original portrait card. The operator heard Narrator announce the image and its **15 min** Timeframe. |
+| Live card layout | Inspected Light at 100% and both Light and Dark at 250% Windows scale on the live app. The app was relaunched at 250% and Windows reported 240 DPI for its window. All four cards had equal dimensions and aligned Remove buttons. Wide, square and portrait thumbnails kept their proportions. The long filename wrapped to two lines and the preview showed its full label. The Dark preview at 240 DPI opened below all four cards. |
 
 ### Changed files
 
