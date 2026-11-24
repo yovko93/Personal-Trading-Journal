@@ -67,6 +67,76 @@ public sealed class SetupExampleTests
         Assert.Equal(Png, await files.ReadAsync(second.File));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CreatePersistsSetupAndOptionalExamplesTogether(bool withExamples)
+    {
+        await using var f = await Fixture.Create();
+        var create = new CreateTradingSetupUseCase(f.Get<ITradingSetupStore>(), f.Get<ITradingSetupNameChecker>(),
+            TimeProvider.System, f.Get<ISetupExampleStore>());
+        NewSetupExample[] images = withExamples ? [new("entry.png", Png, " 5 min "), new("exit.png", Png, null)] : [];
+        var id = await create.ExecuteAsync(new("Retest", "New pattern", images));
+        Assert.Equal("Retest", (await f.Get<ITradingSetupStore>().GetByIdAsync(id))!.Name);
+        var saved = await f.Get<ISetupExampleStore>().ListAsync(id, default);
+        Assert.Equal(images.Length, saved.Count);
+        if (withExamples)
+        {
+            Assert.Equal("5 min", saved.Single(x => x.File.FileName == "entry.png").Timeframe);
+            Assert.Null(saved.Single(x => x.File.FileName == "exit.png").Timeframe);
+        }
+        foreach (var image in saved)
+            Assert.Equal(Png, await f.Get<IPlaybookImageStorage>().ReadAsync(image.File));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FailedSecondFileOrDatabaseWriteRemovesOnlyPreparedFiles(bool failDatabase)
+    {
+        await using var f = await Fixture.Create();
+        var store = f.Get<ISetupExampleStore>();
+        var existing = await store.AddAsync(f.Setup.Id, "existing.png", Png, null, default);
+        var setup = failDatabase ? f.Setup : new TradingSetup("Unsaved", null, f.Now);
+        NewSetupExample[] images = [new("first.png", Png, null), new(failDatabase ? "second.png" : "../invalid.png", Png, "1h")];
+        if (failDatabase)
+            await Assert.ThrowsAsync<DbUpdateException>(() => store.CreateWithExamplesAsync(setup, images, default));
+        else
+            await Assert.ThrowsAsync<ArgumentException>(() => store.CreateWithExamplesAsync(setup, images, default));
+        await using var db = f.Context();
+        Assert.Equal(f.Setup.Id, (await db.TradingSetups.SingleAsync()).Id);
+        Assert.Equal(existing.Id, (await db.SetupExamples.SingleAsync()).Id);
+        Assert.Equal(existing.File.StorageKey, Path.GetFileName(Assert.Single(Directory.GetFiles(f.Paths.ScreenshotsDirectory))));
+    }
+
+    [Fact]
+    public async Task CancellationAfterFirstCopyRollsBackCreateAndReclaimsItsFile()
+    {
+        await using var f = await Fixture.Create();
+        using var cancel = new CancellationTokenSource();
+        var files = new CancelAfterCopy(f.Get<IPlaybookImageStorage>(), cancel);
+        var store = new Infrastructure.Setups.SetupExampleStore(f.Get<IDbContextFactory<Infrastructure.Persistence.JournalDbContext>>(), files);
+        var setup = new TradingSetup("Cancelled", null, f.Now);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => store.CreateWithExamplesAsync(setup,
+            [new("first.png", Png, null), new("second.png", Png, null)], cancel.Token));
+        Assert.Empty(Directory.GetFiles(f.Paths.ScreenshotsDirectory));
+        await using var db = f.Context();
+        Assert.False(await db.TradingSetups.AnyAsync(row => row.Id == setup.Id));
+        Assert.Empty(await db.SetupExamples.ToListAsync());
+    }
+
+    private sealed class CancelAfterCopy(IPlaybookImageStorage files, CancellationTokenSource cancel) : IPlaybookImageStorage
+    {
+        public async Task<PlaybookExampleImage> StoreAsync(string name, ReadOnlyMemory<byte> bytes, CancellationToken token)
+        {
+            var image = await files.StoreAsync(name, bytes, token);
+            cancel.Cancel();
+            return image;
+        }
+        public Task<byte[]> ReadAsync(PlaybookExampleImage image, CancellationToken token) => files.ReadAsync(image, token);
+        public Task DeleteUnreferencedAsync(string key, CancellationToken token) => files.DeleteUnreferencedAsync(key, token);
+    }
+
     [Fact]
     public async Task FailedFileCopyOrForeignKeyInsertPublishesNeitherMetadataNorBytes()
     {

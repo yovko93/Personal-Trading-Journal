@@ -45,6 +45,31 @@
                     <TextBox MinHeight="80" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top"
                              Text="{Binding DescriptionText, UpdateSourceTrigger=PropertyChanged}"
                              Style="{StaticResource PtjTextBoxStyle}" />
+                    <Separator Margin="0,16,0,12" Style="{StaticResource PtjSeparatorStyle}" />
+                    <TextBlock Text="Example images (optional)" Style="{StaticResource PtjFormLabelTextStyle}" />
+                    <Button x:Name="SelectExamples" Margin="0,8,0,4" HorizontalAlignment="Left" Content="Select images"
+                            Command="{Binding StageExamplesCommand}" Style="{StaticResource PtjButtonStyle}" />
+                    <ItemsControl x:Name="StagedExampleCards" ItemsSource="{Binding StagedExamples}">
+                        <ItemsControl.Style><Style TargetType="ItemsControl"><Style.Triggers>
+                            <DataTrigger Binding="{Binding IsSaving}" Value="True"><Setter Property="IsEnabled" Value="False" /></DataTrigger>
+                        </Style.Triggers></Style></ItemsControl.Style>
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate><DataTemplate>
+                            <Border Width="180" Padding="8" Margin="0,4,8,4" Style="{StaticResource PtjCardStyle}">
+                                <StackPanel>
+                                    <Image Height="72" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" Source="{Binding Selection.Thumbnail}" />
+                                    <TextBlock Style="{StaticResource PtjBodyTextStyle}" Text="{Binding Selection.FileName}" TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,6,0,2" Style="{StaticResource PtjFormLabelTextStyle}" Text="Timeframe (optional)" />
+                                    <TextBox Text="{Binding Timeframe, UpdateSourceTrigger=PropertyChanged}" MaxLength="80"
+                                             AutomationProperties.Name="{Binding Selection.FileName, StringFormat=Timeframe for {0}}"
+                                             Style="{StaticResource PtjTextBoxStyle}" />
+                                    <Button Margin="0,6,0,0" Content="Remove" Style="{StaticResource PtjSecondaryButtonStyle}"
+                                            AutomationProperties.Name="{Binding Selection.FileName, StringFormat=Unstage {0}}"
+                                            Command="{Binding DataContext.RemoveStagedCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate></ItemsControl.ItemTemplate>
+                    </ItemsControl>
                     <TextBlock Margin="0,12,0,0" Text="{Binding ValidationErrorMessage}">
                         <TextBlock.Style><Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjFormErrorTextStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding HasValidationError}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
                     </TextBlock>
@@ -73,53 +98,73 @@
                             <TextBlock><TextBlock.Style><Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjInactiveStatusTextStyle}"><Setter Property="Text" Value="Inactive" /><Style.Triggers><DataTrigger Binding="{Binding SelectedTradingSetup.IsActive}" Value="True"><Setter Property="Text" Value="Active" /><Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
                         </Border>
                     </Grid>
-                    <Grid Margin="0,16,0,0">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                        <TextBlock Style="{StaticResource PtjDetailLabelTextStyle}" Text="Description" />
-                        <TextBlock Grid.Column="1" Grid.ColumnSpan="3" Style="{StaticResource PtjDetailValueTextStyle}"
-                                   Text="{Binding SelectedTradingSetup.Description, TargetNullValue=—}" TextWrapping="Wrap" />
-                        <TextBlock Grid.Row="1" Margin="0,10,0,0" Style="{StaticResource PtjDetailLabelTextStyle}" Text="Created" />
-                        <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,10,0,0" Style="{StaticResource PtjDetailValueTextStyle}"
-                                   Text="{Binding SelectedTradingSetup.CreatedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm} UTC}" />
-                        <TextBlock Grid.Row="1" Grid.Column="2" Margin="24,10,0,0" Style="{StaticResource PtjDetailLabelTextStyle}" Text="Updated" />
-                        <TextBlock Grid.Row="1" Grid.Column="3" Margin="0,10,0,0" Style="{StaticResource PtjDetailValueTextStyle}"
-                                   Text="{Binding SelectedTradingSetup.UpdatedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm} UTC}" />
-                    </Grid>
-                    <TextBlock Margin="0,16,0,6" Text="Example images" Style="{StaticResource PtjFormLabelTextStyle}" />
-                    <Button HorizontalAlignment="Left" Content="Upload image" Command="{Binding UploadExampleCommand}" Style="{StaticResource PtjButtonStyle}" />
-                    <StackPanel Margin="0,8">
-                        <StackPanel.Style><Style TargetType="StackPanel"><Style.Triggers>
-                            <DataTrigger Binding="{Binding PendingExample}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
-                        </Style.Triggers></Style></StackPanel.Style>
-                        <Image Width="152" Height="84" HorizontalAlignment="Left" Stretch="Uniform" Source="{Binding PendingExample.Thumbnail}" />
-                        <TextBlock Style="{StaticResource PtjBodyTextStyle}" TextWrapping="Wrap" Text="{Binding PendingExample.FileName}" />
-                        <TextBlock Style="{StaticResource PtjFormLabelTextStyle}" Text="Timeframe (optional)" />
-                        <TextBox MaxWidth="270" HorizontalAlignment="Left" MinWidth="140" MaxLength="80" AutomationProperties.Name="Example timeframe"
-                                 Text="{Binding ExampleTimeframe, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PtjTextBoxStyle}" />
-                        <WrapPanel Margin="0,6">
-                            <Button Content="Save image" Command="{Binding SaveExampleCommand}" Style="{StaticResource PtjPrimaryButtonStyle}" />
-                            <Button Margin="6,0" Content="Cancel" Command="{Binding CancelExampleCommand}" Style="{StaticResource PtjSecondaryButtonStyle}" />
-                        </WrapPanel>
-                    </StackPanel>
-                    <ItemsControl x:Name="SetupExampleCards" ItemsSource="{Binding ExampleCards}">
-                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate><DataTemplate>
-                            <Border Width="180" Padding="8" Margin="0,4,8,4" Style="{StaticResource PtjCardStyle}">
-                                <StackPanel>
-                                    <Image Height="84" Stretch="Uniform" Source="{Binding Thumbnail}" AutomationProperties.Name="{Binding Example.File.FileName}" />
-                                    <TextBlock Margin="0,4,0,0" Style="{StaticResource PtjBodyTextStyle}" Text="{Binding Example.File.FileName}" TextWrapping="Wrap" />
-                                    <TextBlock Style="{StaticResource PtjCaptionTextStyle}" Text="{Binding Example.Timeframe}" TextWrapping="Wrap" />
-                                    <WrapPanel Margin="0,6,0,0">
-                                        <Button Content="View" Style="{StaticResource PtjButtonStyle}"
-                                                Command="{Binding DataContext.ViewExampleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
-                                        <Button Content="Remove" Margin="4,0,0,0" Style="{StaticResource PtjDangerButtonStyle}"
-                                                Command="{Binding DataContext.RemoveExampleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
-                                    </WrapPanel>
+                    <Separator Margin="0,16,0,12" Style="{StaticResource PtjSeparatorStyle}" />
+                    <TextBlock Style="{StaticResource PtjFormLabelTextStyle}" Text="Description" />
+                    <TextBlock Margin="0,4,0,0" Style="{StaticResource PtjDetailValueTextStyle}"
+                               Text="{Binding SelectedTradingSetup.Description, TargetNullValue=—}" TextWrapping="Wrap" />
+                    <Separator Margin="0,16,0,12" Style="{StaticResource PtjSeparatorStyle}" />
+                    <WrapPanel>
+                        <StackPanel Margin="0,0,24,0">
+                            <TextBlock Style="{StaticResource PtjFormLabelTextStyle}" Text="Created" />
+                            <TextBlock Style="{StaticResource PtjDetailValueTextStyle}" Text="{Binding SelectedTradingSetup.CreatedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm} UTC}" />
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource PtjFormLabelTextStyle}" Text="Updated" />
+                            <TextBlock Style="{StaticResource PtjDetailValueTextStyle}" Text="{Binding SelectedTradingSetup.UpdatedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm} UTC}" />
+                        </StackPanel>
+                    </WrapPanel>
+                    <Separator Margin="0,16,0,12" Style="{StaticResource PtjSeparatorStyle}" />
+                    <TextBlock Margin="0,0,0,6" Text="Example images" Style="{StaticResource PtjSectionTitleTextStyle}" />
+                    <StackPanel x:Name="GalleryPanel">
+                        <StackPanel.Style><Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers><DataTrigger Binding="{Binding Preview}" Value="{x:Null}"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                        </Style></StackPanel.Style>
+                        <Button HorizontalAlignment="Left" Content="Upload image" Command="{Binding UploadExampleCommand}" Style="{StaticResource PtjButtonStyle}" />
+                        <StackPanel Margin="0,8">
+                            <StackPanel.Style><Style TargetType="StackPanel"><Style.Triggers>
+                                <DataTrigger Binding="{Binding PendingExample}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                            </Style.Triggers></Style></StackPanel.Style>
+                            <Image Width="152" Height="84" HorizontalAlignment="Left" Stretch="Uniform" Source="{Binding PendingExample.Thumbnail}" />
+                            <TextBlock Style="{StaticResource PtjBodyTextStyle}" TextWrapping="Wrap" Text="{Binding PendingExample.FileName}" />
+                            <TextBlock Style="{StaticResource PtjFormLabelTextStyle}" Text="Timeframe (optional)" />
+                            <TextBox MaxWidth="270" HorizontalAlignment="Left" MinWidth="140" MaxLength="80" AutomationProperties.Name="Example timeframe"
+                                     Text="{Binding ExampleTimeframe, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PtjTextBoxStyle}" />
+                            <WrapPanel Margin="0,6">
+                                <Button Content="Save image" Command="{Binding SaveExampleCommand}" Style="{StaticResource PtjPrimaryButtonStyle}" />
+                                <Button Margin="6,0" Content="Cancel" Command="{Binding CancelExampleCommand}" Style="{StaticResource PtjSecondaryButtonStyle}" />
+                            </WrapPanel>
+                        </StackPanel>
+                        <ItemsControl x:Name="SetupExampleCards" ItemsSource="{Binding ExampleCards}">
+                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate><DataTemplate>
+                                <StackPanel Width="144" Margin="0,4,8,8">
+                                    <Button x:Name="OpenExampleCard" Style="{StaticResource PtjSecondaryButtonStyle}"
+                                            AutomationProperties.Name="{Binding Label, StringFormat=Open {0}}"
+                                            Command="{Binding DataContext.ViewExampleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}">
+                                        <StackPanel>
+                                            <Image Height="72" Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
+                                            <TextBlock Text="{Binding Example.File.FileName}" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Example.Timeframe}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Content="Remove" Margin="0,4,0,0" Style="{StaticResource PtjWorkspaceRemoveButtonStyle}"
+                                            AutomationProperties.Name="{Binding Label, StringFormat=Remove {0}}"
+                                            Command="{Binding DataContext.RemoveExampleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
                                 </StackPanel>
-                            </Border>
-                        </DataTemplate></ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                            </DataTemplate></ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                    <StackPanel x:Name="InlineExample" IsVisibleChanged="PreviewVisibilityChanged">
+                        <StackPanel.Style><Style TargetType="StackPanel"><Style.Triggers>
+                            <DataTrigger Binding="{Binding Preview}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                        </Style.Triggers></Style></StackPanel.Style>
+                        <Button x:Name="BackToCards" Content="Back to example images" HorizontalAlignment="Left"
+                                Style="{StaticResource PtjSecondaryButtonStyle}" Command="{Binding BackToCardsCommand}" Click="ReturnToGallery" />
+                        <TextBlock Margin="0,8" Style="{StaticResource PtjBodyTextStyle}" Text="{Binding Preview.Card.Label}" TextWrapping="Wrap" />
+                        <Image x:Name="OriginalExample" Source="{Binding Preview.Original}" AutomationProperties.Name="{Binding Preview.Card.Label}"
+                               Stretch="Uniform" StretchDirection="DownOnly" RenderOptions.BitmapScalingMode="HighQuality" />
+                    </StackPanel>
                     <StackPanel Margin="0,20,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
                         <Button Command="{Binding CloseDetailsCommand}" Content="Close" Style="{StaticResource PtjSecondaryButtonStyle}" />
                         <Button Margin="8,0,0,0" Command="{Binding EditCommand}" CommandParameter="{Binding SelectedTradingSetup.Id}"

@@ -7,15 +7,17 @@ public sealed class CreateTradingSetupUseCase
     public const string DuplicateNameMessage = "A trading setup with this name already exists.";
     private readonly ITradingSetupStore _store;
     private readonly ITradingSetupNameChecker _nameChecker;
+    private readonly ISetupExampleStore? _examples;
     private readonly TimeProvider _timeProvider;
 
     public CreateTradingSetupUseCase(ITradingSetupStore store,
-        ITradingSetupNameChecker nameChecker, TimeProvider timeProvider)
+        ITradingSetupNameChecker nameChecker, TimeProvider timeProvider, ISetupExampleStore? examples = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(nameChecker);
         ArgumentNullException.ThrowIfNull(timeProvider);
         _store = store;
+        _examples = examples;
         _nameChecker = nameChecker;
         _timeProvider = timeProvider;
     }
@@ -30,7 +32,13 @@ public sealed class CreateTradingSetupUseCase
             throw new InvalidOperationException(DuplicateNameMessage);
         }
 
-        await _store.AddAsync(setup, cancellationToken);
+        if (command.Examples is { Count: > 0 } images)
+        {
+            var store = _examples ?? throw new InvalidOperationException("Setup image storage is unavailable.");
+            await store.CreateWithExamplesAsync(setup, images, cancellationToken);
+        }
+        else
+            await _store.AddAsync(setup, cancellationToken);
         return setup.Id;
     }
 }

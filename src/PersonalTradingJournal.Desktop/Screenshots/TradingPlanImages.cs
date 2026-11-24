@@ -11,9 +11,10 @@ namespace PersonalTradingJournal.Desktop.Screenshots;
 public sealed record PlanImageSelection(string FileName, byte[] Bytes, ImageSource Thumbnail);
 public interface IWorkspaceImageViewer
 {
+    Task<IReadOnlyList<PlanImageSelection>> PickMultipleAsync(string title, CancellationToken token);
+    Task<ImageSource> OriginalAsync(PlaybookExampleImage image, CancellationToken token);
     Task<PlanImageSelection?> PickAsync(string title, CancellationToken token);
     Task<ImageSource> ThumbnailAsync(PlaybookExampleImage image, CancellationToken token);
-    Task ShowAsync(PlaybookExampleImage? image, PlanImageSelection? pending, string label, CancellationToken token);
 }
 public interface ITradingPlanImages
 {
@@ -31,16 +32,37 @@ public sealed class TradingPlanImages(IPlaybookImageStorage storage) : ITradingP
 
     public async Task<PlanImageSelection?> PickAsync(string title, CancellationToken token)
     {
+        var files = await PickFilesAsync(title, false, token);
+        return files.SingleOrDefault();
+    }
+
+    public Task<IReadOnlyList<PlanImageSelection>> PickMultipleAsync(string title, CancellationToken token) =>
+        PickFilesAsync(title, true, token);
+
+    private static async Task<IReadOnlyList<PlanImageSelection>> PickFilesAsync(string title, bool multiple, CancellationToken token)
+    {
         token.ThrowIfCancellationRequested();
         var dialog = new OpenFileDialog { Title = title, CheckFileExists = true,
-            Filter = "PNG or JPEG images|*.png;*.jpg;*.jpeg", Multiselect = false };
-        if (dialog.ShowDialog() != true) return null;
-        await using var input = new FileStream(dialog.FileName, FileMode.Open, FileAccess.Read, FileShare.Read);
-        byte[] bytes = await WorkspaceImageDecoder.ReadBoundedAsync(input, token);
-        var bitmap = await Task.Run(() => WorkspaceImageDecoder.Decode(bytes, true), token);
-        token.ThrowIfCancellationRequested();
-        return new(Path.GetFileName(dialog.FileName), bytes, bitmap);
+            Filter = "PNG or JPEG images|*.png;*.jpg;*.jpeg", Multiselect = multiple };
+        if (dialog.ShowDialog() != true) return [];
+        var images = new List<PlanImageSelection>();
+        foreach (string path in dialog.FileNames)
+        {
+            await using var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            byte[] bytes = await WorkspaceImageDecoder.ReadBoundedAsync(input, token);
+            var bitmap = await Task.Run(() => WorkspaceImageDecoder.Decode(bytes, true), token);
+            token.ThrowIfCancellationRequested();
+            images.Add(new(Path.GetFileName(path), bytes, bitmap));
+        }
+        return images;
     }
+
+    public async Task<ImageSource> OriginalAsync(PlaybookExampleImage image, CancellationToken token)
+    {
+        var bytes = await storage.ReadAsync(image, token);
+        return await Task.Run(() => WorkspaceImageDecoder.Decode(bytes, false), token);
+    }
+
     public Task<PlaybookExampleImage> StoreAsync(PlanImageSelection selection, CancellationToken token) =>
         storage.StoreAsync(selection.FileName, selection.Bytes, token);
     public async Task<ImageSource> ThumbnailAsync(PlaybookExampleImage image, CancellationToken token)

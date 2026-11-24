@@ -35,8 +35,10 @@ public sealed class SetupExampleViewTests
                 var dialog = new FakeDialogService();
                 var setup = new TradingSetupDetails(Guid.NewGuid(), "Opening range", "First pullback", true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
                 var reader = new FakeTradingSetupReader { DetailsToReturn = setup };
-                reader.EnqueueResult([new(setup.Id, setup.Name, setup.Description, true, setup.CreatedAtUtc, setup.UpdatedAtUtc),
-                    new(Guid.NewGuid(), "Range reversal", null, false, setup.CreatedAtUtc, setup.UpdatedAtUtc)]);
+                TradingSetupListItem[] catalog = [new(setup.Id, setup.Name, setup.Description, true, setup.CreatedAtUtc, setup.UpdatedAtUtc),
+                    new(Guid.NewGuid(), "Range reversal", null, false, setup.CreatedAtUtc, setup.UpdatedAtUtc)];
+                reader.EnqueueResult(catalog);
+                reader.EnqueueResult(catalog);
                 var vm = TradingSetupsViewModelTests.Create(reader, dialog: dialog, examples: fixture, viewer: fixture);
                 vm.EnsureLoadedAsync().GetAwaiter().GetResult();
                 var view = new TradingSetupsView { DataContext = vm, Background = (Brush)app.Resources["PtjBackgroundBrush"] };
@@ -84,6 +86,31 @@ public sealed class SetupExampleViewTests
                     Assert.True(edit.Focusable && edit.Command.CanExecute(edit.CommandParameter));
                 }
 
+                vm.ShowCreateCommand.Execute(null);
+                vm.NameText = "Unpublished";
+                vm.StageExamplesCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+                Assert.Equal(2, vm.StagedExamples.Count);
+                vm.RemoveStagedCommand.Execute(vm.StagedExamples[0]);
+                Assert.Equal("Exit.png", Assert.Single(vm.StagedExamples).Selection.FileName);
+                vm.CancelCreateCommand.Execute(null);
+                Assert.Empty(vm.StagedExamples);
+                Assert.Empty(fixture.Rows);
+                vm.ShowCreateCommand.Execute(null);
+                vm.NameText = "Range break";
+                vm.StageExamplesCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+                vm.StagedExamples[0].Timeframe = "15 min";
+                Layout();
+                Render(view, theme, width, dpi, "create");
+                fixture.FailSave = true;
+                vm.CreateCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+                Assert.True(vm.IsCreateFormVisible);
+                Assert.Equal(2, vm.StagedExamples.Count);
+                Assert.Empty(fixture.Rows);
+                fixture.FailSave = false;
+                vm.CreateCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+                Assert.Empty(vm.StagedExamples);
+                Assert.False(vm.IsCreateFormVisible);
+                Assert.Equal(new string?[] { "15 min", null }, fixture.Created.Select(image => image.Timeframe));
                 vm.ViewCommand.ExecuteAsync(setup.Id).GetAwaiter().GetResult();
                 vm.UploadExampleCommand.ExecuteAsync(null).GetAwaiter().GetResult();
                 Assert.Empty(fixture.Rows);
@@ -112,6 +139,15 @@ public sealed class SetupExampleViewTests
                 Render(view, theme, width, dpi, "details");
                 vm.ViewExampleCommand.ExecuteAsync(card).GetAwaiter().GetResult();
                 Assert.Equal(card.Example.File, fixture.Opened);
+                Assert.NotSame(card.Thumbnail, vm.Preview!.Original);
+                Layout();
+                Assert.Equal(Visibility.Collapsed, ((StackPanel)view.FindName("GalleryPanel")).Visibility);
+                Assert.Same(vm.Preview!.Original, ((Image)view.FindName("OriginalExample")).Source);
+                Assert.Equal("Open Opening range.png, 15 min", System.Windows.Automation.AutomationProperties.GetName(actions[0]));
+                Render(view, theme, width, dpi, "inline");
+                vm.BackToCardsCommand.Execute(null); Layout();
+                Assert.Null(vm.Preview);
+                Assert.Equal(Visibility.Visible, ((StackPanel)view.FindName("GalleryPanel")).Visibility);
                 vm.RemoveExampleCommand.ExecuteAsync(card).GetAwaiter().GetResult();
                 Assert.True(dialog.ConfirmationRequest!.IsDestructive);
                 Assert.Single(vm.ExampleCards);
@@ -123,7 +159,7 @@ public sealed class SetupExampleViewTests
         });
     }
 
-    private static IEnumerable<DependencyObject> Children(DependencyObject parent)
+    internal static IEnumerable<DependencyObject> Children(DependencyObject parent)
     {
         for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
         {
@@ -143,18 +179,29 @@ public sealed class SetupExampleViewTests
         encoder.Save(stream);
     }
 
-    private sealed class Images : IWorkspaceImageViewer, ISetupExampleStore
+    internal sealed class Images : IWorkspaceImageViewer, ISetupExampleStore
     {
         internal ImageSource Thumbnail { get; } = new DrawingImage(new GeometryDrawing(Brushes.Teal, new Pen(Brushes.Navy, 1),
             Geometry.Parse("M0,18 L6,11 10,15 19,4 23,8 32,1 32,22 0,22 Z")));
         internal List<SetupExample> Rows { get; } = [];
         internal bool FailSave;
         internal PlaybookExampleImage? Opened;
+        private readonly ImageSource _original = new DrawingImage(new GeometryDrawing(Brushes.Teal, new Pen(Brushes.Navy, 2),
+            Geometry.Parse("M0,155 L98,88 165,121 298,35 385,67 578,4 578,176 0,176 Z")));
         public Task<PlanImageSelection?> PickAsync(string title, CancellationToken token) =>
             Task.FromResult<PlanImageSelection?>(new("Opening range.png", [1], Thumbnail));
         public Task<ImageSource> ThumbnailAsync(PlaybookExampleImage image, CancellationToken token) => Task.FromResult(Thumbnail);
-        public Task ShowAsync(PlaybookExampleImage? image, PlanImageSelection? pending, string label, CancellationToken token)
-        { Opened = image; return Task.CompletedTask; }
+        public Task<ImageSource> OriginalAsync(PlaybookExampleImage image, CancellationToken token)
+        { Opened = image; return Task.FromResult(_original); }
+        public Task<IReadOnlyList<PlanImageSelection>> PickMultipleAsync(string title, CancellationToken token) =>
+            Task.FromResult<IReadOnlyList<PlanImageSelection>>([new("Entry.png", [1], Thumbnail), new("Exit.png", [2], Thumbnail)]);
+        internal IReadOnlyList<NewSetupExample> Created { get; private set; } = [];
+        public Task CreateWithExamplesAsync(TradingSetup setup, IReadOnlyList<NewSetupExample> examples, CancellationToken token)
+        {
+            if (FailSave) throw new IOException();
+            Created = examples.ToArray();
+            return Task.CompletedTask;
+        }
         public Task<IReadOnlyList<SetupExample>> ListAsync(Guid owner, CancellationToken token) =>
             Task.FromResult<IReadOnlyList<SetupExample>>(Rows.Where(x => x.SetupId == owner).ToArray());
         public Task<SetupExample> AddAsync(Guid owner, string name, byte[] bytes, string? timeframe, CancellationToken token)

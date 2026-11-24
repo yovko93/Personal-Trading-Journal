@@ -330,7 +330,7 @@ public sealed class TradingSetupsViewModelTests
         var time = new FixedTimeProvider();
         return new(
             reader,
-            new CreateTradingSetupUseCase(store, checker, time),
+            new CreateTradingSetupUseCase(store, checker, time, examples),
             new TradingSetupLifecycleUseCase(store, time),
             new GetTradingSetupDetailsUseCase(reader),
             new UpdateTradingSetupUseCase(store, checker, time),

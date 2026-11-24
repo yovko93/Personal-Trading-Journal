@@ -4,10 +4,11 @@ Open **Analysis → Setups** to manage the patterns used to classify Trades. The
 
 ## Example images
 
-1. Create and save a Setup, or open an existing one with **View**.
-2. Choose **Upload image** and select a single-frame PNG or JPEG, up to 8 MiB. Check its thumbnail and optionally enter a Timeframe such as “15 min”.
-3. Choose **Save image** to add the card. **Cancel** discards the selection from memory. Repeat to add another example.
-4. Choose **View** on a card to open the original image. **Remove** asks for confirmation and targets that card in its owning Setup.
+In **New Setup**, enter a name and optional description, then choose **Select images** to stage one or more PNG or JPEG files. Each thumbnail has its own optional Timeframe. **Remove** on a staged thumbnail takes it out of the draft. **Create Setup** saves the Setup and all remaining image references together. Cancel discards the draft and its in-memory selections. A failed save keeps the draft available for correction.
+
+To add an example later, open the Setup with **View**, choose **Upload image**, enter an optional Timeframe and choose **Save image**. Each file must be a single-frame image of up to 8 MiB.
+
+In Setup details, click a card or focus it and press Space or Enter to open the original on the same page. Choose **Back to example images** to return to the gallery. The card's accessible name includes the filename and any saved Timeframe. The separate **Remove** action asks for confirmation before deleting a saved example.
 
 Galleries start empty and are optional. Deleting an eligible Setup removes its image references. Physical cleanup checks the other owners before deleting an original. A Setup referenced by Trades retains its existing deletion protection. Historical Playbook content stays in its separate archive.
 
@@ -16,6 +17,21 @@ Galleries start empty and are optional. Deleting an eligible Setup removes its i
 Migration `20261123085402_AddSetupExamples` adds the Setup image table and its owner foreign key. A successful upload records the file's size and SHA-256 alongside its generated storage key. Canceling before save writes nothing. A failed file copy or rejected metadata insert cleans up the staged file. Complete backups carry the originals, and portable exports carry the metadata. [Backup and restore](backup-restore.md#trading-setup-example-images)
 
 ## Verification
+
+Verified locally on 24 November 2026 on develop at `a7f1502` plus the working-tree changes. The Release build completed with zero warnings and errors. All fixtures used synthetic journals and files.
+
+| Check | Result |
+| --- | --- |
+| Focused tests | 107 passed, zero failed or skipped. Application passed 31, Infrastructure 52 and Desktop 24. |
+| Create and rollback | Covered creation without images, multi-image creation with optional Timeframes, staged removal and Cancel. Cancellation after the first copy, rejection of a later file and a failed database write left no newly created rows or files. A previously owned original remained intact. |
+| Gallery and accessibility | In an isolated Windows window, a native mouse click and WPF Space input each opened the intended card. Back returned keyboard focus to its opener. Opening preserved the image and raised no deletion prompt. Separate removal checks covered declining and confirming. |
+| Restore | A restored Setup opened its original through the production decoder and returned to the gallery. This change used the existing schema and backup format. |
+| Compiled renders | Inspected the new form, saved cards, dividers and inline original in Light and Dark at 1000 DIP/96 DPI and 460 DIP/240 DPI. The two staged images retained independent Timeframe fields and the full preview scaled to fit. |
+| Complete local Release gate | 5,490 passed, 0 failed. The existing [Rules quarantine](rules-view-quarantine.md) was the single skip. All 152 exclusive WPF cases passed. Exit 0 in 13m 45.17s. |
+
+Manual Windows multi-file picker interaction, physical high-DPI inspection and screen-reader speech remain pending. Local evidence is under `TestResults/setup-create-inline/final/`. It includes the gate summary, timer, focused results, renders and the exact changed-file list in `changed-files.txt`.
+
+## Previous gallery verification
 
 The Release build on develop at `3ef9957` plus the working-tree changes completed with zero warnings and errors. EF reported no pending model changes. Verification used synthetic journals and image files.
 

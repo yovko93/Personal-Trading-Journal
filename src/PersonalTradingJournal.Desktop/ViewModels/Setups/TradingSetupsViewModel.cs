@@ -72,6 +72,11 @@ public sealed partial class TradingSetupsViewModel : ObservableObject
         _dialogService = dialogService;
         _examples = examples;
         _viewer = viewer;
+        StageExamplesCommand = new AsyncRelayCommand(StageExamplesAsync, () => _viewer is not null && IsCreateFormVisible && !IsBusy);
+        RemoveStagedCommand = new RelayCommand<StagedSetupExample>(
+            item => StagedExamples = StagedExamples.Where(example => example != item).ToArray(),
+            item => item is not null && IsCreateFormVisible && !IsBusy);
+        BackToCardsCommand = new RelayCommand(() => Preview = null);
         UploadExampleCommand = new AsyncRelayCommand(UploadExampleAsync, () => CanUseImages && PendingExample is null);
         SaveExampleCommand = new AsyncRelayCommand(SaveExampleAsync, () => CanUseImages && PendingExample is not null);
         CancelExampleCommand = new RelayCommand(ClearPendingExample, () => !IsBusy && PendingExample is not null);
@@ -172,6 +177,7 @@ public sealed partial class TradingSetupsViewModel : ObservableObject
         {
             if (_selectedTradingSetup?.Id != value?.Id)
             {
+                Preview = null;
                 ExampleCards = [];
                 ClearPendingExample();
             }
@@ -218,6 +224,8 @@ public sealed partial class TradingSetupsViewModel : ObservableObject
 
     public void ResetTransientState()
     {
+        CreateCommand.Cancel();
+        ViewExampleCommand.Cancel();
         UploadExampleCommand.Cancel();
         SaveExampleCommand.Cancel();
         ViewCommand.Cancel();
@@ -269,7 +277,9 @@ public sealed partial class TradingSetupsViewModel : ObservableObject
         IsSaving = true;
         try
         {
-            await _createUseCase.ExecuteAsync(new CreateTradingSetupCommand(NameText, DescriptionText), token);
+            var images = StagedExamples.Select(item =>
+                new NewSetupExample(item.Selection.FileName, item.Selection.Bytes, item.Timeframe)).ToArray();
+            await _createUseCase.ExecuteAsync(new CreateTradingSetupCommand(NameText, DescriptionText, images), token);
             SuccessMessage = "Trading setup created.";
             ResetDraft();
             IsCreateFormVisible = false;
@@ -306,6 +316,7 @@ public sealed partial class TradingSetupsViewModel : ObservableObject
     {
         TradingSetupDetails? setup = await LoadDetailsAsync(setupId, token);
         if (setup is null) return;
+        Preview = null;
         EditNameText = setup.Name;
         EditDescriptionText = setup.Description ?? string.Empty;
         IsEditNameInvalid = false;
@@ -483,6 +494,8 @@ public sealed partial class TradingSetupsViewModel : ObservableObject
 
     private void ResetDraft()
     {
+        StageExamplesCommand.Cancel();
+        StagedExamples = [];
         NameText = string.Empty;
         DescriptionText = string.Empty;
         IsNameInvalid = false;
@@ -501,6 +514,8 @@ public sealed partial class TradingSetupsViewModel : ObservableObject
         EditCommand.NotifyCanExecuteChanged(); CloseDetailsCommand.NotifyCanExecuteChanged();
         CancelEditCommand.NotifyCanExecuteChanged(); SaveChangesCommand.NotifyCanExecuteChanged();
         DeleteCommand.NotifyCanExecuteChanged();
+        StageExamplesCommand.NotifyCanExecuteChanged();
+        RemoveStagedCommand.NotifyCanExecuteChanged();
         UploadExampleCommand.NotifyCanExecuteChanged();
         SaveExampleCommand.NotifyCanExecuteChanged();
         CancelExampleCommand.NotifyCanExecuteChanged();

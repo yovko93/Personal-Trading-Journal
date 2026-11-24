@@ -129,6 +129,12 @@ public sealed class DataBackupsFlowTests
             Assert.Equal(1, thumbnail.PixelHeight);
             Assert.Equal(NotebookOriginalBytes, await restarted.GetRequiredService<IPlaybookImageStorage>().ReadAsync(card.Example.File));
             Assert.True(setups.ViewExampleCommand.CanExecute(card));
+            await setups.ViewExampleCommand.ExecuteAsync(card);
+            Assert.Equal(example.Id, setups.Preview!.Card.Example.Id);
+            var originalBitmap = Assert.IsAssignableFrom<BitmapSource>(setups.Preview.Original);
+            Assert.Equal(1, originalBitmap.PixelWidth);
+            setups.BackToCardsCommand.Execute(null);
+            Assert.Null(setups.Preview);
             string restoredExport = Path.Combine(root, "restored-export");
             Assert.True((await restarted.GetRequiredService<IPortableExportService>().CreateAsync(restoredExport)).Succeeded);
             Assert.Equal(originalTables, InspectExport(restoredExport, id)); // Every logical value, not only counts.

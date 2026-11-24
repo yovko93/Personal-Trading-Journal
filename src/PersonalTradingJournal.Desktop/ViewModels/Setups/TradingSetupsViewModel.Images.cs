@@ -1,4 +1,5 @@
 using System.Windows.Media;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Desktop.Dialogs;
@@ -6,7 +7,20 @@ using PersonalTradingJournal.Desktop.Screenshots;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Setups;
 
-public sealed record SetupExampleCard(SetupExample Example, ImageSource? Thumbnail);
+public sealed record SetupExampleCard(SetupExample Example, ImageSource? Thumbnail)
+{
+    public string Label => Example.Timeframe is { Length: > 0 } timeframe
+        ? $"{Example.File.FileName}, {timeframe}" : Example.File.FileName;
+}
+
+public sealed class StagedSetupExample(PlanImageSelection selection) : ObservableObject
+{
+    public PlanImageSelection Selection { get; } = selection;
+    private string? _timeframe;
+    public string? Timeframe { get => _timeframe; set => SetProperty(ref _timeframe, value); }
+}
+
+public sealed record SetupImagePreview(SetupExampleCard Card, ImageSource Original);
 
 public sealed partial class TradingSetupsViewModel
 {
@@ -16,6 +30,30 @@ public sealed partial class TradingSetupsViewModel
     private PlanImageSelection? _pending;
     private string? _timeframe;
     private bool _imageBusy;
+    private IReadOnlyList<StagedSetupExample> _staged = [];
+    private SetupImagePreview? _preview;
+    public SetupImagePreview? Preview { get => _preview; private set => SetProperty(ref _preview, value); }
+    public IReadOnlyList<StagedSetupExample> StagedExamples { get => _staged; private set => SetProperty(ref _staged, value); }
+
+    public IAsyncRelayCommand StageExamplesCommand { get; }
+    public IRelayCommand<StagedSetupExample> RemoveStagedCommand { get; }
+    public IRelayCommand BackToCardsCommand { get; }
+
+    private async Task StageExamplesAsync(CancellationToken token)
+    {
+        if (_viewer is null || !IsCreateFormVisible || IsBusy) return;
+        IsImageBusy = true;
+        SaveErrorMessage = null;
+        try
+        {
+            var selection = await _viewer.PickMultipleAsync("Select Setup example images", token);
+            if (!token.IsCancellationRequested && IsCreateFormVisible)
+                StagedExamples = [.. StagedExamples, .. selection.Select(image => new StagedSetupExample(image))];
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception) { SaveErrorMessage = "Choose readable PNG or JPEG images of up to 8 MiB each."; }
+        finally { IsImageBusy = false; }
+    }
 
     public IReadOnlyList<SetupExampleCard> ExampleCards { get => _cards; private set => SetProperty(ref _cards, value); }
     public PlanImageSelection? PendingExample
@@ -93,7 +131,12 @@ public sealed partial class TradingSetupsViewModel
     {
         if (!IsCurrentCard(card)) return;
         IsImageBusy = true;
-        try { await _viewer!.ShowAsync(card!.Example.File, null, card.Example.File.FileName, token); }
+        try
+        {
+            var original = await _viewer!.OriginalAsync(card!.Example.File, token);
+            if (!token.IsCancellationRequested && SelectedTradingSetup?.Id == card.Example.SetupId && ExampleCards.Contains(card))
+                Preview = new(card, original);
+        }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception) { ActionErrorMessage = "The original example image could not be opened."; }
         finally { IsImageBusy = false; }
