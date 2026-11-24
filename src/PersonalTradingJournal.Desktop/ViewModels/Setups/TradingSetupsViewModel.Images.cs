@@ -13,9 +13,27 @@ public sealed record SetupExampleCard(SetupExample Example, ImageSource? Thumbna
         ? $"{Example.File.FileName}, {timeframe}" : Example.File.FileName;
 }
 
-public sealed class StagedSetupExample(PlanImageSelection selection) : ObservableObject
+public sealed class StagedSetupExample : ObservableObject
 {
-    public PlanImageSelection Selection { get; } = selection;
+    public StagedSetupExample(PlanImageSelection upload)
+    {
+        Upload = upload;
+        FileName = upload.FileName;
+        Thumbnail = upload.Thumbnail;
+    }
+
+    public StagedSetupExample(SetupExampleCard saved)
+    {
+        Saved = saved.Example;
+        FileName = saved.Example.File.FileName;
+        Thumbnail = saved.Thumbnail;
+        _timeframe = saved.Example.Timeframe;
+    }
+
+    public string FileName { get; }
+    public ImageSource? Thumbnail { get; }
+    public PlanImageSelection? Upload { get; }
+    public SetupExample? Saved { get; }
     private string? _timeframe;
     public string? Timeframe { get => _timeframe; set => SetProperty(ref _timeframe, value); }
 }
@@ -39,19 +57,53 @@ public sealed partial class TradingSetupsViewModel
     public IRelayCommand<StagedSetupExample> RemoveStagedCommand { get; }
     public IRelayCommand BackToCardsCommand { get; }
 
+    private bool IsImageFormOpen => IsCreateFormVisible || IsEditFormVisible;
+
+    private void RemoveStaged(StagedSetupExample? item)
+    {
+        if (item is null || !StagedExamples.Contains(item)) return;
+        if (item.Saved is not null && !_dialogService.Confirm(new ConfirmationDialogRequest(
+            "Remove example image?", $"Remove {item.FileName} when you save this Setup?", "Remove image", isDestructive: true))) return;
+        StagedExamples = StagedExamples.Where(example => example != item).ToArray();
+    }
+
+    private NewSetupExample[] NewUploads() => StagedExamples.Where(item => item.Upload is not null)
+        .Select(item => new NewSetupExample(item.FileName, item.Upload!.Bytes, item.Timeframe)).ToArray();
+
+    private SetupImageChanges? GetImageEdits()
+    {
+        var retained = StagedExamples.Where(item => item.Saved is not null).ToDictionary(item => item.Saved!.Id);
+        var edits = new List<SetupImageEdit>();
+        foreach (var card in ExampleCards)
+        {
+            var saved = card.Example;
+            if (!retained.TryGetValue(saved.Id, out var draft))
+                edits.Add(new(saved.Id, saved.Timeframe, null, true));
+            else if (draft.Timeframe != saved.Timeframe)
+                edits.Add(new(saved.Id, saved.Timeframe, draft.Timeframe, false));
+        }
+        var added = NewUploads();
+        return added.Length == 0 && edits.Count == 0 ? null : new(added, edits);
+    }
+
     private async Task StageExamplesAsync(CancellationToken token)
     {
-        if (_viewer is null || !IsCreateFormVisible || IsBusy) return;
+        if (_viewer is null || !IsImageFormOpen || IsBusy) return;
         IsImageBusy = true;
         SaveErrorMessage = null;
         try
         {
             var selection = await _viewer.PickMultipleAsync("Select Setup example images", token);
-            if (!token.IsCancellationRequested && IsCreateFormVisible)
+            if (!token.IsCancellationRequested && IsImageFormOpen)
                 StagedExamples = [.. StagedExamples, .. selection.Select(image => new StagedSetupExample(image))];
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception) { SaveErrorMessage = "Choose readable PNG or JPEG images of up to 8 MiB each."; }
+        catch (Exception)
+        {
+            const string message = "Choose readable PNG or JPEG images of up to 8 MiB each.";
+            if (IsEditFormVisible) EditErrorMessage = message;
+            else SaveErrorMessage = message;
+        }
         finally { IsImageBusy = false; }
     }
 
@@ -151,6 +203,7 @@ public sealed partial class TradingSetupsViewModel
         try
         {
             await _examples!.RemoveAsync(card.Example.SetupId, card.Example.Id, token);
+            if (Preview?.Card == card) Preview = null;
             ExampleCards = ExampleCards.Where(x => x != card).ToArray();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }

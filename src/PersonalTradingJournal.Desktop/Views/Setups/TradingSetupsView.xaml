@@ -3,7 +3,39 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
              xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation">
-    <ScrollViewer HorizontalContentAlignment="Stretch" HorizontalScrollBarVisibility="Disabled"
+    <UserControl.Resources>
+        <DataTemplate x:Key="ExampleEditor">
+            <StackPanel>
+                <Separator Margin="0,16,0,12" Style="{StaticResource PtjSeparatorStyle}" />
+                <TextBlock Text="Example images (optional)" Style="{StaticResource PtjFormLabelTextStyle}" />
+                <Button x:Name="SelectExamples" Margin="0,8,0,4" HorizontalAlignment="Left" Content="Select images"
+                        Command="{Binding StageExamplesCommand}" Style="{StaticResource PtjButtonStyle}" />
+                <ItemsControl x:Name="StagedExampleCards" ItemsSource="{Binding StagedExamples}">
+                    <ItemsControl.Style><Style TargetType="ItemsControl"><Style.Triggers>
+                        <DataTrigger Binding="{Binding IsUpdating}" Value="True"><Setter Property="IsEnabled" Value="False" /></DataTrigger>
+                        <DataTrigger Binding="{Binding IsSaving}" Value="True"><Setter Property="IsEnabled" Value="False" /></DataTrigger>
+                    </Style.Triggers></Style></ItemsControl.Style>
+                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate><DataTemplate>
+                        <Border Width="180" Padding="8" Margin="0,4,8,4" Style="{StaticResource PtjCardStyle}">
+                            <StackPanel>
+                                <Image Height="72" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" Source="{Binding Thumbnail}" />
+                                <TextBlock Style="{StaticResource PtjBodyTextStyle}" Text="{Binding FileName}" Height="38" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding FileName}" />
+                                <TextBlock Margin="0,6,0,2" Style="{StaticResource PtjFormLabelTextStyle}" Text="Timeframe (optional)" />
+                                <TextBox Text="{Binding Timeframe, UpdateSourceTrigger=PropertyChanged}" MaxLength="80"
+                                         AutomationProperties.Name="{Binding FileName, StringFormat=Timeframe for {0}}"
+                                         Style="{StaticResource PtjTextBoxStyle}" />
+                                <Button Margin="0,6,0,0" Content="Remove" Style="{StaticResource PtjSecondaryButtonStyle}"
+                                        AutomationProperties.Name="{Binding FileName, StringFormat=Remove {0}}"
+                                        Command="{Binding DataContext.RemoveStagedCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate></ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+    <ScrollViewer x:Name="PageScroll" HorizontalContentAlignment="Stretch" HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
         <ScrollViewer.Resources>
             <Style TargetType="{x:Type ScrollBar}" BasedOn="{StaticResource PtjScrollBarStyle}" />
@@ -45,31 +77,7 @@
                     <TextBox MinHeight="80" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top"
                              Text="{Binding DescriptionText, UpdateSourceTrigger=PropertyChanged}"
                              Style="{StaticResource PtjTextBoxStyle}" />
-                    <Separator Margin="0,16,0,12" Style="{StaticResource PtjSeparatorStyle}" />
-                    <TextBlock Text="Example images (optional)" Style="{StaticResource PtjFormLabelTextStyle}" />
-                    <Button x:Name="SelectExamples" Margin="0,8,0,4" HorizontalAlignment="Left" Content="Select images"
-                            Command="{Binding StageExamplesCommand}" Style="{StaticResource PtjButtonStyle}" />
-                    <ItemsControl x:Name="StagedExampleCards" ItemsSource="{Binding StagedExamples}">
-                        <ItemsControl.Style><Style TargetType="ItemsControl"><Style.Triggers>
-                            <DataTrigger Binding="{Binding IsSaving}" Value="True"><Setter Property="IsEnabled" Value="False" /></DataTrigger>
-                        </Style.Triggers></Style></ItemsControl.Style>
-                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate><DataTemplate>
-                            <Border Width="180" Padding="8" Margin="0,4,8,4" Style="{StaticResource PtjCardStyle}">
-                                <StackPanel>
-                                    <Image Height="72" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" Source="{Binding Selection.Thumbnail}" />
-                                    <TextBlock Style="{StaticResource PtjBodyTextStyle}" Text="{Binding Selection.FileName}" TextWrapping="Wrap" />
-                                    <TextBlock Margin="0,6,0,2" Style="{StaticResource PtjFormLabelTextStyle}" Text="Timeframe (optional)" />
-                                    <TextBox Text="{Binding Timeframe, UpdateSourceTrigger=PropertyChanged}" MaxLength="80"
-                                             AutomationProperties.Name="{Binding Selection.FileName, StringFormat=Timeframe for {0}}"
-                                             Style="{StaticResource PtjTextBoxStyle}" />
-                                    <Button Margin="0,6,0,0" Content="Remove" Style="{StaticResource PtjSecondaryButtonStyle}"
-                                            AutomationProperties.Name="{Binding Selection.FileName, StringFormat=Unstage {0}}"
-                                            Command="{Binding DataContext.RemoveStagedCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate></ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ExampleEditor}" HorizontalContentAlignment="Stretch" />
                     <TextBlock Margin="0,12,0,0" Text="{Binding ValidationErrorMessage}">
                         <TextBlock.Style><Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjFormErrorTextStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding HasValidationError}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
                     </TextBlock>
@@ -80,7 +88,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Margin="0,16,0,0">
+            <Border x:Name="SetupDetails" PreviewMouseWheel="ScrollDetailsWheel" Margin="0,16,0,0">
                 <Border.Style>
                     <Style TargetType="{x:Type Border}" BasedOn="{StaticResource PtjFormSectionStyle}">
                         <Setter Property="Visibility" Value="Visible" />
@@ -116,10 +124,6 @@
                     <Separator Margin="0,16,0,12" Style="{StaticResource PtjSeparatorStyle}" />
                     <TextBlock Margin="0,0,0,6" Text="Example images" Style="{StaticResource PtjSectionTitleTextStyle}" />
                     <StackPanel x:Name="GalleryPanel">
-                        <StackPanel.Style><Style TargetType="StackPanel">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers><DataTrigger Binding="{Binding Preview}" Value="{x:Null}"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
-                        </Style></StackPanel.Style>
                         <Button HorizontalAlignment="Left" Content="Upload image" Command="{Binding UploadExampleCommand}" Style="{StaticResource PtjButtonStyle}" />
                         <StackPanel Margin="0,8">
                             <StackPanel.Style><Style TargetType="StackPanel"><Style.Triggers>
@@ -139,30 +143,32 @@
                             <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate><DataTemplate>
                                 <StackPanel Width="144" Margin="0,4,8,8">
-                                    <Button x:Name="OpenExampleCard" Style="{StaticResource PtjSecondaryButtonStyle}"
+                                    <Button x:Name="OpenExampleCard" Height="152" Padding="8,4" HorizontalContentAlignment="Stretch" ToolTip="{Binding Label}" Style="{StaticResource PtjSecondaryButtonStyle}"
                                             AutomationProperties.Name="{Binding Label, StringFormat=Open {0}}"
                                             Command="{Binding DataContext.ViewExampleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}">
                                         <StackPanel>
-                                            <Image Height="72" Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
-                                            <TextBlock Text="{Binding Example.File.FileName}" TextWrapping="Wrap" />
-                                            <TextBlock Text="{Binding Example.Timeframe}" TextWrapping="Wrap" />
+                                            <Grid x:Name="ThumbnailArea" Height="72">
+                                                <Image Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
+                                            </Grid>
+                                            <TextBlock Height="42" Text="{Binding Example.File.FileName}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Height="22" Text="{Binding Example.Timeframe}" TextTrimming="CharacterEllipsis" />
                                         </StackPanel>
                                     </Button>
-                                    <Button Content="Remove" Margin="0,4,0,0" Style="{StaticResource PtjWorkspaceRemoveButtonStyle}"
+                                    <Button Content="Remove" Height="38" Margin="0,4,0,0" Style="{StaticResource PtjWorkspaceRemoveButtonStyle}"
                                             AutomationProperties.Name="{Binding Label, StringFormat=Remove {0}}"
                                             Command="{Binding DataContext.RemoveExampleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
                                 </StackPanel>
                             </DataTemplate></ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </StackPanel>
-                    <StackPanel x:Name="InlineExample" IsVisibleChanged="PreviewVisibilityChanged">
+                    <StackPanel x:Name="InlineExample">
                         <StackPanel.Style><Style TargetType="StackPanel"><Style.Triggers>
                             <DataTrigger Binding="{Binding Preview}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
                         </Style.Triggers></Style></StackPanel.Style>
-                        <Button x:Name="BackToCards" Content="Back to example images" HorizontalAlignment="Left"
+                        <Button x:Name="BackToCards" Content="Close Preview" HorizontalAlignment="Left"
                                 Style="{StaticResource PtjSecondaryButtonStyle}" Command="{Binding BackToCardsCommand}" Click="ReturnToGallery" />
                         <TextBlock Margin="0,8" Style="{StaticResource PtjBodyTextStyle}" Text="{Binding Preview.Card.Label}" TextWrapping="Wrap" />
-                        <Image x:Name="OriginalExample" Source="{Binding Preview.Original}" AutomationProperties.Name="{Binding Preview.Card.Label}"
+                        <Image x:Name="OriginalExample" Source="{Binding Preview.Original, NotifyOnTargetUpdated=True}" TargetUpdated="PreviewImageUpdated" AutomationProperties.Name="{Binding Preview.Card.Label}"
                                Stretch="Uniform" StretchDirection="DownOnly" RenderOptions.BitmapScalingMode="HighQuality" />
                     </StackPanel>
                     <StackPanel Margin="0,20,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
@@ -210,6 +216,7 @@
                     </StackPanel>
                     <TextBox MinHeight="80" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top"
                              Text="{Binding EditDescriptionText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PtjTextBoxStyle}" />
+                    <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ExampleEditor}" HorizontalContentAlignment="Stretch" />
                     <TextBlock Margin="0,12,0,0" Text="{Binding EditErrorMessage}">
                         <TextBlock.Style><Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjFormErrorTextStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding HasEditError}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
                     </TextBlock>
@@ -234,7 +241,7 @@
                            Text="No trading setups yet. Create one to classify repeatable trade patterns." />
             </Border>
 
-            <ScrollViewer x:Name="SetupTableScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+            <ScrollViewer x:Name="SetupTableScroll" interactions:NestedTableWheelRouting.ForwardVerticalWheel="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
                           HorizontalContentAlignment="Stretch">
                 <StackPanel MinWidth="590">
                     <Grid x:Name="SetupHeaders" Margin="17,0,17,8">

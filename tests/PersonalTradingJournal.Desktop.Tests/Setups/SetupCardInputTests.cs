@@ -35,6 +35,7 @@ public sealed class SetupCardInputTests
             var setup = new TradingSetupDetails(Guid.NewGuid(), "Retest", "Support", true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
             var images = new SetupExampleViewTests.Images();
             var example = images.AddAsync(setup.Id, "Bounce.png", [1], "1h", default).GetAwaiter().GetResult();
+            var other = images.AddAsync(setup.Id, "Another.png", [2], null, default).GetAwaiter().GetResult();
             var dialogs = new FakeDialogService();
             var vm = TradingSetupsViewModelTests.Create(new FakeTradingSetupReader { DetailsToReturn = setup }, dialog: dialogs,
                 examples: images, viewer: images);
@@ -44,7 +45,7 @@ public sealed class SetupCardInputTests
             try
             {
                 window.Show(); window.UpdateLayout();
-                var open = SetupExampleViewTests.Children(view).OfType<Button>().Single(b => b.Name == "OpenExampleCard");
+                var open = SetupExampleViewTests.Children(view).OfType<Button>().Single(b => b.Name == "OpenExampleCard" && AutomationProperties.GetName(b) == "Open Bounce.png, 1h");
                 var back = (Button)view.FindName("BackToCards");
                 Assert.Equal("Open Bounce.png, 1h", AutomationProperties.GetName(open));
                 UiKeyboardProbe.Ready(open);
@@ -58,17 +59,28 @@ public sealed class SetupCardInputTests
                 Assert.Equal(hwnd, WindowFromPoint(screen));
                 Assert.Equal(hwnd, GetForegroundWindow());
                 Assert.Equal(2u, SendInput(2, [new() { Mouse = new() { Flags = 2 } }, new() { Mouse = new() { Flags = 4 } }], Marshal.SizeOf<NativeInput>()));
-                VerifyOpenAndReturn();
+                VerifyPreview(example.Id);
+                var alternate = SetupExampleViewTests.Children(view).OfType<Button>().Single(b => b.Name == "OpenExampleCard" &&
+                    AutomationProperties.GetName(b) == "Open Another.png");
+                UiKeyboardProbe.Space(alternate);
+                VerifyPreview(other.Id);
+                CloseTo(alternate);
                 UiKeyboardProbe.Space(open);
-                VerifyOpenAndReturn();
+                VerifyPreview(example.Id);
+                CloseTo(open);
 
-                void VerifyOpenAndReturn()
+                void VerifyPreview(Guid id)
                 {
-                    Until(() => vm.Preview?.Card.Example.Id == example.Id && back.IsKeyboardFocused);
+                    Until(() => vm.Preview?.Card.Example.Id == id && back.IsKeyboardFocused);
                     Assert.Null(dialogs.ConfirmationRequest);
-                    Assert.Single(images.Rows);
+                    Assert.Equal(2, images.Rows.Count);
+                    Assert.True(open.IsVisible);
+                }
+
+                void CloseTo(Button opener)
+                {
                     UiKeyboardProbe.Space(back);
-                    Until(() => vm.Preview is null && open.IsKeyboardFocused);
+                    Until(() => vm.Preview is null && opener.IsKeyboardFocused);
                 }
             }
             finally { window.Close(); app.Shutdown(); }

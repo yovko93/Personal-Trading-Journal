@@ -109,6 +109,50 @@ public sealed class SetupExampleTests
         Assert.Equal(existing.File.StorageKey, Path.GetFileName(Assert.Single(Directory.GetFiles(f.Paths.ScreenshotsDirectory))));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EditCommitsFieldsImagesAndTimeframesTogetherAndReclaimsOnlyUnusedFiles(bool rejectSave)
+    {
+        await using var f = await Fixture.Create();
+        var store = f.Get<ISetupExampleStore>();
+        var original = await store.AddAsync(f.Setup.Id, "old.png", Png, "1m", default);
+        var retained = await store.AddAsync(f.Setup.Id, "keep.png", Png, null, default);
+        var other = new TradingSetup("Other setup", null, f.Now);
+        await f.Get<ITradingSetupStore>().AddAsync(other);
+        await using (var db = f.Context())
+        {
+            db.SetupExamples.Add(new() { Id = Guid.NewGuid(), SetupId = other.Id, FileName = original.File.FileName,
+                StorageKey = original.File.StorageKey, SizeBytes = original.File.SizeBytes, Sha256 = original.File.Sha256 });
+            await db.SaveChangesAsync();
+            if (rejectSave)
+                await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER reject_edit BEFORE UPDATE ON TradingSetups BEGIN SELECT RAISE(ABORT, 'synthetic rejection'); END");
+        }
+        var update = new UpdateTradingSetupUseCase(f.Get<ITradingSetupStore>(), f.Get<ITradingSetupNameChecker>(), TimeProvider.System, store);
+        var command = new UpdateTradingSetupCommand(f.Setup.Id, "Edited", "New description", new(
+            [new("new.png", Png, null)], [new(original.Id, "1m", null, true), new(retained.Id, null, " 5m ", false)]));
+        if (rejectSave)
+        {
+            await Assert.ThrowsAsync<DbUpdateException>(() => update.ExecuteAsync(command));
+            Assert.Equal(f.Setup.Name, (await f.Get<ITradingSetupStore>().GetByIdAsync(f.Setup.Id))!.Name);
+            Assert.Equal(new[] { original, retained }, await store.ListAsync(f.Setup.Id, default));
+            Assert.Equal(2, Directory.GetFiles(f.Paths.ScreenshotsDirectory).Length);
+        }
+        else
+        {
+            var result = await update.ExecuteAsync(command);
+            Assert.True(result.CleanupComplete);
+            Assert.Equal("Edited", (await f.Get<ITradingSetupStore>().GetByIdAsync(f.Setup.Id))!.Name);
+            var rows = await store.ListAsync(f.Setup.Id, default);
+            Assert.Equal(2, rows.Count);
+            Assert.Equal("5m", rows.Single(item => item.Id == retained.Id).Timeframe);
+            Assert.Null(rows.Single(item => item.File.FileName == "new.png").Timeframe);
+            Assert.DoesNotContain(rows, item => item.Id == original.Id);
+        }
+        Assert.Equal(Png, await f.Get<IPlaybookImageStorage>().ReadAsync(original.File));
+        Assert.Equal(Png, await f.Get<IPlaybookImageStorage>().ReadAsync(retained.File));
+    }
+
     [Fact]
     public async Task CancellationAfterFirstCopyRollsBackCreateAndReclaimsItsFile()
     {

@@ -1,6 +1,6 @@
 # Trading Setups
 
-Open **Analysis → Setups** to manage the patterns used to classify Trades. The table shows Name, Description, Status and Actions. Scroll it horizontally on a narrow screen to reach Actions. **View** opens the exact Setup. The adjacent three-dot menu contains **Edit**, Activate or Deactivate, and Delete.
+Open **Analysis → Setups** to manage the patterns used to classify Trades. The table shows Name, Description, Status and Actions. Scroll it horizontally on a narrow screen to reach Actions. **View** opens the chosen Setup and scrolls to the page top. The adjacent three-dot menu contains **Edit**, Activate or Deactivate, and Delete.
 
 ## Example images
 
@@ -8,7 +8,11 @@ In **New Setup**, enter a name and optional description, then choose **Select im
 
 To add an example later, open the Setup with **View**, choose **Upload image**, enter an optional Timeframe and choose **Save image**. Each file must be a single-frame image of up to 8 MiB.
 
-In Setup details, click a card or focus it and press Space or Enter to open the original on the same page. Choose **Back to example images** to return to the gallery. The card's accessible name includes the filename and any saved Timeframe. The separate **Remove** action asks for confirmation before deleting a saved example.
+In Setup details, cards reserve the same space for a thumbnail, filename, optional Timeframe and Remove button. Portrait and landscape images keep their proportions. Long filenames wrap to two lines. Hovering the card or opening its preview reveals the full label. The card’s accessible name also includes the filename and any Timeframe.
+
+Click a card or focus it and press Space or Enter to show the original below the gallery. The other cards stay available so you can switch images directly. **Close Preview** returns focus to the card that opened the current image. Scroll vertically over the details or cards to move the page. The table retains its horizontal scrollbar at narrow widths.
+
+In **Edit**, the Example images section shows every saved image and its optional Timeframe. Use **Select images** to add files, edit or clear a Timeframe, or choose **Remove**. Removing a saved image from the draft asks for confirmation. **Save Changes** commits the Setup fields and image changes together. **Cancel** returns directly to the list and discards the draft. If Save fails, the saved gallery stays intact and the draft remains available. In the read-only details gallery, the separate **Remove** action still asks for confirmation and takes effect immediately.
 
 Galleries start empty and are optional. Deleting an eligible Setup removes its image references. Physical cleanup checks the other owners before deleting an original. A Setup referenced by Trades retains its existing deletion protection. Historical Playbook content stays in its separate archive.
 
@@ -17,6 +21,39 @@ Galleries start empty and are optional. Deleting an eligible Setup removes its i
 Migration `20261123085402_AddSetupExamples` adds the Setup image table and its owner foreign key. A successful upload records the file's size and SHA-256 alongside its generated storage key. Canceling before save writes nothing. A failed file copy or rejected metadata insert cleans up the staged file. Complete backups carry the originals, and portable exports carry the metadata. [Backup and restore](backup-restore.md#trading-setup-example-images)
 
 ## Verification
+
+The current verification covers the 24 November workspace changes on develop at `0879748` plus the working-tree changes. Fixtures use synthetic journals and images.
+
+| Check | Local result |
+| --- | --- |
+| Release build | Exit 0 in 22.40s with zero warnings or errors. |
+| Complete local Release gate | 5,493 passed, 0 failed, exit 0 in 13m 59.34s. The only skip was the existing [Rules quarantine](rules-view-quarantine.md). Exclusive WPF passed 152/152. |
+| Focused tests | 78 passed, 0 failed, 0 skipped. Application passed 17, Infrastructure 37 and Desktop 24. |
+| Editing and file ownership | Tests covered staging and clearing Timeframes, confirming or declining removal, Cancel returning to the list, failed Save retaining the draft, and successful Save. A synthetic SQLite rejection preserved the previous fields and gallery and reclaimed the new file. A second Setup retained access to its shared original after removal from the first Setup. |
+| WPF layout and scrolling | Inspected compiled Light and Dark galleries, open previews and editors at 1000 DIP/96 DPI and 460 DIP/240 DPI. The fixture paired a short and long filename with wide and tall thumbnails. Bound checks measured equal cards and thumbnail areas, aligned Remove buttons, original placement, scroll-to-top on View, and ordinary and fractional wheel deltas in both directions. |
+| Windows input | A native mouse click opened a card. WPF Space activated another card while the preview was open. Close Preview returned keyboard focus to the correct opener. |
+
+Manual precision-touchpad scrolling, native file-picker interaction, physical high-DPI appearance and screen-reader speech remain pending. Focused TRX files and render PNGs are under `TestResults/setup-gallery-edit/final/`.
+
+### Changed files
+
+- `README.md`
+- `docs/trading-setups.md`
+- `src/PersonalTradingJournal.Application/Setups/ISetupExampleStore.cs`
+- `src/PersonalTradingJournal.Application/Setups/UpdateTradingSetupCommand.cs`
+- `src/PersonalTradingJournal.Application/Setups/UpdateTradingSetupResult.cs`
+- `src/PersonalTradingJournal.Application/Setups/UpdateTradingSetupUseCase.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Setups/TradingSetupsViewModel.Images.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Setups/TradingSetupsViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Setups/TradingSetupsView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Setups/TradingSetupsView.xaml.cs`
+- `src/PersonalTradingJournal.Infrastructure/Setups/SetupExampleStore.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/SetupCardInputTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/SetupExampleViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/TradingSetupsViewModelTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/SetupExampleTests.cs`
+
+### Previous create and inline-view verification
 
 Verified locally on 24 November 2026 on develop at `a7f1502` plus the working-tree changes. The Release build completed with zero warnings and errors. All fixtures used synthetic journals and files.
 

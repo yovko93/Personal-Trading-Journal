@@ -11,15 +11,18 @@ public sealed class UpdateTradingSetupUseCase
     private readonly ITradingSetupNameChecker _nameChecker;
     private readonly TimeProvider _timeProvider;
 
+    private readonly ISetupExampleStore? _examples;
+
     public UpdateTradingSetupUseCase(
         ITradingSetupStore store,
         ITradingSetupNameChecker nameChecker,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider, ISetupExampleStore? examples = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(nameChecker);
         ArgumentNullException.ThrowIfNull(timeProvider);
         _store = store;
+        _examples = examples;
         _nameChecker = nameChecker;
         _timeProvider = timeProvider;
     }
@@ -50,7 +53,7 @@ public sealed class UpdateTradingSetupUseCase
             command.Name,
             command.Description,
             _timeProvider.GetUtcNow());
-        if (!wasChanged)
+        if (!wasChanged && command.Images is null)
         {
             return new UpdateTradingSetupResult(
                 TradingSetupDetails.FromDomain(setup),
@@ -64,6 +67,13 @@ public sealed class UpdateTradingSetupUseCase
                 cancellationToken))
         {
             throw new InvalidOperationException(DuplicateNameMessage);
+        }
+
+        if (command.Images is { } changes)
+        {
+            var store = _examples ?? throw new InvalidOperationException("Setup image storage is unavailable.");
+            bool cleanupComplete = await store.UpdateWithExamplesAsync(setup, wasChanged, changes, cancellationToken);
+            return new(TradingSetupDetails.FromDomain(setup), true, cleanupComplete);
         }
 
         await _store.UpdateAsync(setup, cancellationToken);

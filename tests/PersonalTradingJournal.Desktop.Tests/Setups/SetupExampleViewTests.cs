@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Desktop.Screenshots;
@@ -43,7 +44,8 @@ public sealed class SetupExampleViewTests
                 vm.EnsureLoadedAsync().GetAwaiter().GetResult();
                 var view = new TradingSetupsView { DataContext = vm, Background = (Brush)app.Resources["PtjBackgroundBrush"] };
                 VisualTreeHelper.SetRootDpi(view, new DpiScale(dpi / 96d, dpi / 96d));
-                void Layout() { view.Measure(new Size(width, 740)); view.Arrange(new Rect(0,0,width,740)); view.UpdateLayout(); }
+                double height = 740;
+                void Layout() { view.Measure(new Size(width, height)); view.Arrange(new Rect(0,0,width,height)); view.UpdateLayout(); }
                 Layout();
                 var headers = (Grid)view.FindName("SetupHeaders");
                 Assert.Equal(new[] { "Name","Description","Status","Actions" }, headers.Children.OfType<TextBlock>().Select(t => t.Text));
@@ -91,7 +93,7 @@ public sealed class SetupExampleViewTests
                 vm.StageExamplesCommand.ExecuteAsync(null).GetAwaiter().GetResult();
                 Assert.Equal(2, vm.StagedExamples.Count);
                 vm.RemoveStagedCommand.Execute(vm.StagedExamples[0]);
-                Assert.Equal("Exit.png", Assert.Single(vm.StagedExamples).Selection.FileName);
+                Assert.Equal("Exit.png", Assert.Single(vm.StagedExamples).FileName);
                 vm.CancelCreateCommand.Execute(null);
                 Assert.Empty(vm.StagedExamples);
                 Assert.Empty(fixture.Rows);
@@ -136,12 +138,45 @@ public sealed class SetupExampleViewTests
                 Assert.Same(vm.ViewExampleCommand, actions[0].Command);
                 Assert.Same(card, actions[0].CommandParameter);
                 Assert.Same(vm.RemoveExampleCommand, actions[1].Command);
+                const string longName = "Opening range reversal after the first confirmation on a long timeframe.png";
+                var portrait = fixture.AddAsync(setup.Id, longName, [2], null, default).Result;
+                var page = (ScrollViewer)view.FindName("PageScroll");
+                height = 420; Layout(); page.ScrollToBottom(); Layout();
+                Assert.True(page.VerticalOffset > 0);
+                vm.ViewCommand.ExecuteAsync(setup.Id).GetAwaiter().GetResult(); Layout();
+                Assert.Equal(0, page.VerticalOffset);
+                var cards = Children(gallery).OfType<Button>().Where(b => b.Name == "OpenExampleCard").ToArray();
+                Assert.Equal(2, cards.Length);
+                var tiles = cards.Select(b => (StackPanel)b.Parent).ToArray();
+                Assert.Equal(tiles[0].RenderSize, tiles[1].RenderSize);
+                Assert.Equal(cards[0].RenderSize, cards[1].RenderSize);
+                var frames = cards.Select(b => Children(b).OfType<Grid>().Single(g => g.Name == "ThumbnailArea")).ToArray();
+                Assert.Equal(frames[0].RenderSize, frames[1].RenderSize);
+                Assert.All(frames, g => Assert.Equal(Stretch.Uniform, ((Image)g.Children[0]).Stretch));
+                var removes = tiles.Select(tile => (Button)tile.Children[1]).ToArray();
+                Assert.Equal(removes[0].TranslatePoint(new(), tiles[0]).Y, removes[1].TranslatePoint(new(), tiles[1]).Y);
+                Assert.Equal(longName, cards[1].ToolTip);
+                var cardLabel = Children(cards[1]).OfType<TextBlock>().Single(label => label.Text == longName);
+                Assert.Equal(TextTrimming.CharacterEllipsis, cardLabel.TextTrimming);
+                foreach (int delta in new[] { -120, -24, 24, 120 })
+                {
+                    double before = page.VerticalOffset;
+                    var wheel = new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, delta) { RoutedEvent = UIElement.PreviewMouseWheelEvent };
+                    cards[1].RaiseEvent(wheel); Layout();
+                    Assert.True(wheel.Handled);
+                    Assert.True(delta < 0 ? page.VerticalOffset > before : page.VerticalOffset < before);
+                }
+                height = 740; Layout();
                 Render(view, theme, width, dpi, "details");
+                card = vm.ExampleCards[0];
                 vm.ViewExampleCommand.ExecuteAsync(card).GetAwaiter().GetResult();
                 Assert.Equal(card.Example.File, fixture.Opened);
                 Assert.NotSame(card.Thumbnail, vm.Preview!.Original);
                 Layout();
-                Assert.Equal(Visibility.Collapsed, ((StackPanel)view.FindName("GalleryPanel")).Visibility);
+                Assert.Equal(Visibility.Visible, ((StackPanel)view.FindName("GalleryPanel")).Visibility);
+                var inline = (StackPanel)view.FindName("InlineExample");
+                Assert.True(inline.TranslatePoint(new(), view).Y >= gallery.TranslatePoint(new(0, gallery.ActualHeight), view).Y - 1);
+                Assert.Equal("Close Preview", ((Button)view.FindName("BackToCards")).Content);
                 Assert.Same(vm.Preview!.Original, ((Image)view.FindName("OriginalExample")).Source);
                 Assert.Equal("Open Opening range.png, 15 min", System.Windows.Automation.AutomationProperties.GetName(actions[0]));
                 Render(view, theme, width, dpi, "inline");
@@ -150,13 +185,37 @@ public sealed class SetupExampleViewTests
                 Assert.Equal(Visibility.Visible, ((StackPanel)view.FindName("GalleryPanel")).Visibility);
                 vm.RemoveExampleCommand.ExecuteAsync(card).GetAwaiter().GetResult();
                 Assert.True(dialog.ConfirmationRequest!.IsDestructive);
-                Assert.Single(vm.ExampleCards);
+                Assert.Equal(2, vm.ExampleCards.Count);
                 dialog.ConfirmationResult = true;
                 vm.RemoveExampleCommand.ExecuteAsync(card).GetAwaiter().GetResult();
-                Assert.Empty(fixture.Rows); Assert.Empty(vm.ExampleCards);
+                Assert.Equal(portrait.Id, Assert.Single(fixture.Rows).Id);
+                Assert.Equal(portrait.Id, Assert.Single(vm.ExampleCards).Example.Id);
+                vm.EditCommand.ExecuteAsync(setup.Id).GetAwaiter().GetResult(); Layout();
+                var editCards = Children(view).OfType<ItemsControl>().Single(ic => ic.Name == "StagedExampleCards" && ic.ActualWidth > 0 &&
+                    ic.IsVisible == view.IsVisible && IsVisibleInTree(ic, view));
+                var timeframeBox = Children(editCards).OfType<TextBox>().Single();
+                timeframeBox.Text = "Daily";
+                Assert.Equal("Daily", Assert.Single(vm.StagedExamples).Timeframe);
+                vm.StageExamplesCommand.ExecuteAsync(null).GetAwaiter().GetResult(); Layout();
+                Render(view, theme, width, dpi, "edit");
+                vm.CancelEditCommand.Execute(null); Layout();
+                Assert.Null(vm.SelectedTradingSetup);
+                Assert.Null(Assert.Single(fixture.Rows).Timeframe);
+                Assert.Empty(vm.StagedExamples);
+
             }
             app.Shutdown();
         });
+    }
+
+    private static bool IsVisibleInTree(DependencyObject element, FrameworkElement view)
+    {
+        while (element != view)
+        {
+            if (element is UIElement { Visibility: Visibility.Collapsed }) return false;
+            element = VisualTreeHelper.GetParent(element);
+        }
+        return true;
     }
 
     internal static IEnumerable<DependencyObject> Children(DependencyObject parent)
@@ -190,12 +249,27 @@ public sealed class SetupExampleViewTests
             Geometry.Parse("M0,155 L98,88 165,121 298,35 385,67 578,4 578,176 0,176 Z")));
         public Task<PlanImageSelection?> PickAsync(string title, CancellationToken token) =>
             Task.FromResult<PlanImageSelection?>(new("Opening range.png", [1], Thumbnail));
-        public Task<ImageSource> ThumbnailAsync(PlaybookExampleImage image, CancellationToken token) => Task.FromResult(Thumbnail);
+        public Task<ImageSource> ThumbnailAsync(PlaybookExampleImage image, CancellationToken token) => Task.FromResult<ImageSource>(image.FileName.StartsWith("Opening range reversal", StringComparison.Ordinal)
+                ? new DrawingImage(new GeometryDrawing(Brushes.DarkGoldenrod, null, new RectangleGeometry(new Rect(0, 0, 24, 88))))
+                : Thumbnail);
         public Task<ImageSource> OriginalAsync(PlaybookExampleImage image, CancellationToken token)
         { Opened = image; return Task.FromResult(_original); }
         public Task<IReadOnlyList<PlanImageSelection>> PickMultipleAsync(string title, CancellationToken token) =>
             Task.FromResult<IReadOnlyList<PlanImageSelection>>([new("Entry.png", [1], Thumbnail), new("Exit.png", [2], Thumbnail)]);
         internal IReadOnlyList<NewSetupExample> Created { get; private set; } = [];
+        public Task<bool> UpdateWithExamplesAsync(TradingSetup setup, bool detailsChanged, SetupImageChanges changes, CancellationToken token)
+        {
+            if (FailSave) throw new IOException();
+            foreach (var edit in changes.Edited)
+            {
+                var index = Rows.FindIndex(item => item.SetupId == setup.Id && item.Id == edit.Id);
+                if (edit.Remove) Rows.RemoveAt(index);
+                else Rows[index] = Rows[index] with { Timeframe = edit.Timeframe };
+            }
+            foreach (var image in changes.Added)
+                _ = AddAsync(setup.Id, image.FileName, image.Bytes, image.Timeframe, token);
+            return Task.FromResult(true);
+        }
         public Task CreateWithExamplesAsync(TradingSetup setup, IReadOnlyList<NewSetupExample> examples, CancellationToken token)
         {
             if (FailSave) throw new IOException();

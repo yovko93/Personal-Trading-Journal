@@ -72,10 +72,10 @@ public sealed partial class TradingSetupsViewModel : ObservableObject
         _dialogService = dialogService;
         _examples = examples;
         _viewer = viewer;
-        StageExamplesCommand = new AsyncRelayCommand(StageExamplesAsync, () => _viewer is not null && IsCreateFormVisible && !IsBusy);
+        StageExamplesCommand = new AsyncRelayCommand(StageExamplesAsync, () => _viewer is not null && IsImageFormOpen && !IsBusy);
         RemoveStagedCommand = new RelayCommand<StagedSetupExample>(
-            item => StagedExamples = StagedExamples.Where(example => example != item).ToArray(),
-            item => item is not null && IsCreateFormVisible && !IsBusy);
+            RemoveStaged,
+            item => item is not null && IsImageFormOpen && !IsBusy);
         BackToCardsCommand = new RelayCommand(() => Preview = null);
         UploadExampleCommand = new AsyncRelayCommand(UploadExampleAsync, () => CanUseImages && PendingExample is null);
         SaveExampleCommand = new AsyncRelayCommand(SaveExampleAsync, () => CanUseImages && PendingExample is not null);
@@ -277,8 +277,7 @@ public sealed partial class TradingSetupsViewModel : ObservableObject
         IsSaving = true;
         try
         {
-            var images = StagedExamples.Select(item =>
-                new NewSetupExample(item.Selection.FileName, item.Selection.Bytes, item.Timeframe)).ToArray();
+            var images = NewUploads();
             await _createUseCase.ExecuteAsync(new CreateTradingSetupCommand(NameText, DescriptionText, images), token);
             SuccessMessage = "Trading setup created.";
             ResetDraft();
@@ -299,8 +298,13 @@ public sealed partial class TradingSetupsViewModel : ObservableObject
     private bool CanUseRowAction(Guid setupId) =>
         setupId != Guid.Empty && PendingExample is null && !IsBusy && !IsCreateFormVisible && !IsEditFormVisible;
 
-    private async Task ViewAsync(Guid setupId, CancellationToken token) =>
-        _ = await LoadDetailsAsync(setupId, token);
+    public event EventHandler<EventArgs>? DetailsOpened;
+
+    private async Task ViewAsync(Guid setupId, CancellationToken token)
+    {
+        if (await LoadDetailsAsync(setupId, token) is not null)
+            DetailsOpened?.Invoke(this, EventArgs.Empty);
+    }
 
     /// <summary>Read-only identity navigation; independent of list membership/activation.</summary>
     public async Task<bool> OpenDetailsByIdAsync(Guid setupId, CancellationToken token = default)
@@ -317,6 +321,7 @@ public sealed partial class TradingSetupsViewModel : ObservableObject
         TradingSetupDetails? setup = await LoadDetailsAsync(setupId, token);
         if (setup is null) return;
         Preview = null;
+        StagedExamples = ExampleCards.Select(card => new StagedSetupExample(card)).ToArray();
         EditNameText = setup.Name;
         EditDescriptionText = setup.Description ?? string.Empty;
         IsEditNameInvalid = false;
@@ -362,6 +367,10 @@ public sealed partial class TradingSetupsViewModel : ObservableObject
 
     private void CancelEdit()
     {
+        StageExamplesCommand.Cancel();
+        StagedExamples = [];
+        EditNameText = EditDescriptionText = string.Empty;
+        SelectedTradingSetup = null;
         IsEditNameInvalid = false;
         EditErrorMessage = null;
         IsEditFormVisible = false;
@@ -381,13 +390,26 @@ public sealed partial class TradingSetupsViewModel : ObservableObject
         IsUpdating = true;
         try
         {
+            var imageEdits = GetImageEdits();
             UpdateTradingSetupResult result = await _updateUseCase.ExecuteAsync(
-                new UpdateTradingSetupCommand(SelectedTradingSetup.Id, EditNameText, EditDescriptionText), token);
+                new UpdateTradingSetupCommand(SelectedTradingSetup.Id, EditNameText, EditDescriptionText, imageEdits), token);
             SelectedTradingSetup = result.TradingSetup;
+            StagedExamples = [];
             ReplaceListItem(result.TradingSetup);
             IsEditNameInvalid = false;
             IsEditFormVisible = false;
             SuccessMessage = result.WasChanged ? "Trading setup updated." : null;
+            if (imageEdits is not null)
+            {
+                try { await LoadExamplesAsync(result.TradingSetup.Id, token); }
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    ExampleCards = [];
+                    ActionErrorMessage = "Changes saved. Reopen the Setup to reload its images.";
+                }
+            }
+            if (!result.CleanupComplete)
+                ActionErrorMessage = "Changes saved. Some unused image files could not be removed.";
             if (result.WasChanged) _ = await LoadAsync(true, token);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }

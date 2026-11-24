@@ -6,6 +6,7 @@ public sealed record SetupExample(Guid Id, Guid SetupId, string? Timeframe, Play
 
 public interface ISetupExampleStore
 {
+    Task<bool> UpdateWithExamplesAsync(TradingSetup setup, bool detailsChanged, SetupImageChanges changes, CancellationToken token);
     Task CreateWithExamplesAsync(TradingSetup setup, IReadOnlyList<NewSetupExample> examples, CancellationToken token);
     Task<IReadOnlyList<SetupExample>> ListAsync(Guid setupId, CancellationToken token);
     Task<SetupExample> AddAsync(Guid setupId, string fileName, byte[] bytes, string? timeframe, CancellationToken token);

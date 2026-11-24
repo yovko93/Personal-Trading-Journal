@@ -141,6 +141,51 @@ public sealed class TradingSetupsViewModelTests
     }
 
     [Fact]
+    public async Task EditImagesGuardRemovalAndKeepDraftUntilSaveOrCancel()
+    {
+        var setup = Details();
+        var images = new SetupExampleViewTests.Images();
+        var keep = await images.AddAsync(setup.Id, "entry.png", [1], "5m", default);
+        var remove = await images.AddAsync(setup.Id, "exit.png", [1], null, default);
+        var dialogs = new FakeDialogService();
+        var reader = new FakeTradingSetupReader { DetailsToReturn = setup };
+        reader.EnqueueResult([Item(setup.Id, setup.Name, true)]);
+        var store = new FakeTradingSetupStore { Setup = TradingSetup.Rehydrate(setup.Id, setup.Name, setup.Description,
+            setup.IsActive, setup.CreatedAtUtc, setup.UpdatedAtUtc) };
+        var vm = Create(reader, store, dialog: dialogs, examples: images, viewer: images);
+        await vm.EditCommand.ExecuteAsync(setup.Id);
+        var draft = vm.StagedExamples.Single(item => item.Saved?.Id == remove.Id);
+        vm.RemoveStagedCommand.Execute(draft);
+        Assert.True(dialogs.ConfirmationRequest!.IsDestructive);
+        Assert.Contains(draft, vm.StagedExamples);
+        dialogs.ConfirmationResult = true;
+        vm.RemoveStagedCommand.Execute(draft);
+        Assert.Single(vm.StagedExamples).Timeframe = "1h";
+        await vm.StageExamplesCommand.ExecuteAsync(null);
+        vm.CancelEditCommand.Execute(null);
+        Assert.Null(vm.SelectedTradingSetup);
+        Assert.Empty(vm.StagedExamples);
+        Assert.Equal(new[] { keep, remove }, images.Rows);
+
+        await vm.EditCommand.ExecuteAsync(setup.Id);
+        vm.RemoveStagedCommand.Execute(vm.StagedExamples.Single(item => item.Saved?.Id == remove.Id));
+        Assert.Single(vm.StagedExamples).Timeframe = null;
+        await vm.StageExamplesCommand.ExecuteAsync(null);
+        images.FailSave = true;
+        await vm.SaveChangesCommand.ExecuteAsync(null);
+        Assert.True(vm.IsEditFormVisible);
+        Assert.Equal(3, vm.StagedExamples.Count);
+        Assert.Equal(new[] { keep, remove }, images.Rows);
+        images.FailSave = false;
+        await vm.SaveChangesCommand.ExecuteAsync(null);
+        Assert.False(vm.IsEditFormVisible);
+        Assert.Empty(vm.StagedExamples);
+        Assert.Equal(3, vm.ExampleCards.Count);
+        Assert.Null(images.Rows.Single(item => item.Id == keep.Id).Timeframe);
+        Assert.DoesNotContain(images.Rows, item => item.Id == remove.Id);
+    }
+
+    [Fact]
     public async Task SaveUpdateNormalizesRefreshesListAndExitsEdit()
     {
         TradingSetupDetails details = Details();
@@ -333,7 +378,7 @@ public sealed class TradingSetupsViewModelTests
             new CreateTradingSetupUseCase(store, checker, time, examples),
             new TradingSetupLifecycleUseCase(store, time),
             new GetTradingSetupDetailsUseCase(reader),
-            new UpdateTradingSetupUseCase(store, checker, time),
+            new UpdateTradingSetupUseCase(store, checker, time, examples),
             new DeleteTradingSetupUseCase(store, deletionStore),
             dialog, examples, viewer);
     }
