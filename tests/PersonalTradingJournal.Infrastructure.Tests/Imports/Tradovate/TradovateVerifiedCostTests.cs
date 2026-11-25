@@ -460,7 +460,7 @@ public sealed class TradovateVerifiedCostTests
         Assert.All(await context.TradeExecutions.ToArrayAsync(), execution => Assert.Null(execution.Commission));
     }
 
-    private static (string Performance, string Fills, string Cash) FixedClockExports(bool singleSeason)
+    internal static (string Performance, string Fills, string Cash) FixedClockExports(bool singleSeason)
     {
         static string InSeptember(string csv) => csv.Replace("10/26/2026", "09/25/2026")
             .Replace("2026-10-26", "2026-09-25").Replace("10/23/2026", "09/23/2026")
@@ -470,7 +470,7 @@ public sealed class TradovateVerifiedCostTests
             : (CrossSeasonPerformance, CrossSeasonFills, CrossSeasonCash);
     }
 
-    private static async Task<TradovateImportRequest> Prepare(ReaderTestDatabase db,
+    internal static async Task<TradovateImportRequest> Prepare(ReaderTestDatabase db,
         string performanceCsv = Performance, string fillsCsv = Fills, string cashCsv = Cash,
         bool useFillsTimes = true, Guid? accountId = null)
     {

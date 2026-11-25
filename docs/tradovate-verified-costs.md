@@ -1,5 +1,46 @@
 # Tradovate verified costs
 
+## Explicit timestamp repair
+
+The maintenance workflow in `scripts/TradovateTimestampRepair` repairs a reviewed Performance-only import when the original Europe/Sofia interpretation conflicts with a complete Fills export whose display timestamps consistently use UTC+02:00. The baseline identifies every execution in the selected source scope, including whole-second records that already satisfy verified import. It carries the Account ID, external Account ID, currency, exact Fills SHA-256 and the diagnosed Trade/execution/Fill/allocation identities and source facts. Keep this baseline and all private reports outside source control.
+
+Build the tool and produce a dry run against a consistent SQLite snapshot.
+
+```powershell
+dotnet build scripts/TradovateTimestampRepair -c Release
+dotnet run --project scripts/TradovateTimestampRepair -c Release --no-build -- dry-run <snapshot.db> <baseline.json> <Fills.csv> <report.json>
+```
+
+The command opens its database in SQLite ReadOnly mode. It compares every baseline timestamp, source identity, quantity, price, side, symbol, Account and currency. Missing or duplicate Fill IDs, changed source bytes, changed membership, partial repair and unexplained timestamp differences abort the operation. A saved whole-second timestamp in the accepted group must stay exact. The report lists every proposed table, row key, field and before/after UTC instant, together with source, scope and current-state hashes.
+
+The explicit Apply mode requires the previously reviewed report and its SHA-256. Obtain separate authorization before running it on a user journal.
+
+```powershell
+dotnet run --project scripts/TradovateTimestampRepair -c Release --no-build -- apply <journal.db> <baseline.json> <Fills.csv> <approved-report.json> <report-sha256> <new-backup.ptjbackup> <new-result.json>
+```
+
+Apply first rebuilds the diff and checks the approved state. It creates and verifies a complete backup through the existing archive service, including original screenshot and Setup-image files. It then revalidates inside the transaction. SQLite rejects promotion of a stale read snapshot if another writer commits. A changed source, database state or approved diff blocks the write. Keep the backup, baseline, approved report and result as the recovery and audit record. Existing output and backup paths are never overwritten. The app should be closed during any separately approved maintenance run, and reopened afterward so views and analytics reload.
+
+The transaction changes `TradeExecutions.ExecutedAtUtc`, `TradovateImportedExecutions.SourceFillExecutedAtUtc` and necessary `TradeBrowse.OpenedAtUtc`/`ClosedAtUtc` projections. The Trade record has no independent stored open/close fields. Calendar membership and New York display dates are derived from execution instants through the existing timezone and 18:00 trading-day policy. No separate Calendar date column needs rewriting. The repair validates that Gross, Net, costs and position state stay equal.
+
+The transaction retains Trade/execution IDs, Description, Setup classification, Mistake notes and references, screenshot ownership, pricing snapshots, sequence and import identities. File operations are limited to the complete backup. Saved Journal dates and immutable review snapshots retain their historical content. The repair keeps `ImportedAtUtc` and `UpdatedAtUtc` intact. Cost enrichment remains a separate import operation, subject to the existing safeguards for edited Trades and known or manually edited costs. Normal import continues to reject a one-hour mismatch. A repeated repair recognizes the complete corrected state and makes zero changes.
+
+### Timestamp repair verification
+
+Verified on develop at `1874428da3c4c7b2a579ce22d60a9eab534ae624` plus the working-tree changes. The Release solution build passed with zero warnings and errors in 23.72s. The maintenance command build passed with zero warnings and errors in 2.05s. All 169 focused Tradovate infrastructure checks passed, including 17 repair cases. They cover rejected source, duplicate identities, stale timestamps and metadata, partial state, altered approval, backup failure, changes during backup, transactional rollback, complete-backup contents, metadata and screenshot preservation, accepted whole-second records, replay and New York Calendar movement.
+
+A fresh SQLite backup snapshot of the local journal passed `quick_check`. Only the dry-run command was run against it, using the independently retained diagnosed baseline and exact October Fills bytes. It proposes 618 `TradeExecutions.ExecutedAtUtc` changes, 618 matching import-evidence changes and 256 TradeBrowse boundary changes across 128 Trades. All 157 accepted whole-second execution records remain outside the diff. Four Trades move to the next New York Calendar trading date. A follow-up read confirmed that all 775 snapshot execution and evidence timestamps still matched the original baseline.
+
+Private review artifacts are under `TestResults/tradovate-time-repair/review/`, which is ignored by Git. `proposed-field-changes.csv` lists every proposed table, row, field, before/after instant and seconds difference with its Trade and Fill identities. `october-dry-run.json` is the machine-readable approval diff. `diagnosed-baseline.json` is the independent baseline. `calendar-date-effects.csv` lists all affected closing dates, and `review-summary.json` includes the source and approval-report hashes. The Fills SHA-256 is `2a3f0faabfb68031d2bc01e8c267ef819df7fdb4d9f85a28eeb3e5b0e5e492a6`. The reviewed report SHA-256 is `75398b23adb0e3ed867404295952b08c798042f0bb354fa453abeb226f267989`.
+
+Production application of this diff awaits separate explicit approval.
+
+The complete local Release gate finished with **5,509 passed, 1 failed and 1 existing Rules quarantine skip**, exit 1 in **14m 24.41s**. Domain passed 589, Application 1,034, Infrastructure 1,630 and parallel Desktop 2,105 with the single Rules skip. Exclusive WPF passed 151 and failed 1. The sole failing top-level case was `SetupCardInputTests.MouseAndSpaceOpenOriginalAndReturnFocusWithoutRemovingExample`. Its retained child TRX identifies `SetupCardInputTests.cs:60`, the foreground-window assertion immediately before native input. Expected HWND was `2033344`, actual `65920`. The readiness log identified the test window as active, but its sampled foreground HWND differed. The actual foreground owner and cause remain unproven. This counts as one top-level failure. The Setup test implementation was unchanged by this task, and the gate was run once.
+
+Gate artifacts are under `TestResults/tradovate-time-repair/gate/release-20261125-124529-768888aa8512471b9cfe5b04aca64bd1/`. The parent timer is `TestResults/tradovate-time-repair/gate-time.json`. The eight changed files are listed in `TestResults/tradovate-time-repair/changed-files.txt`.
+
+Changed files for the repair are `README.md`, this guide, `scripts/TradovateTimestampRepair/Program.cs`, `scripts/TradovateTimestampRepair/TradovateTimestampRepair.csproj`, `src/PersonalTradingJournal.Application/Imports/Tradovate/TradovateTimestampRepair.cs`, `src/PersonalTradingJournal.Infrastructure/Imports/Tradovate/TradovateTimestampRepairService.cs`, `tests/PersonalTradingJournal.Infrastructure.Tests/Imports/Tradovate/TradovateTimestampRepairTests.cs`, and `tests/PersonalTradingJournal.Infrastructure.Tests/Imports/Tradovate/TradovateVerifiedCostTests.cs`. The last file exposes its existing synthetic fixture helpers for reuse.
+
 ## September reporting mismatch
 
 At the baseline `ce24472c8aee4a3a912f0d70fdc8fc86eaf1862b`, the raw 185-fill export blocked with 0 missing and 40 extra. The supplied screenshots for September 22 show 40 Fills, zero Performance Trades and zero Cash History transactions. Read-only CSV inspection agreed. Both dates on the extra Fill rows were September 22, the quantity netted to zero in its contract, and the Fills commission column summed to **85.28 USD**. These observations establish the discrepancy between reports.
