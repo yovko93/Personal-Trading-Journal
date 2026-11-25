@@ -1,5 +1,27 @@
 # Windows WPF test diagnostics
 
+## Setup card foreground ownership
+
+On 26 November 2026, the unchanged `MouseAndSpaceOpenOriginalAndReturnFocusWithoutRemovingExample` case passed under Infrastructure load on `develop` at `427e7602c74b22525842de2bac543a98db287f83`. The Release build had zero warnings and errors. Chrome was minimized on interactive Windows session 1. Explorer’s desktop (`Progman`, HWND `0x10180`, PID `8984`) owned foreground before launch. Four Infrastructure cases were executing at the focused pre-click sample. Infrastructure finished 1,630/1,630.
+
+The unchanged complete gate then failed one case, with 5,509 passed and one existing Rules quarantine skip, exit 1 in 16m 49.56s. The Setup fixture had keyboard focus, managed hover, and native hit ownership at the intended point. The first failing assertion compared the fixture HWND with the global foreground HWND immediately before the mouse down/up call. Explorer held foreground throughout the activation trace. The earlier captures identified Chrome in two separate runs.
+
+| Run | Fixture HWND / PID | Foreground before → after `SetActiveWindow` | Foreground before → after explicit `Window.Activate()` | Foreground at click guard |
+| --- | --- | --- | --- | --- |
+| Original focused under load | `0xD0520` / 21752 | Fixture → fixture | — | Fixture, passed |
+| Original complete gate | `0x9004D2` / 20096 | Explorer → Explorer | — | Explorer, failed |
+| Cursor positioning plus activation | `0xEE041C` / 20952 | Explorer → Explorer | Explorer → Explorer, returned false | Explorer, failed |
+| Native pointer movement plus activation under load | `0x8C05C0` / 22268 | Explorer → Explorer | Explorer → fixture, returned true | Fixture, passed |
+| Corrected complete gate | `0x4305EA` / 12816 | Explorer → Explorer | Explorer → fixture, returned true | Fixture, passed |
+
+Both controlled comparisons ran immediately after the same passing Dark/1280-DIP Notebook native-menu case in a separate process. At the next Setup launch, the observed last-input ages were 1.78s and 2.16s respectively. The desktop’s foreground lock interval was 200s. The comparison demonstrates that pointer positioning and thread-local focus could leave the fixture without global foreground ownership. Windows does not expose which eligibility condition decided a particular activation request. [Win32 thread activation](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setactivewindow) and [foreground eligibility](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setforegroundwindow).
+
+`SetupCardInputTests` now checks the HWND at the card, sends one native pointer move to the card center using virtual-desktop coordinates, waits for the existing hover check, verifies the target HWND again and requests normal WPF activation once. The existing ownership assertion still gates the same native down/up pair. Four Infrastructure cases overlapped the corrected pre-click sample, and the independent load passed 1,630/1,630. The focused snapshot recorded the cursor at the intended physical pixel (313, 1139) at 240 DPI. The test then verified the original image, keyboard opening, focus return and retention of both images.
+
+The corrected complete local Release gate finished in **15m 36.24s**, exit 0, with **5,510 passed, 0 failed and 1 existing Rules quarantine skip**. Exclusive WPF passed all 152 cases. In the Setup child, the cursor hit the fixture at (313, 1139), the foreground guard passed, and the child TRX recorded a pass. The remaining partitions passed 589 Domain, 1,034 Application, 1,630 Infrastructure and 2,105 Desktop cases. Chrome was still minimized at completion.
+
+Evidence is under `TestResults/setup-unattended-20261126/`. The `focused`, `gate`, `activation/setup`, `native-approach/setup` and `verified-gate` directories correspond to the five rows above. Each isolated Setup child contains `input-origin.log`, `setup-input-boundary.json` and `setup-card-input.trx`. Set `PTJ_INPUT_ORIGIN_TRACE=1` to record the activation samples when investigating this fixture on an unattended interactive desktop.
+
 ## Setup native foreground guard — 25 November 2026
 
 The original local gate `release-20261125-124529-768888aa8512471b9cfe5b04aca64bd1` finished with 5,509 passed, one failed and the existing Rules quarantine skip. The failing parent and child were the single case `SetupCardInputTests.MouseAndSpaceOpenOriginalAndReturnFocusWithoutRemovingExample`. Its first failing assertion was `SetupCardInputTests.cs:60`, comparing the fixture HWND `2033344` (`0x1F06C0`) with foreground HWND `65920` (`0x10180`) before `SendInput`.

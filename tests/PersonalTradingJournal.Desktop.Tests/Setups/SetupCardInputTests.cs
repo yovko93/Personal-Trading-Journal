@@ -57,9 +57,13 @@ public sealed class SetupCardInputTests
                 var point = open.PointToScreen(new Point(open.ActualWidth / 2, open.ActualHeight / 2));
                 var screen = new NativePoint((int)point.X, (int)point.Y);
                 Assert.Equal(hwnd, WindowFromPoint(screen));
-                Assert.True(SetCursorPos(screen.X, screen.Y));
+                MovePointerTo(screen);
                 Until(() => open.IsMouseOver && new Rect(open.RenderSize).Contains(Mouse.GetPosition(open)));
                 Assert.Equal(hwnd, WindowFromPoint(screen));
+                // The mouse guard needs global foreground ownership. Ready prepares thread-local keyboard focus.
+                UiKeyboardProbe.Origin("before Setup Window.Activate", open);
+                var activated = window.Activate();
+                UiKeyboardProbe.Origin($"after Setup Window.Activate; returned={activated}", open);
                 var foreground = GetForegroundWindow();
                 RetainBoundary(open, window, hwnd, foreground, screen);
                 Assert.Equal(hwnd, foreground);
@@ -137,6 +141,23 @@ public sealed class SetupCardInputTests
         });
     }
 
+    private static void MovePointerTo(NativePoint point)
+    {
+        // Send the approach to the verified card as native input on the full virtual desktop.
+        // The midpoint of the pixel maps back to the intended physical coordinate at high DPI.
+        static int Normalize(int pixel, int origin, int extent) =>
+            checked((int)((2L * (pixel - origin) + 1) * 65536 / (2L * extent)));
+        const uint move = 0x0001, virtualDesktop = 0x4000, absolute = 0x8000;
+        const int virtualLeft = 76, virtualTop = 77, virtualWidth = 78, virtualHeight = 79;
+        var motion = new NativeInput { Mouse = new MouseInput
+        {
+            X = Normalize(point.X, GetSystemMetrics(virtualLeft), GetSystemMetrics(virtualWidth)),
+            Y = Normalize(point.Y, GetSystemMetrics(virtualTop), GetSystemMetrics(virtualHeight)),
+            Flags = move | virtualDesktop | absolute
+        } };
+        Assert.Equal(1u, SendInput(1, [motion], Marshal.SizeOf<NativeInput>()));
+    }
+
     private static void Until(Func<bool> predicate)
     {
         var clock = Stopwatch.StartNew();
@@ -150,7 +171,7 @@ public sealed class SetupCardInputTests
     [StructLayout(LayoutKind.Sequential)] private struct NativeInput { public uint Type; public MouseInput Mouse; }
     [DllImport("user32.dll")] private static extern bool GetCursorPos(out NativePoint point);
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
-    [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] private static extern int GetSystemMetrics(int metric);
     [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(NativePoint point);
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] private static extern uint SendInput(uint count, NativeInput[] input, int size);
