@@ -1,5 +1,8 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text.Json;
+using System.Reflection;
+using System.Windows.Media;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -57,7 +60,9 @@ public sealed class SetupCardInputTests
                 Assert.True(SetCursorPos(screen.X, screen.Y));
                 Until(() => open.IsMouseOver && new Rect(open.RenderSize).Contains(Mouse.GetPosition(open)));
                 Assert.Equal(hwnd, WindowFromPoint(screen));
-                Assert.Equal(hwnd, GetForegroundWindow());
+                var foreground = GetForegroundWindow();
+                RetainBoundary(open, window, hwnd, foreground, screen);
+                Assert.Equal(hwnd, foreground);
                 Assert.Equal(2u, SendInput(2, [new() { Mouse = new() { Flags = 2 } }, new() { Mouse = new() { Flags = 4 } }], Marshal.SizeOf<NativeInput>()));
                 VerifyPreview(example.Id);
                 var alternate = SetupExampleViewTests.Children(view).OfType<Button>().Single(b => b.Name == "OpenExampleCard" &&
@@ -87,6 +92,51 @@ public sealed class SetupCardInputTests
         });
     }
 
+    // Sample before cleanup. Observations never activate a window, pump the dispatcher or repair input.
+    private static void RetainBoundary(Button target, Window window, IntPtr expected, IntPtr foreground, NativePoint intended)
+    {
+        NotebookMouseReadinessEvidence.BestEffort(() =>
+        {
+            string ProcessName(IntPtr hwnd)
+            {
+                try
+                {
+                    GetWindowThreadProcessId(hwnd, out uint pid);
+                    using var process = Process.GetProcessById(checked((int)pid));
+                    return process.ProcessName;
+                }
+                catch (Exception error) { return "unavailable: " + error.GetType().Name; }
+            }
+            bool cursorRead = GetCursorPos(out var cursor);
+            var dpi = VisualTreeHelper.GetDpi(target);
+            var snapshot = new
+            {
+                ObservedAtUtc = DateTimeOffset.UtcNow,
+                Identity = typeof(SetupCardInputTests).FullName + "." + nameof(MouseAndSpaceOpenOriginalAndReturnFocusWithoutRemovingExample),
+                ChildProcessId = Environment.ProcessId,
+                Source = typeof(SetupCardInputTests).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion,
+                Stage = "foreground guard before SendInput", Passed = expected == foreground,
+                ExpectedWindow = NotebookMouseReadinessEvidence.NativeWindow(expected),
+                AssertedForegroundWindow = NotebookMouseReadinessEvidence.NativeWindow(foreground),
+                ForegroundProcess = ProcessName(foreground), ExpectedProcess = ProcessName(expected),
+                WindowAtTarget = NotebookMouseReadinessEvidence.NativeWindow(WindowFromPoint(intended)),
+                ForegroundAtCapture = NotebookMouseReadinessEvidence.ForegroundWindow(),
+                Intended = intended.ToString(), CursorRead = cursorRead, Cursor = cursor.ToString(),
+                Dpi = new { dpi.DpiScaleX, dpi.DpiScaleY }, Theme = "Light", WidthDip = 760, HeightDip = 680,
+                Window = new { window.IsActive, window.IsLoaded, window.IsVisible, window.ActualWidth, window.ActualHeight },
+                Target = new { target.Name, target.IsLoaded, target.IsVisible, target.IsEnabled, target.IsMouseOver,
+                    target.IsKeyboardFocused, target.IsMeasureValid, target.IsArrangeValid, target.ActualWidth, target.ActualHeight },
+                KeyboardFocus = Keyboard.FocusedElement?.ToString(), MouseCapture = Mouse.Captured?.ToString(),
+                WpfMousePosition = Mouse.GetPosition(target).ToString(),
+                Dispatcher = new { target.Dispatcher.HasShutdownStarted, target.Dispatcher.HasShutdownFinished }
+            };
+            string root = Environment.GetEnvironmentVariable("PTJ_TEST_RESULTS_DIRECTORY") ?? AppContext.BaseDirectory;
+            Directory.CreateDirectory(root);
+            File.WriteAllText(Path.Combine(root, "setup-input-boundary.json"),
+                JsonSerializer.Serialize(snapshot, new JsonSerializerOptions { WriteIndented = true }));
+        });
+    }
+
     private static void Until(Func<bool> predicate)
     {
         var clock = Stopwatch.StartNew();
@@ -98,6 +148,8 @@ public sealed class SetupCardInputTests
     [StructLayout(LayoutKind.Sequential)] private readonly record struct NativePoint(int X, int Y);
     [StructLayout(LayoutKind.Sequential)] private struct MouseInput { public int X, Y; public uint Data, Flags, Time; public UIntPtr Extra; }
     [StructLayout(LayoutKind.Sequential)] private struct NativeInput { public uint Type; public MouseInput Mouse; }
+    [DllImport("user32.dll")] private static extern bool GetCursorPos(out NativePoint point);
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
     [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(NativePoint point);
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();

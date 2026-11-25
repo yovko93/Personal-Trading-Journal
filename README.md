@@ -43,7 +43,7 @@ Accounts show cumulative payouts in the Account currency and deduct them from Cu
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | The local timestamp-repair Release gate finished in 14m 24.41s with **5,509 passed, 1 failed and 1 existing Rules quarantine skip**. The Setup native-input test failed its foreground-window assertion. All 169 focused Tradovate checks passed. See [repair verification](docs/tradovate-verified-costs.md#timestamp-repair-verification). |
+| Verification | The local Setup foreground investigation reproduced the native-input guard failure under Infrastructure load and in the complete gate. The gate finished in 14m 31.15s with **5,509 passed, 1 failed and 1 existing Rules quarantine skip**. Captured evidence identifies Chrome as foreground in the new runs. See [WPF investigation](docs/ci-wpf-tests.md#setup-native-foreground-guard--25-november-2026). |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
