@@ -371,6 +371,10 @@ public sealed class TradingMistakesViewModel : ObservableObject
 
     private void CancelEdit()
     {
+        EditNameText = string.Empty;
+        EditDescriptionText = string.Empty;
+        SelectedTradingMistake = null;
+        ActionErrorMessage = null;
         IsEditNameInvalid = false;
         EditErrorMessage = null;
         IsEditFormVisible = false;

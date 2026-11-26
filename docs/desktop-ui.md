@@ -6,6 +6,25 @@
 
 This document explains how to extend the Desktop layer without moving trading logic or persistence access into the UI.
 
+## Mistakes workspace
+
+The Mistakes list shows Name, Description, Status and Actions with matching header and row columns. The table shares horizontal scrolling at narrow widths and uses the Setups row action geometry. View opens the selected Mistake. The row overflow menu contains Edit, the applicable Activate/Deactivate action and Delete.
+
+Edit loads the exact row ID. Cancel clears the draft and selected detail, returning directly to the list whether editing began from a row or from View. The existing Save workflow handles persisted changes. The View layout uses themed separators around Description and a wrapping Created/Updated group, matching Trading Setups.
+
+### Verification on 26 November 2026
+
+Based on develop `89e6888c1c300b33f32399ae6125441acbe5251c` plus this workspace change. Release built with zero warnings and errors in 47.63s. The focused Desktop run passed 22 cases. ViewModel regressions cover both Edit entry paths, discarded text and unchanged stored values with zero update calls. The isolated compiled WPF regression checks two distinct row targets, menu commands and focusability, column offsets, horizontal reachability, detail dividers and collapsed detail/editor visibility after Cancel.
+
+Eight compiled renders were inspected in Light and Dark at 1000 DIP/96 DPI and 460 DIP/240 DPI. At narrow widths the shared scrollbar exposes the Actions column and preserves alignment. Artifacts are under `TestResults/mistakes-workspace/focused/mistakes-layout-20261126-161454-8e193502dbe649ec9a51ce99f14a4faf/renders/`.
+
+The complete Release gate passed with **5,512 passed, 0 failed and 1 existing Rules quarantine skip**, exit 0, in **14m 02.26s**. Exclusive WPF passed 152, Domain 589, Application 1,034, Infrastructure 1,630 and parallel Desktop 2,107. The single skip is the documented Rules view quarantine. The two additional top-level cases cover the second Cancel entry path and the compiled Mistakes workspace. Results are retained in `TestResults/mistakes-workspace/gate/release-20261126-161514-00892655a6c841f7a4d1cb6b7ea64b4c/`, with `gate-time.json` in the workspace results directory. Hosted verification remains pending.
+
+Changed files are `README.md`, `docs/desktop-ui.md`, `src/PersonalTradingJournal.Desktop/ViewModels/Mistakes/TradingMistakesViewModel.cs`, `src/PersonalTradingJournal.Desktop/Views/Mistakes/TradingMistakesView.xaml`, `tests/PersonalTradingJournal.Desktop.Tests/Mistakes/TradingMistakesViewModelTests.cs` and `tests/PersonalTradingJournal.Desktop.Tests/Mistakes/MistakesWorkspaceViewTests.cs`.
+
+Native mouse/keyboard menu activation, physical horizontal scrolling and screen-reader announcements remain pending. The compiled checks verify bindings, focusable controls and layout.
+
+
 ## Shell Structure
 
 `MainWindow` is the permanent application shell. Its layout has three stable regions:

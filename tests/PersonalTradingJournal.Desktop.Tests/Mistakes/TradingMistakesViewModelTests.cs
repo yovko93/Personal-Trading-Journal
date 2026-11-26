@@ -112,8 +112,10 @@ public sealed class TradingMistakesViewModelTests
         Assert.Equal("Trading mistake status could not be changed.", viewModel.SaveErrorMessage);
     }
 
-    [Fact]
-    public async Task ViewLoadsDetailsAndEditPrepopulatesWhileCancelDoesNotPersist()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ViewLoadsDetailsAndEditPrepopulatesWhileCancelDoesNotPersist(bool fromView)
     {
         TradingMistakeDetails details = Details();
         var reader = new FakeTradingMistakeReader { DetailsToReturn = details };
@@ -125,8 +127,11 @@ public sealed class TradingMistakesViewModelTests
         };
         TradingMistakesViewModel viewModel = Create(reader, store);
 
-        await viewModel.ViewCommand.ExecuteAsync(details.Id);
-        Assert.Same(details, viewModel.SelectedTradingMistake);
+        if (fromView)
+        {
+            await viewModel.ViewCommand.ExecuteAsync(details.Id);
+            Assert.Same(details, viewModel.SelectedTradingMistake);
+        }
         Assert.False(viewModel.IsEditFormVisible);
 
         await viewModel.EditCommand.ExecuteAsync(details.Id);
@@ -135,7 +140,14 @@ public sealed class TradingMistakesViewModelTests
         Assert.Equal(details.Description, viewModel.EditDescriptionText);
 
         viewModel.EditNameText = "Changed";
+        viewModel.EditDescriptionText = "Unsaved";
         viewModel.CancelEditCommand.Execute(null);
+        Assert.Null(viewModel.SelectedTradingMistake);
+        Assert.Empty(viewModel.EditNameText);
+        Assert.Empty(viewModel.EditDescriptionText);
+        Assert.Equal(details.Name, store.Mistake.Name);
+        Assert.Equal(details.Description, store.Mistake.Description);
+        Assert.Equal(details.UpdatedAtUtc, store.Mistake.UpdatedAtUtc);
         Assert.False(viewModel.IsEditFormVisible);
         Assert.Equal(0, store.UpdateCalls);
     }
@@ -303,7 +315,7 @@ public sealed class TradingMistakesViewModelTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => refresh);
     }
 
-    private static TradingMistakesViewModel Create(
+    internal static TradingMistakesViewModel Create(
         FakeTradingMistakeReader? reader = null,
         FakeTradingMistakeStore? store = null,
         FakeTradingMistakeNameChecker? checker = null,

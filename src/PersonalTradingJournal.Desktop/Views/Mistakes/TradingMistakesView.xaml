@@ -48,7 +48,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Margin="0,16,0,0">
+            <Border x:Name="MistakeDetails" Margin="0,16,0,0">
                 <Border.Style>
                     <Style TargetType="{x:Type Border}" BasedOn="{StaticResource PtjFormSectionStyle}">
                         <Setter Property="Visibility" Value="Visible" />
@@ -66,19 +66,21 @@
                             <TextBlock><TextBlock.Style><Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjInactiveStatusTextStyle}"><Setter Property="Text" Value="Inactive" /><Style.Triggers><DataTrigger Binding="{Binding SelectedTradingMistake.IsActive}" Value="True"><Setter Property="Text" Value="Active" /><Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
                         </Border>
                     </Grid>
-                    <Grid Margin="0,16,0,0">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                        <TextBlock Style="{StaticResource PtjDetailLabelTextStyle}" Text="Description" />
-                        <TextBlock Grid.Column="1" Grid.ColumnSpan="3" Style="{StaticResource PtjDetailValueTextStyle}"
-                                   Text="{Binding SelectedTradingMistake.Description, TargetNullValue=—}" TextWrapping="Wrap" />
-                        <TextBlock Grid.Row="1" Margin="0,10,0,0" Style="{StaticResource PtjDetailLabelTextStyle}" Text="Created" />
-                        <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,10,0,0" Style="{StaticResource PtjDetailValueTextStyle}"
-                                   Text="{Binding SelectedTradingMistake.CreatedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm} UTC}" />
-                        <TextBlock Grid.Row="1" Grid.Column="2" Margin="24,10,0,0" Style="{StaticResource PtjDetailLabelTextStyle}" Text="Updated" />
-                        <TextBlock Grid.Row="1" Grid.Column="3" Margin="0,10,0,0" Style="{StaticResource PtjDetailValueTextStyle}"
-                                   Text="{Binding SelectedTradingMistake.UpdatedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm} UTC}" />
-                    </Grid>
+                    <Separator Margin="0,16,0,12" Style="{StaticResource PtjSeparatorStyle}" />
+                    <TextBlock Style="{StaticResource PtjFormLabelTextStyle}" Text="Description" />
+                    <TextBlock Margin="0,4,0,0" Style="{StaticResource PtjDetailValueTextStyle}"
+                               Text="{Binding SelectedTradingMistake.Description, TargetNullValue=—}" TextWrapping="Wrap" />
+                    <Separator Margin="0,16,0,12" Style="{StaticResource PtjSeparatorStyle}" />
+                    <WrapPanel>
+                        <StackPanel Margin="0,0,24,0">
+                            <TextBlock Style="{StaticResource PtjFormLabelTextStyle}" Text="Created" />
+                            <TextBlock Style="{StaticResource PtjDetailValueTextStyle}" Text="{Binding SelectedTradingMistake.CreatedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm} UTC}" />
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource PtjFormLabelTextStyle}" Text="Updated" />
+                            <TextBlock Style="{StaticResource PtjDetailValueTextStyle}" Text="{Binding SelectedTradingMistake.UpdatedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm} UTC}" />
+                        </StackPanel>
+                    </WrapPanel>
                     <StackPanel Margin="0,20,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
                         <Button Command="{Binding CloseDetailsCommand}" Content="Close" Style="{StaticResource PtjSecondaryButtonStyle}" />
                         <Button Margin="8,0,0,0" Command="{Binding EditCommand}" CommandParameter="{Binding SelectedTradingMistake.Id}"
@@ -109,7 +111,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Margin="0,16,0,0">
+            <Border x:Name="MistakeEditor" Margin="0,16,0,0">
                 <Border.Style><Style TargetType="{x:Type Border}" BasedOn="{StaticResource PtjFormSectionStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding IsEditFormVisible}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Border.Style>
                 <StackPanel>
                     <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}" Text="Edit Trading Mistake" />
@@ -148,30 +150,38 @@
                            Text="No trading mistakes yet. Create reusable process mistakes for trade review." />
             </Border>
 
-            <ItemsControl ItemsSource="{Binding TradingMistakes}">
+            <ScrollViewer x:Name="MistakeTableScroll" interactions:NestedTableWheelRouting.ForwardVerticalWheel="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                          HorizontalContentAlignment="Stretch">
+                <StackPanel MinWidth="590">
+                    <Grid x:Name="MistakeHeaders" Margin="17,0,17,8">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="4*" /><ColumnDefinition Width="80" /><ColumnDefinition Width="160" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="Name" Style="{StaticResource PtjFormLabelTextStyle}" />
+                        <TextBlock Grid.Column="1" Margin="16,0" Text="Description" Style="{StaticResource PtjFormLabelTextStyle}" />
+                        <TextBlock Grid.Column="2" Text="Status" Style="{StaticResource PtjFormLabelTextStyle}" />
+                        <TextBlock Grid.Column="3" HorizontalAlignment="Center" Text="Actions" Style="{StaticResource PtjFormLabelTextStyle}" />
+                    </Grid>
+            <ItemsControl x:Name="MistakeRows" ItemsSource="{Binding TradingMistakes}">
                 <ItemsControl.ItemTemplate><DataTemplate>
-                    <Border Margin="0,0,0,10" Style="{StaticResource PtjCardStyle}">
-                        <Grid>
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="4*" /><ColumnDefinition Width="90" /><ColumnDefinition Width="240" /></Grid.ColumnDefinitions>
+                    <Border Padding="16" Margin="0,0,0,10" Style="{StaticResource PtjCardStyle}">
+                        <Grid x:Name="MistakeRow">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="4*" /><ColumnDefinition Width="80" /><ColumnDefinition Width="160" /></Grid.ColumnDefinitions>
                             <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource PtjBodyTextStyle}" Text="{Binding Name}" />
                             <TextBlock Grid.Column="1" Margin="16,0" VerticalAlignment="Center" Style="{StaticResource PtjSecondaryTextStyle}"
                                        Text="{Binding Description, TargetNullValue=—}" TextTrimming="CharacterEllipsis" />
                             <TextBlock Grid.Column="2" VerticalAlignment="Center"><TextBlock.Style><Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjCaptionTextStyle}"><Setter Property="Text" Value="Inactive" /><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" /><Style.Triggers><DataTrigger Binding="{Binding IsActive}" Value="True"><Setter Property="Text" Value="Active" /><Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
-                            <StackPanel Grid.Column="3" Margin="8,0,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
-                                <Button Command="{Binding DataContext.ViewCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                            <StackPanel Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Right" Orientation="Horizontal">
+                                <Button x:Name="RowView" Width="78" Height="36" Padding="4,0" VerticalAlignment="Center" AutomationProperties.Name="View trading mistake" Command="{Binding DataContext.ViewCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                                         CommandParameter="{Binding Id}" Style="{StaticResource PtjEntityActionButtonStyle}" ToolTip="View trading mistake details">
                                     <StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14"><Path Data="{StaticResource PtjIconView}" Fill="{x:Null}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" StrokeLineJoin="Round" StrokeThickness="1.7" /></Viewbox><TextBlock Margin="6,0,0,0" Text="View" /></StackPanel>
                                 </Button>
-                                <Button Margin="4,0,0,0" Command="{Binding DataContext.EditCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                        CommandParameter="{Binding Id}" Style="{StaticResource PtjEntityActionButtonStyle}" ToolTip="Edit trading mistake">
-                                    <StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14"><Path Data="{StaticResource PtjIconEdit}" Fill="{x:Null}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" StrokeLineJoin="Round" StrokeThickness="1.7" /></Viewbox><TextBlock Margin="6,0,0,0" Text="Edit" /></StackPanel>
-                                </Button>
-                                <Button Margin="4,0,0,0" AutomationProperties.Name="More trading mistake actions"
+                                <Button x:Name="RowMore" Width="78" Height="36" Padding="4,0" VerticalAlignment="Center" Margin="4,0,0,0" AutomationProperties.Name="More trading mistake actions"
                                         interactions:EntityActionMenu.OpensContextMenu="True" Style="{StaticResource PtjIconButtonStyle}"
                                         Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                                         ToolTip="More trading mistake actions">
                                     <Button.ContextMenu>
                                         <ContextMenu DataContext="{Binding PlacementTarget, RelativeSource={RelativeSource Self}}" Style="{StaticResource PtjEntityActionMenuStyle}">
+                                            <MenuItem x:Name="RowEdit" Header="Edit" Style="{StaticResource PtjEntityActionMenuItemStyle}"
+                                                      Command="{Binding Tag.EditCommand}" CommandParameter="{Binding DataContext.Id}" />
                                             <MenuItem Command="{Binding Tag.ToggleActiveCommand}" CommandParameter="{Binding DataContext}" Header="Activate">
                                                 <MenuItem.Icon><Viewbox><Path Data="{StaticResource PtjIconActivate}" Fill="{x:Null}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}" StrokeLineJoin="Round" StrokeThickness="1.8" /></Viewbox></MenuItem.Icon>
                                                 <MenuItem.Style><Style TargetType="{x:Type MenuItem}" BasedOn="{StaticResource PtjLifecycleMenuItemStyle}"><Setter Property="Visibility" Value="Visible" /><Style.Triggers><DataTrigger Binding="{Binding DataContext.IsActive}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></MenuItem.Style>
@@ -194,6 +204,8 @@
                     </Border>
                 </DataTemplate></ItemsControl.ItemTemplate>
             </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

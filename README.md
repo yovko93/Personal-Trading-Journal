@@ -43,7 +43,7 @@ Accounts show cumulative payouts in the Account currency and deduct them from Cu
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | The complete local Release gate finished in 15m 36.24s with **5,510 passed, 0 failed and 1 existing Rules quarantine skip**. The Setup card native-input test passed under Infrastructure load and in the gate. [WPF verification](docs/ci-wpf-tests.md#setup-card-foreground-ownership) |
+| Verification | The complete local Release gate passed in 14m 02.26s with **5,512 passed, 0 failed and 1 existing Rules quarantine skip**. Mistakes workspace regressions and Light/Dark compiled layouts passed. See [Mistakes verification](docs/desktop-ui.md#mistakes-workspace). |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
@@ -64,6 +64,8 @@ The CI badge tracks `main`; it does not certify every development change. The [N
 | **Data management** | Create complete backups, validate and restore compatible archives, and export data as JSON or CSV. |
 | **Reference data** | Instruments show Tick Value with its currency (for example, `5.00 USD`), left-aligned data columns, a centered Actions heading, right-aligned row buttons and narrow-window horizontal scrolling. Edit is in the row menu. Add defaults to editable USD; Edit retains the saved currency. Three-dot menus toggle open/closed; shared buttons have theme-aware hover highlights. |
 | **Appearance** | Choose System, Light, or Dark themes, with the Bull and Bear Trading Journal artwork, a distinct emerald sidebar header, and matching Windows application icons. |
+
+Mistakes now has aligned Name, Description, Status and Actions headings, row-menu Edit, and themed detail dividers. Cancelling Edit returns to the list and discards the draft. See [Mistakes workspace](docs/desktop-ui.md#mistakes-workspace).
 
 Analytics preserve currency boundaries and expose missing costs or incomplete evidence. Each view documents its Gross/Net policy; unavailable values are not silently treated as zero.
 
